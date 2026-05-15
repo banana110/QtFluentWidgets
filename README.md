@@ -122,3 +122,15 @@ cmake --build build
 ## Demo 导航（与模块一致）
 
 Demo 的页面分组与文档模块基本一致：输入 / 按钮 / 角度控件 / 选择器 / 数据视图 / 容器 / 窗口。`FluentNavigationView` 相关说明已补到 Containers 页面，并由主窗口左侧导航做完整实战示例。
+
+---
+
+## Star History
+
+<a href="https://www.star-history.com/?repos=Type3limit%2FQtFluentWidgets&type=date&legend=top-left">
+ <picture>
+   <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/chart?repos=Type3limit/QtFluentWidgets&type=date&theme=dark&legend=top-left" />
+   <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/chart?repos=Type3limit/QtFluentWidgets&type=date&legend=top-left" />
+   <img alt="Star History Chart" src="https://api.star-history.com/chart?repos=Type3limit/QtFluentWidgets&type=date&legend=top-left" />
+ </picture>
+</a>
