@@ -332,6 +332,62 @@ QWidget *createInputsPage(FluentMainWindow *window)
 #undef INPUTS_COMBOBOX_SCROLL
         }
 
+        // ComboBox with multi-selection mode
+        {
+            QString code;
+#define INPUTS_COMBOBOX_MULTI(X) \
+    X(auto *combo3 = new FluentComboBox();) \
+    X(combo3->setSelectionMode(FluentComboBox::MultiSelection);) \
+    X(combo3->setMultiSelectionPlaceholder(DEMO_TEXT("请选择…", "Select…"));) \
+    X(combo3->addItem(DEMO_TEXT("苹果", "Apple"));) \
+    X(combo3->addItem(DEMO_TEXT("香蕉", "Banana"));) \
+    X(combo3->addItem(DEMO_TEXT("樱桃", "Cherry"));) \
+    X(combo3->addItem(DEMO_TEXT("葡萄", "Grape"));) \
+    X(combo3->addItem(DEMO_TEXT("芒果", "Mango"));) \
+    X(combo3->setCheckedIndexes({0, 2});) \
+    X(auto *status = new FluentLabel(QStringLiteral(""));) \
+    X(status->setStyleSheet("font-size: 12px; opacity: 0.85;");) \
+    X(auto syncStatus = [=]() { const auto idxs = combo3->checkedIndexes(); status->setText(DEMO_TEXT("已选 %1 项：%2", "%1 selected: %2").arg(idxs.size()).arg(combo3->checkedTexts().join(QStringLiteral(", ")))); };) \
+    X(syncStatus();) \
+    X(QObject::connect(combo3, &FluentComboBox::checkedIndexesChanged, status, [=](const QList<int> &){ syncStatus(); });) \
+    X(auto *row = new QHBoxLayout();) \
+    X(row->setContentsMargins(0, 0, 0, 0);) \
+    X(row->setSpacing(10);) \
+    X(row->addWidget(combo3);) \
+    X(row->addWidget(status);) \
+    X(row->addStretch(1);) \
+    X(body->addLayout(row);)
+
+#define X(line) code += QStringLiteral(#line "\n");
+            INPUTS_COMBOBOX_MULTI(X)
+#undef X
+
+            page->addWidget(Demo::makeCollapsedExample(
+                QStringLiteral("FluentComboBox（多选）"),
+                DEMO_TEXT("多选模式：弹窗中每项前显示复选框，点击切换勾选；输入框显示已勾选项的拼接", "Multi-selection mode: each popup row shows a checkbox; clicking toggles the check state; the field shows joined checked texts"),
+                DEMO_TEXT("要点：\n"
+                          "-setSelectionMode(FluentComboBox::MultiSelection) 启用多选\n"
+                          "-setMultiSelectionPlaceholder() 空选时显示的占位文本\n"
+                          "-setCheckedIndexes(list) / checkedIndexes() / checkedTexts()\n"
+                          "-checkedIndexesChanged(QList<int>) 选项变化信号\n"
+                          "-点击行不会关闭弹窗；按 Esc 或点击外部关闭",
+                          "Highlights:\n"
+                          "-setSelectionMode(FluentComboBox::MultiSelection) enables multi-select\n"
+                          "-setMultiSelectionPlaceholder() sets the empty-state placeholder\n"
+                          "-setCheckedIndexes(list) / checkedIndexes() / checkedTexts() helpers\n"
+                          "-The checkedIndexesChanged(QList<int>) signal fires whenever the set changes\n"
+                          "-Clicking a row toggles its check state without closing the popup; press Esc or click outside to dismiss"),
+                code,
+                [=](QVBoxLayout *body) {
+#define X(line) line
+                    INPUTS_COMBOBOX_MULTI(X)
+#undef X
+                },
+                false));
+
+#undef INPUTS_COMBOBOX_MULTI
+        }
+
         Q_UNUSED(window);
     });
 }

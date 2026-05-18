@@ -593,6 +593,16 @@ private:
             return;
         }
 
+        if (m_combo->selectionMode() == FluentComboBox::MultiSelection) {
+            // Toggle check state, keep popup open.
+            m_combo->toggleCheckedRow(index.row());
+            if (m_view) {
+                m_view->update(index);
+                m_view->viewport()->update();
+            }
+            return;
+        }
+
         m_combo->commitPopupIndex(index.row());
         dismiss(true);
     }
@@ -909,9 +919,10 @@ private:
 class FluentComboItemDelegate final : public QStyledItemDelegate
 {
 public:
-    explicit FluentComboItemDelegate(FluentComboPopupView *view)
+    explicit FluentComboItemDelegate(FluentComboPopupView *view, FluentComboBox *combo)
         : QStyledItemDelegate(view)
         , m_view(view)
+        , m_combo(combo)
     {
     }
 
@@ -920,6 +931,9 @@ public:
         // Increase item height in popup logic
         QSize sz = QStyledItemDelegate::sizeHint(option, index);
         if (sz.height() < 32) sz.setHeight(32); // Minimum 32px height for Fluent ComboBox items
+        if (m_combo && m_combo->selectionMode() == FluentComboBox::MultiSelection) {
+            sz.setWidth(sz.width() + 28); // leave room for checkbox glyph
+        }
         return sz;
     }
 
@@ -932,10 +946,12 @@ public:
         const auto &colors = ThemeManager::instance().colors();
 
         const bool enabled = opt.state.testFlag(QStyle::State_Enabled);
+        const bool multi = m_combo && m_combo->selectionMode() == FluentComboBox::MultiSelection;
+        const bool checked = multi && index.data(Qt::CheckStateRole).toInt() == Qt::Checked;
 
         const QRectF itemRect = QRectF(opt.rect).adjusted(4, 2, -4, -2);
-        const bool selected = opt.state.testFlag(QStyle::State_Selected);
-        const bool isCurrent = m_view && m_view->currentIndex().isValid() && index == m_view->currentIndex();
+        const bool selected = !multi && opt.state.testFlag(QStyle::State_Selected);
+        const bool isCurrent = m_view && m_view->currentIndex().isValid() && index == m_view->currentIndex() && !multi;
         const bool hovered = m_view && index == m_view->hoverIndex();
 
         painter->save();
@@ -964,6 +980,30 @@ public:
         const int leftPadding = 10;
         qreal x = itemRect.left() + leftPadding;
 
+        // Checkbox glyph for multi-selection mode
+        if (multi) {
+            const qreal cbSize = 16.0;
+            const QRectF cbRect(x, itemRect.center().y() - cbSize / 2.0, cbSize, cbSize);
+            QColor borderCol = checked ? colors.accent : colors.border;
+            QColor fillCol = checked ? colors.accent : Qt::transparent;
+            painter->setPen(QPen(borderCol, 1.4));
+            painter->setBrush(fillCol);
+            painter->drawRoundedRect(cbRect, 3.0, 3.0);
+            if (checked) {
+                QPen checkPen(colors.background, 2.0);
+                checkPen.setCapStyle(Qt::RoundCap);
+                checkPen.setJoinStyle(Qt::RoundJoin);
+                painter->setPen(checkPen);
+                painter->setBrush(Qt::NoBrush);
+                const QPointF p1(cbRect.left() + 3.5, cbRect.center().y() + 0.5);
+                const QPointF p2(cbRect.center().x() - 0.5, cbRect.bottom() - 3.5);
+                const QPointF p3(cbRect.right() - 3.0, cbRect.top() + 4.0);
+                painter->drawLine(p1, p2);
+                painter->drawLine(p2, p3);
+            }
+            x += cbSize + 8;
+        }
+
         const QIcon icon = index.data(Qt::DecorationRole).value<QIcon>();
         if (!icon.isNull()) {
             const QRect iconRect(static_cast<int>(x), static_cast<int>(itemRect.center().y() - iconSize / 2), iconSize, iconSize);
@@ -981,6 +1021,7 @@ public:
 
 private:
     FluentComboPopupView *m_view = nullptr;
+    FluentComboBox *m_combo = nullptr;
 };
 
 } // namespace
@@ -1002,7 +1043,7 @@ FluentComboBox::FluentComboBox(QWidget *parent)
     auto *popupView = new FluentComboPopupView(this);
     setView(popupView);
     if (view()) {
-        view()->setItemDelegate(new FluentComboItemDelegate(popupView));
+        view()->setItemDelegate(new FluentComboItemDelegate(popupView, this));
         view()->setMouseTracking(true);
         view()->setAttribute(Qt::WA_TranslucentBackground, false);
         view()->setAttribute(Qt::WA_StyledBackground, false);
@@ -1110,7 +1151,14 @@ void FluentComboBox::paintEvent(QPaintEvent *event)
     const QColor textColor = enabled ? colors.text : colors.disabledText;
 
     painter.setPen(textColor);
-    const QString elided = fontMetrics().elidedText(currentText(), Qt::ElideRight, textRect.width());
+    QString displayText;
+    if (m_selectionMode == MultiSelection) {
+        const QStringList ts = checkedTexts();
+        displayText = ts.isEmpty() ? m_multiPlaceholder : ts.join(QStringLiteral(", "));
+    } else {
+        displayText = currentText();
+    }
+    const QString elided = fontMetrics().elidedText(displayText, Qt::ElideRight, textRect.width());
     painter.drawText(textRect, Qt::AlignVCenter | Qt::AlignLeft, elided);
 
     const QRect arrowRect(this->rect().right() - m.iconAreaWidth, this->rect().top(), m.iconAreaWidth, this->rect().height());
@@ -1202,6 +1250,138 @@ void FluentComboBox::setPopupScrollThreshold(int threshold)
 int FluentComboBox::effectivePopupScrollThreshold() const
 {
     return m_popupScrollThreshold > 0 ? m_popupScrollThreshold : qMax(1, maxVisibleItems());
+}
+
+FluentComboBox::SelectionMode FluentComboBox::selectionMode() const
+{
+    return m_selectionMode;
+}
+
+void FluentComboBox::setSelectionMode(SelectionMode mode)
+{
+    if (m_selectionMode == mode) {
+        return;
+    }
+    m_selectionMode = mode;
+    if (mode == MultiSelection) {
+        applyMultiCheckableFlags();
+    }
+    if (m_popup) {
+        m_popup->syncFromCombo();
+    }
+    update();
+}
+
+void FluentComboBox::applyMultiCheckableFlags()
+{
+    QAbstractItemModel *m = model();
+    if (!m) {
+        return;
+    }
+    const int rows = m->rowCount();
+    for (int r = 0; r < rows; ++r) {
+        const QModelIndex idx = m->index(r, modelColumn());
+        if (!idx.isValid()) {
+            continue;
+        }
+        if (idx.data(Qt::CheckStateRole).isNull()) {
+            m->setData(idx, Qt::Unchecked, Qt::CheckStateRole);
+        }
+    }
+}
+
+bool FluentComboBox::isItemChecked(int index) const
+{
+    if (index < 0 || index >= count()) {
+        return false;
+    }
+    return itemData(index, Qt::CheckStateRole).toInt() == Qt::Checked;
+}
+
+void FluentComboBox::setItemChecked(int index, bool checked)
+{
+    if (index < 0 || index >= count()) {
+        return;
+    }
+    const bool was = isItemChecked(index);
+    if (was == checked) {
+        return;
+    }
+    setItemData(index, checked ? Qt::Checked : Qt::Unchecked, Qt::CheckStateRole);
+    if (m_popup) {
+        m_popup->syncFromCombo();
+    }
+    update();
+    emit checkedIndexesChanged(checkedIndexes());
+}
+
+void FluentComboBox::toggleCheckedRow(int row)
+{
+    setItemChecked(row, !isItemChecked(row));
+}
+
+QList<int> FluentComboBox::checkedIndexes() const
+{
+    QList<int> result;
+    const int n = count();
+    for (int i = 0; i < n; ++i) {
+        if (isItemChecked(i)) {
+            result.append(i);
+        }
+    }
+    return result;
+}
+
+void FluentComboBox::setCheckedIndexes(const QList<int> &indexes)
+{
+    const int n = count();
+    QList<int> normalized;
+    normalized.reserve(indexes.size());
+    for (int i : indexes) {
+        if (i >= 0 && i < n) {
+            normalized.append(i);
+        }
+    }
+    bool anyChange = false;
+    for (int i = 0; i < n; ++i) {
+        const bool want = normalized.contains(i);
+        if (isItemChecked(i) != want) {
+            setItemData(i, want ? Qt::Checked : Qt::Unchecked, Qt::CheckStateRole);
+            anyChange = true;
+        }
+    }
+    if (anyChange) {
+        if (m_popup) {
+            m_popup->syncFromCombo();
+        }
+        update();
+        emit checkedIndexesChanged(checkedIndexes());
+    }
+}
+
+QStringList FluentComboBox::checkedTexts() const
+{
+    QStringList result;
+    for (int i : checkedIndexes()) {
+        result << itemText(i);
+    }
+    return result;
+}
+
+void FluentComboBox::clearChecked()
+{
+    setCheckedIndexes({});
+}
+
+void FluentComboBox::setMultiSelectionPlaceholder(const QString &text)
+{
+    m_multiPlaceholder = text;
+    update();
+}
+
+QString FluentComboBox::multiSelectionPlaceholder() const
+{
+    return m_multiPlaceholder;
 }
 
 } // namespace Fluent

@@ -4,6 +4,7 @@
 
 - `FluentListView`（include: `Fluent/FluentListView.h`）
 - `FluentTableView`（include: `Fluent/FluentTableView.h`）
+- `FluentTableWidget`（include: `Fluent/FluentTableWidget.h`）
 - `FluentTreeView`（include: `Fluent/FluentTreeView.h`）
 
 这些控件在 selection/hover 等交互上使用 Fluent 风格，并包含选中切换动效（更接近 Win11）。
@@ -124,6 +125,43 @@ table->setSelectionBehavior(QAbstractItemView::SelectRows);
 - 重载 `setModel()`：自动接入选中动画。
 
 Demo：DataViews / Overview。
+
+## FluentTableWidget
+
+```cpp
+#include "Fluent/FluentTableWidget.h"
+#include <QTableWidgetItem>
+
+auto *table = new Fluent::FluentTableWidget(5, 4);
+table->setHorizontalHeaderLabels({"Name", "Enabled", "Qty", "Level"});
+table->setItem(0, 0, new QTableWidgetItem("Row 1"));
+table->setCellWidget(0, 1, new Fluent::FluentCheckBox());
+table->setCellWidget(0, 2, new Fluent::FluentSpinBox());
+table->setCellWidget(0, 3, new Fluent::FluentComboBox());
+```
+
+用途：基于「项」的表格（`QTableWidget` 风格），与 `FluentTableView` 视觉/交互完全一致，但内部自带 model，方便通过 `setItem()` / `setCellWidget()` 在单元格内嵌入任意控件。
+
+### 继承关系
+
+- `QTableWidget` → `Fluent::FluentTableWidget`
+
+### 使用场景
+
+- **小量数据 + 行内交互**：属性表、编辑面板、表单网格。每个 `QTableWidgetItem` 都是独立对象，便于直接读写文本/数据；`setCellWidget(r, c, widget)` 可在任意单元格放置 `FluentCheckBox` / `FluentComboBox` / `FluentSpinBox` / `FluentButton` / `FluentToggleSwitch` 等。
+- **海量数据**：请改用 `FluentTableView` + 自定义 `QStyledItemDelegate`。`QTableWidget` 每个单元格都是对象，行数上万时内存与刷新都会有压力。
+
+### 默认行为与样式
+
+- 与 `FluentTableView` 共享同一套 `FluentHeaderView` + `FluentTableItemDelegate`：行 hover / 选中描边、列分隔线、Fluent 滚动条、180ms 选中切换动效一致。
+- 构造函数：`FluentTableWidget(QWidget*)` 或 `FluentTableWidget(int rows, int cols, QWidget*)`。
+
+关键 API：
+
+- 继承自 `QTableWidget`：`setItem()` / `item()` / `setCellWidget()` / `cellWidget()` / `setHorizontalHeaderLabels()` 等。
+- `hoverIndex()` / `hoverLevel()`。
+
+Demo：DataViews（"FluentTableWidget" 段落）。
 
 ## FluentTreeView
 

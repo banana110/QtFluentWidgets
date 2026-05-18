@@ -1,4 +1,4 @@
-#include "Fluent/FluentTableView.h"
+#include "Fluent/FluentTableWidget.h"
 #include "Fluent/FluentScrollBar.h"
 #include "Fluent/FluentTheme.h"
 #include "FluentTableSupport.h"
@@ -9,17 +9,28 @@
 #include <QItemSelectionModel>
 #include <QMouseEvent>
 #include <QPainter>
-#include <QPainterPath>
 #include <QTimer>
 #include <QVariantAnimation>
+#include <cmath>
 
 namespace Fluent {
 
 using Detail::FluentHeaderView;
 using Detail::FluentTableItemDelegate;
 
-FluentTableView::FluentTableView(QWidget *parent)
-    : QTableView(parent)
+FluentTableWidget::FluentTableWidget(QWidget *parent)
+    : QTableWidget(parent)
+{
+    initFluent();
+}
+
+FluentTableWidget::FluentTableWidget(int rows, int columns, QWidget *parent)
+    : QTableWidget(rows, columns, parent)
+{
+    initFluent();
+}
+
+void FluentTableWidget::initFluent()
 {
     setHorizontalHeader(new FluentHeaderView(Qt::Horizontal, this));
     horizontalHeader()->setStretchLastSection(true);
@@ -70,36 +81,30 @@ FluentTableView::FluentTableView(QWidget *parent)
         viewport()->update();
     });
     applyTheme();
-    connect(&ThemeManager::instance(), &ThemeManager::themeChanged, this, &FluentTableView::applyTheme);
+    connect(&ThemeManager::instance(), &ThemeManager::themeChanged, this, &FluentTableWidget::applyTheme);
 
     QTimer::singleShot(0, this, [this]() { hookSelectionModel(); });
 }
 
-QModelIndex FluentTableView::hoverIndex() const
+QModelIndex FluentTableWidget::hoverIndex() const
 {
     return m_hoverIndex;
 }
 
-qreal FluentTableView::hoverLevel() const
+qreal FluentTableWidget::hoverLevel() const
 {
     return m_hoverLevel;
 }
 
-void FluentTableView::changeEvent(QEvent *event)
+void FluentTableWidget::changeEvent(QEvent *event)
 {
-    QTableView::changeEvent(event);
+    QTableWidget::changeEvent(event);
     if (event->type() == QEvent::EnabledChange) {
         applyTheme();
     }
 }
 
-void FluentTableView::setModel(QAbstractItemModel *model)
-{
-    QTableView::setModel(model);
-    hookSelectionModel();
-}
-
-void FluentTableView::paintEvent(QPaintEvent *event)
+void FluentTableWidget::paintEvent(QPaintEvent *event)
 {
     {
         const QModelIndex cur = currentIndex();
@@ -129,27 +134,27 @@ void FluentTableView::paintEvent(QPaintEvent *event)
         }
     }
 
-    QTableView::paintEvent(event);
+    QTableWidget::paintEvent(event);
 }
 
-void FluentTableView::mouseMoveEvent(QMouseEvent *event)
+void FluentTableWidget::mouseMoveEvent(QMouseEvent *event)
 {
     const QModelIndex index = indexAt(event->pos());
     if (index != m_hoverIndex) {
         m_hoverIndex = index;
         startHoverAnimation(index.isValid() ? 1.0 : 0.0);
     }
-    QTableView::mouseMoveEvent(event);
+    QTableWidget::mouseMoveEvent(event);
 }
 
-void FluentTableView::leaveEvent(QEvent *event)
+void FluentTableWidget::leaveEvent(QEvent *event)
 {
     startHoverAnimation(0.0);
     m_hoverIndex = QModelIndex();
-    QTableView::leaveEvent(event);
+    QTableWidget::leaveEvent(event);
 }
 
-void FluentTableView::applyTheme()
+void FluentTableWidget::applyTheme()
 {
     const QString next = Theme::tableViewStyle(ThemeManager::instance().colors());
     if (styleSheet() != next) {
@@ -157,7 +162,7 @@ void FluentTableView::applyTheme()
     }
 }
 
-void FluentTableView::hookSelectionModel()
+void FluentTableWidget::hookSelectionModel()
 {
     if (!selectionModel()) {
         return;
@@ -178,7 +183,7 @@ void FluentTableView::hookSelectionModel()
     m_selTargetOpacity = m_selOpacity;
 }
 
-QRectF FluentTableView::selectionRectForIndex(const QModelIndex &index) const
+QRectF FluentTableWidget::selectionRectForIndex(const QModelIndex &index) const
 {
     if (!index.isValid()) {
         return QRectF();
@@ -211,7 +216,7 @@ QRectF FluentTableView::selectionRectForIndex(const QModelIndex &index) const
     return r.isValid() ? QRectF(r).adjusted(2, 1, -2, -1) : QRectF();
 }
 
-void FluentTableView::startSelectionAnimation(const QModelIndex &from, const QModelIndex &to)
+void FluentTableWidget::startSelectionAnimation(const QModelIndex &from, const QModelIndex &to)
 {
     const bool animRunning = (m_selAnim && m_selAnim->state() == QAbstractAnimation::Running);
     const QRectF startRect = animRunning ? m_selRect : selectionRectForIndex(from);
@@ -273,7 +278,7 @@ void FluentTableView::startSelectionAnimation(const QModelIndex &from, const QMo
     m_selAnim->start();
 }
 
-void FluentTableView::startHoverAnimation(qreal endValue)
+void FluentTableWidget::startHoverAnimation(qreal endValue)
 {
     m_hoverAnim->stop();
     m_hoverAnim->setStartValue(m_hoverLevel);
@@ -282,3 +287,5 @@ void FluentTableView::startHoverAnimation(qreal endValue)
 }
 
 } // namespace Fluent
+
+

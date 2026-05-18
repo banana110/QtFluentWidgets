@@ -51,6 +51,7 @@ add_library(QtFluentWidgets
     include/Fluent/FluentTabWidget.h
     include/Fluent/FluentListView.h
     include/Fluent/FluentTableView.h
+    include/Fluent/FluentTableWidget.h
     include/Fluent/FluentTreeView.h
     include/Fluent/FluentGroupBox.h
     include/Fluent/FluentMenuBar.h
@@ -106,6 +107,7 @@ add_library(QtFluentWidgets
     src/FluentTabWidget.cpp
     src/FluentListView.cpp
     src/FluentTableView.cpp
+    src/FluentTableWidget.cpp
     src/FluentTreeView.cpp
     src/FluentGroupBox.cpp
     src/FluentMenuBar.cpp

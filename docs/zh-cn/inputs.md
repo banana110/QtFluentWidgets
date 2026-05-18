@@ -116,8 +116,15 @@ Demo：Inputs / Containers / Windows / Overview。
 
 - 继承自 `QComboBox`，可直接使用 `addItem(s)` / `setCurrentIndex()`。
 - `hoverLevel`（Q_PROPERTY）：动效层。
+- `setPopupScrollThreshold(int)`：超过该项数时弹层启用垂直滚动条（默认值取 `maxVisibleItems()`）。
+- 多选模式（`SelectionMode`）：
+	- `setSelectionMode(FluentComboBox::MultiSelection)` 启用多选；默认 `SingleSelection`。
+	- 多选模式下弹层每行前会绘制复选框，点击切换勾选且不会关闭弹窗（按 Esc 或点击外部关闭）。
+	- 输入框文本显示已勾选项的拼接；为空时显示 `setMultiSelectionPlaceholder()` 设置的占位文本。
+	- `setItemChecked(i,bool)` / `isItemChecked(i)` / `setCheckedIndexes(QList<int>)` / `checkedIndexes()` / `checkedTexts()` / `clearChecked()`。
+	- 信号 `checkedIndexesChanged(QList<int>)` 在勾选集合变化时发出。
 
-Demo：Pickers / Overview。
+Demo：Pickers / Overview / Inputs（"FluentComboBox（多选）" 段落）。
 
 ---
 

@@ -116,8 +116,15 @@ Key APIs:
 
 - Inherits `QComboBox`: `addItem(s)` / `setCurrentIndex()` etc.
 - `hoverLevel` (Q_PROPERTY)
+- `setPopupScrollThreshold(int)`: caps the popup at N visible rows before showing a scrollbar (defaults to `maxVisibleItems()`).
+- Multi-selection (`SelectionMode`):
+	- `setSelectionMode(FluentComboBox::MultiSelection)` enables multi-select; default is `SingleSelection`.
+	- In multi mode the popup draws a checkbox in front of every row; clicking toggles the check state without closing the popup (press Esc or click outside to dismiss).
+	- The field shows the joined checked texts; when empty it falls back to `setMultiSelectionPlaceholder()`.
+	- Helpers: `setItemChecked(i,bool)` / `isItemChecked(i)` / `setCheckedIndexes(QList<int>)` / `checkedIndexes()` / `checkedTexts()` / `clearChecked()`.
+	- Signal `checkedIndexesChanged(QList<int>)` fires whenever the checked set changes.
 
-Demo: Pickers / Overview.
+Demo: Pickers / Overview / Inputs (the "FluentComboBox (multi-select)" example).
 
 ---
 

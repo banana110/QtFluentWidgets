@@ -4,6 +4,7 @@
 
 - `FluentListView` (include: `Fluent/FluentListView.h`)
 - `FluentTableView` (include: `Fluent/FluentTableView.h`)
+- `FluentTableWidget` (include: `Fluent/FluentTableWidget.h`)
 - `FluentTreeView` (include: `Fluent/FluentTreeView.h`)
 
 These views customize hover/selection rendering and include Win11-like selection transition animations.
@@ -109,6 +110,45 @@ Key APIs:
 - Overridden `setModel()` hooks the selection model for animations.
 
 Demo: DataViews / Overview.
+
+---
+
+## Table widget
+
+```cpp
+#include "Fluent/FluentTableWidget.h"
+#include <QTableWidgetItem>
+
+auto *table = new Fluent::FluentTableWidget(5, 4);
+table->setHorizontalHeaderLabels({"Name", "Enabled", "Qty", "Level"});
+table->setItem(0, 0, new QTableWidgetItem("Row 1"));
+table->setCellWidget(0, 1, new Fluent::FluentCheckBox());
+table->setCellWidget(0, 2, new Fluent::FluentSpinBox());
+table->setCellWidget(0, 3, new Fluent::FluentComboBox());
+```
+
+Purpose: item-based table (`QTableWidget` style) sharing all visuals/interactions with `FluentTableView`, but carrying its own internal model so cells can be populated through `setItem()` / `setCellWidget()` — ideal when you need real widgets inside cells.
+
+### Inheritance
+
+- `QTableWidget` → `Fluent::FluentTableWidget`
+
+### When to use
+
+- **Small datasets with in-row controls** — property sheets, editor panes, form-style grids. Each `QTableWidgetItem` is a real object, so reading/writing per-cell data is straightforward. `setCellWidget(r, c, widget)` embeds any widget (`FluentCheckBox`, `FluentComboBox`, `FluentSpinBox`, `FluentButton`, `FluentToggleSwitch`, …).
+- **Large datasets** — use `FluentTableView` + a custom `QStyledItemDelegate` instead. Because every `QTableWidget` cell is an object, memory and refresh costs grow quickly past a few thousand rows.
+
+### Defaults
+
+- Reuses the same `FluentHeaderView` + `FluentTableItemDelegate` as `FluentTableView`: identical row hover/selection rendering, column separators, Fluent scroll bars, and 180 ms selection transition.
+- Two constructors: `FluentTableWidget(QWidget*)` and `FluentTableWidget(int rows, int cols, QWidget*)`.
+
+Key APIs:
+
+- Inherits `QTableWidget`: `setItem()` / `item()` / `setCellWidget()` / `cellWidget()` / `setHorizontalHeaderLabels()` / etc.
+- `hoverIndex()` / `hoverLevel()`.
+
+Demo: DataViews (the "FluentTableWidget" section).
 
 ---
 

@@ -15,7 +15,15 @@
 #include "Fluent/FluentMainWindow.h"
 #include "Fluent/FluentScrollArea.h"
 #include "Fluent/FluentTableView.h"
+#include "Fluent/FluentTableWidget.h"
 #include "Fluent/FluentTreeView.h"
+#include "Fluent/FluentButton.h"
+#include "Fluent/FluentCheckBox.h"
+#include "Fluent/FluentComboBox.h"
+#include "Fluent/FluentSpinBox.h"
+#include "Fluent/FluentToggleSwitch.h"
+
+#include <QTableWidgetItem>
 
 namespace Demo::Pages {
 
@@ -115,6 +123,68 @@ QWidget *createDataViewsPage(FluentMainWindow *window)
                 280));
 
 #undef DATAVIEWS_TABLE
+        }
+
+        // TableWidget (item-based, supports per-cell widgets)
+        {
+            QString code;
+#define DATAVIEWS_TABLEWIDGET(X) \
+    X(auto *detail = new FluentLabel(DEMO_TEXT("使用 setCellWidget() 为单元格嵌入控件，适合少量数据 + 控件交互的场景", "Use setCellWidget() to embed controls per cell — ideal for small datasets that need rich interactions"));) \
+    X(detail->setStyleSheet("font-size: 12px; opacity: 0.9;");) \
+    X(body->addWidget(detail);) \
+    X(auto wrap = [](QWidget *w, bool center) {) \
+    X(    auto *host = new QWidget(); host->setAttribute(Qt::WA_TranslucentBackground);) \
+    X(    auto *lay = new QHBoxLayout(host); lay->setContentsMargins(10, 4, 10, 4); lay->setSpacing(0);) \
+    X(    if (center) { lay->addStretch(1); lay->addWidget(w); lay->addStretch(1); } else { lay->addWidget(w); }) \
+    X(    return host;) \
+    X(};) \
+    X(auto *table = new FluentTableWidget(5, 4);) \
+    X(table->setHorizontalHeaderLabels({DEMO_TEXT("名称", "Name"), DEMO_TEXT("启用", "Enabled"), DEMO_TEXT("数量", "Qty"), DEMO_TEXT("等级", "Level")});) \
+    X(table->horizontalHeader()->setStretchLastSection(true);) \
+    X(table->setColumnWidth(0, 140);) \
+    X(table->setColumnWidth(1, 90);) \
+    X(table->setColumnWidth(2, 140);) \
+    X(table->verticalHeader()->setDefaultSectionSize(46);) \
+    X(table->setFixedHeight(290);) \
+    X(for (int r = 0; r < 5; ++r) {) \
+    X(    auto *nameItem = new QTableWidgetItem(QStringLiteral("Row %1").arg(r + 1));) \
+    X(    nameItem->setFlags(nameItem->flags() & ~Qt::ItemIsEditable);) \
+    X(    table->setItem(r, 0, nameItem);) \
+    X(    auto *cb = new FluentCheckBox(); cb->setChecked(r % 2 == 0); table->setCellWidget(r, 1, wrap(cb, true));) \
+    X(    auto *sb = new FluentSpinBox(); sb->setRange(0, 999); sb->setValue((r + 1) * 10); sb->setFixedWidth(110); table->setCellWidget(r, 2, wrap(sb, false));) \
+    X(    auto *combo = new FluentComboBox(); combo->addItems({QStringLiteral("Low"), QStringLiteral("Mid"), QStringLiteral("High")}); combo->setCurrentIndex(r % 3); table->setCellWidget(r, 3, wrap(combo, false));) \
+    X(}) \
+    X(body->addWidget(table);)
+
+#define X(line) code += QStringLiteral(#line "\n");
+            DATAVIEWS_TABLEWIDGET(X)
+#undef X
+
+            page->addWidget(Demo::makeCollapsedExample(
+                QStringLiteral("FluentTableWidget"),
+                DEMO_TEXT("基于项的表格（QTableWidget 风格，支持 setCellWidget）", "Item-based table (QTableWidget style) with per-cell widget support"),
+                DEMO_TEXT("要点：\n"
+                          "-FluentTableWidget(rows, cols) 直接构造（不需要外部 model）\n"
+                          "-setItem(r, c, new QTableWidgetItem(text)) 设置文本单元格\n"
+                          "-setCellWidget(r, c, widget) 嵌入任意控件：FluentCheckBox / FluentSpinBox / FluentComboBox / FluentToggleSwitch …\n"
+                          "-与 FluentTableView 风格一致：行 hover/选中描边、Fluent 滚动条\n"
+                          "-适用场景：少量数据 + 行内交互（属性表、编辑面板）；海量数据请用 FluentTableView + 自定义 delegate",
+                          "Highlights:\n"
+                          "-FluentTableWidget(rows, cols) constructs directly (no external model needed)\n"
+                          "-Use setItem(r, c, new QTableWidgetItem(text)) for plain cells\n"
+                          "-Use setCellWidget(r, c, widget) to embed any control: FluentCheckBox / FluentSpinBox / FluentComboBox / FluentToggleSwitch …\n"
+                          "-Shares FluentTableView's row hover/selection visuals and Fluent scroll bars\n"
+                          "-Best for small datasets with in-row interaction (property sheets, editor panes). For large datasets use FluentTableView with custom delegates."),
+                code,
+                [=](QVBoxLayout *body) {
+#define X(line) line
+                    DATAVIEWS_TABLEWIDGET(X)
+#undef X
+                },
+                true,
+                300));
+
+#undef DATAVIEWS_TABLEWIDGET
         }
 
         // TreeView
