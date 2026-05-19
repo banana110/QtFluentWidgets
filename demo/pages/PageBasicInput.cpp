@@ -5,6 +5,7 @@
 #include <QHBoxLayout>
 #include <QVBoxLayout>
 
+#include "Fluent/FluentAnimatedButton.h"
 #include "Fluent/FluentButton.h"
 #include "Fluent/FluentCard.h"
 #include "Fluent/FluentCheckBox.h"
@@ -66,12 +67,19 @@ QWidget *createBasicInputPage(FluentMainWindow *window, const std::function<void
 
                 auto *nameEdit = new FluentLineEdit();
                 nameEdit->setPlaceholderText(DEMO_TEXT("搜索或输入内容", "Search or type"));
+                auto *searchButton = Demo::makeAnimatedSearchButton(DEMO_TEXT("搜索", "Search"));
                 auto *disabledEdit = new FluentLineEdit();
                 disabledEdit->setPlaceholderText(DEMO_TEXT("禁用态示例", "Disabled example"));
                 disabledEdit->setDisabled(true);
                 lineRow->addWidget(nameEdit, 1);
+                lineRow->addWidget(searchButton);
                 lineRow->addWidget(disabledEdit, 1);
                 body->addLayout(lineRow);
+                QObject::connect(searchButton, &QPushButton::clicked, nameEdit, [nameEdit]() {
+                    nameEdit->setText(QStringLiteral("QtFluent"));
+                    nameEdit->setFocus();
+                    nameEdit->selectAll();
+                });
 
                 auto *valueRow = new QHBoxLayout();
                 valueRow->setContentsMargins(0, 0, 0, 0);

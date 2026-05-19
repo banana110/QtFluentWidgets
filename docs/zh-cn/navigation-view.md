@@ -72,7 +72,7 @@ QObject::connect(nav, &Fluent::FluentNavigationView::itemInvoked,
 - `iconFontFamily`：glyph 使用的字体族；未指定时默认使用 `Segoe Fluent Icons`。
 - `separator`：若为 `true`，该项会被渲染为分隔线。
 - `selectsOnInvoked`：是否在点击时同步修改 `selectedKey`；设为 `false` 时更接近 WinUI3 的 submenu-only 项。
-- `children`：一级子项列表；当前实现只支持一层嵌套。
+- `children`：子项列表；支持任意深度嵌套，`setSelectedKey()` 会自动展开祖先项。
 
 ## Pane 模式与外观
 
@@ -113,6 +113,7 @@ QObject::connect(nav, &Fluent::FluentNavigationView::itemInvoked,
     - Left 模式正文点击只展开或收起子项。
     - LeftCompact / Top 模式正文点击只打开 flyout，不会修改 `selectedKey`。
 - 对于叶子项，如果 `selectsOnInvoked = false`，点击仍会发出 `itemInvoked`，但不会改变当前选中态。
+- 返回按钮只发出 `backRequested()`，不会内置修改 `selectedKey`。应用层应维护自己的返回栈，并在收到信号后调用 `setSelectedKey(previousKey)`；Containers demo 展示了一个最小返回栈实现。
 
 ## Header、自适应与信号
 

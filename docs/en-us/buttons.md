@@ -5,12 +5,98 @@ This module contains common clickable/toggle controls with Fluent-style rounded 
 ## Widget list (public headers)
 
 - `FluentButton` (include: `Fluent/FluentButton.h`)
+- `FluentAnimatedButton` (include: `Fluent/FluentAnimatedButton.h`)
+- `FluentAnimatedIcon` (include: `Fluent/FluentAnimatedIcon.h`)
+- `FluentLottieWidget` (include: `Fluent/FluentLottieWidget.h`)
 - `FluentToolButton` (include: `Fluent/FluentToolButton.h`)
+- `FluentDropDownButton` (include: `Fluent/FluentDropDownButton.h`)
+- `FluentSplitButton` (include: `Fluent/FluentSplitButton.h`)
+- `FluentCommandBar` (include: `Fluent/FluentCommandBar.h`)
 - `FluentToggleSwitch` (include: `Fluent/FluentToggleSwitch.h`)
 - `FluentCheckBox` (include: `Fluent/FluentCheckBox.h`)
 - `FluentRadioButton` (include: `Fluent/FluentRadioButton.h`)
+- `FluentProgressRing` (include: `Fluent/FluentProgressRing.h`)
 
 Demo pages: Buttons (`demo/pages/PageButtons.cpp`) and Overview (`demo/pages/PageOverview.cpp`).
+
+---
+
+## FluentLottieWidget / FluentAnimatedIcon / FluentAnimatedButton
+
+Purpose: `FluentLottieWidget` is a general Lottie JSON playback widget. `FluentAnimatedIcon` layers WinUI-style state semantics on top. `FluentAnimatedButton` wires an animated icon into `QPushButton` semantics for search affordances, navigation icons, button icons, and other hover / pressed / selected animations.
+
+For complete usage, theme tinting, asset authoring, and performance guidance, see [lottie.md](lottie.md). This section keeps a quick reference for the Buttons page.
+
+Dependency: rlottie is integrated from the `third_party/rlottie` Git submodule. After a fresh clone, run:
+
+```bash
+git submodule update --init --recursive
+```
+
+Inheritance & construction:
+
+- `class FluentLottieWidget : public QWidget`
+- `class FluentAnimatedIcon : public FluentLottieWidget`
+- `class FluentAnimatedButton : public QPushButton`
+- Constructors: `FluentLottieWidget(QWidget*)`, `FluentAnimatedIcon(QWidget*)`, `FluentAnimatedButton(QWidget*)`, `FluentAnimatedButton(const QString&, QWidget*)`
+
+Key APIs:
+
+- `load(const QString&)`: load a `.json` Lottie file.
+- `loadData(const QByteArray&, const QString& cacheKey = {}, const QString& resourcePath = {})`: load from memory.
+- `play()` / `pause()` / `stop()`: playback control.
+- `setCurrentFrame(int)` / `setProgress(qreal)`: frame positioning.
+- `playSegment(int, int)` / `playMarker(const QString&)`: play a frame range or marker range.
+- `markerNames()` / `hasMarker()` / `markerFrame()` / `markerEndFrame()`: query top-level Lottie markers.
+- `FluentLottieWidget::setTintColor(const QColor&)` / `resetTintColor()`: optionally recolor rendered frames by alpha; useful for icon-like Lottie files.
+- `FluentAnimatedIcon::setState(const QString&, bool animated = true)`: switch marker states.
+- `FluentAnimatedIcon::setInteractive(true)`: automatically map hover / press to `Normal`, `PointerOver`, and `Pressed`.
+- `FluentAnimatedButton::loadAnimation()` / `loadAnimationData()`: load the button icon animation.
+- `FluentAnimatedButton::animatedIcon()`: access the internal icon widget for fallback icons, marker queries, and related setup.
+- `FluentAnimatedButton::setAnimatedIconSize()`: set the icon size inside the button.
+- `FluentAnimatedButton` automatically tints its internal animated icon to the current foreground color, so primary buttons use white icons and disabled buttons use the disabled text color.
+
+`FluentAnimatedIcon` marker resolution:
+
+- `[PreviousState]To[NewState]_Start` + `_End`: play the segment.
+- `[PreviousState]To[NewState]`: play or jump to the transition marker.
+- `[NewState]`: jump to the state marker.
+- Any `To[NewState]_End`: fallback state frame.
+- Numeric state: target frame.
+- Missing marker: frame 0.
+
+Example:
+
+```cpp
+#include "Fluent/FluentAnimatedIcon.h"
+
+auto *icon = new Fluent::FluentAnimatedIcon();
+icon->setFixedSize(48, 48);
+icon->load(QStringLiteral(":/lottie/search.json"));
+icon->setInteractive(true);
+icon->setState(QStringLiteral("Normal"), false);
+```
+
+Button example:
+
+```cpp
+#include "Fluent/FluentAnimatedButton.h"
+
+auto *button = new Fluent::FluentAnimatedButton(QStringLiteral("Search"));
+button->loadAnimation(QStringLiteral(":/lottie/search.json"));
+connect(button, &QPushButton::clicked, this, [] {
+    qDebug() << "Search clicked";
+});
+```
+
+Notes:
+
+- `FluentAnimatedButton` is best for action affordances; avoid replacing every ordinary form button with animation.
+- The first version does not automatically wire animated icons into every navigation control yet; use it as a standalone QWidget or button.
+- If Lottie loading fails, the widget paints a fallback icon or a default static glyph.
+- Public headers do not expose rlottie types, so backend changes should not break user code.
+
+See [animated-icon-plan.md](animated-icon-plan.md) for the broader integration plan.
 
 ---
 
@@ -101,6 +187,72 @@ Key APIs:
 - `hoverLevel` / `pressLevel` (Q_PROPERTY)
 
 Demo: Buttons / Overview (also used internally by other widgets).
+
+---
+
+## FluentDropDownButton / FluentSplitButton / FluentCommandBar
+
+Purpose: command-entry controls for tool surfaces, page command rows, card headers, and other places where related operations need to be grouped. They have different roles:
+
+- `FluentDropDownButton`: one button that opens a set of secondary actions.
+- `FluentSplitButton`: a high-frequency default action on the left, with variants or more options on the right.
+- `FluentCommandBar`: a `QAction`-centered surface for frequent commands, menu commands, separators, and a small number of custom widgets. When an action's enabled/text/icon state changes, the matching command button updates with it.
+
+Inheritance & construction:
+
+- `class FluentDropDownButton : public FluentButton`
+- `class FluentSplitButton : public QWidget`
+- `class FluentCommandBar : public QWidget`
+
+Key APIs:
+
+- `FluentDropDownButton::setMenu(QMenu*)` / `addAction()`: open a menu from the button.
+- `FluentSplitButton::setDefaultAction(QAction*)`: run the primary action from the left side.
+- `FluentSplitButton::setMenu(QMenu*)`: open secondary actions from the right arrow.
+- `FluentCommandBar::addAction()` / `addCommand(QAction*)` / `addSeparator()` / `addWidget()`: compose command buttons, menu commands, separators, and custom widgets.
+
+Example:
+
+```cpp
+#include "Fluent/FluentDropDownButton.h"
+#include "Fluent/FluentSplitButton.h"
+#include "Fluent/FluentCommandBar.h"
+#include "Fluent/FluentMenu.h"
+
+#include <QAction>
+
+auto *drop = new Fluent::FluentDropDownButton(QStringLiteral("More"));
+drop->addAction(QStringLiteral("Copy"));
+drop->addAction(QStringLiteral("Move"));
+
+auto *split = new Fluent::FluentSplitButton(QStringLiteral("Save"));
+split->setDefaultAction(new QAction(QStringLiteral("Save"), split));
+auto *menu = new Fluent::FluentMenu(split);
+menu->addAction(QStringLiteral("Save as"));
+split->setMenu(menu);
+
+auto *bar = new Fluent::FluentCommandBar();
+auto *newAction = new QAction(QStringLiteral("New"), bar);
+auto *editAction = new QAction(QStringLiteral("Edit"), bar);
+bar->addCommand(newAction);
+bar->addCommand(editAction);
+bar->addSeparator();
+
+auto *exportMenu = new Fluent::FluentMenu(bar);
+exportMenu->setTitle(QStringLiteral("Export"));
+exportMenu->addAction(QStringLiteral("PDF"));
+bar->addCommand(exportMenu->menuAction());
+
+editAction->setEnabled(false); // The corresponding CommandBar button is disabled too.
+```
+
+Notes:
+
+- `FluentCommandBar` is a lightweight command container, not a replacement for `QToolBar`; use `FluentToolBar` when you need main-window toolbar semantics.
+- `FluentSplitButton` separates default action and secondary menu. If the control only opens a menu, `FluentDropDownButton` is clearer.
+- `FluentCommandBar` is valuable when commands are managed centrally; it is not just a styled replacement for `QHBoxLayout + Button`.
+
+Demo: Buttons / Overview.
 
 ---
 

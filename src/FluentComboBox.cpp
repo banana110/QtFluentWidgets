@@ -100,6 +100,23 @@ public:
         update();
     }
 
+    // Light refresh used after a single check-state toggle in multi-select
+    // mode. Avoids the side-effects of syncFromCombo() (scroll reset, current
+    // index re-sync) that caused Issue #11.
+    void refreshRow(int row)
+    {
+        if (!m_view) {
+            return;
+        }
+        const QModelIndex idx = comboIndexForRow(row);
+        if (idx.isValid()) {
+            m_view->update(idx);
+        }
+        if (m_view->viewport()) {
+            m_view->viewport()->update();
+        }
+    }
+
     void popup()
     {
         if (!m_combo) {
@@ -501,9 +518,24 @@ private:
         if (m_view->selectionModel()) {
             connect(m_view->selectionModel(), &QItemSelectionModel::currentChanged, this,
                     [this](const QModelIndex &current, const QModelIndex &) {
-                        if (m_view && current.isValid()) {
-                            m_view->scrollTo(current, QAbstractItemView::PositionAtCenter);
+                        if (!m_view || !current.isValid()) {
+                            return;
                         }
+                        // Never auto-scroll in multi-select mode: it would re-center the
+                        // viewport on mouse-press, causing the subsequent release/click to
+                        // land on a different row (Issue #11).
+                        if (m_combo && m_combo->selectionMode() == FluentComboBox::MultiSelection) {
+                            return;
+                        }
+                        // Only scroll when the current row is not already visible (keyboard
+                        // navigation hitting the viewport edge). Avoids stealing position
+                        // from the user during pointer interaction.
+                        const QRect itemRect = m_view->visualRect(current);
+                        const QRect viewport = m_view->viewport() ? m_view->viewport()->rect() : QRect();
+                        if (viewport.isValid() && viewport.contains(itemRect)) {
+                            return;
+                        }
+                        m_view->scrollTo(current, QAbstractItemView::EnsureVisible);
                     });
         }
     }
@@ -520,6 +552,14 @@ private:
     void syncSelectionFromCombo()
     {
         if (!m_view) {
+            return;
+        }
+
+        // In multi-selection mode, "selection" is represented by per-item check
+        // states, not by QComboBox::currentIndex(). Forcing the view's current
+        // index here would yank focus/scroll back to row 0 every time the user
+        // toggles a checkbox, because QComboBox::currentIndex() stays at 0.
+        if (m_combo && m_combo->selectionMode() == FluentComboBox::MultiSelection) {
             return;
         }
 
@@ -1308,8 +1348,12 @@ void FluentComboBox::setItemChecked(int index, bool checked)
         return;
     }
     setItemData(index, checked ? Qt::Checked : Qt::Unchecked, Qt::CheckStateRole);
+    // In multi-select mode we deliberately skip the full syncFromCombo() — it
+    // calls updateScrollPolicy()/layoutHostedView()/syncSelectionFromCombo(),
+    // any of which can reset scroll position or steal the view's current index
+    // (Issue #11). Just repaint the affected row instead.
     if (m_popup) {
-        m_popup->syncFromCombo();
+        m_popup->refreshRow(index);
     }
     update();
     emit checkedIndexesChanged(checkedIndexes());

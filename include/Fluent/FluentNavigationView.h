@@ -2,6 +2,7 @@
 
 #include "Fluent/FluentQtCompat.h"
 
+#include <QByteArray>
 #include <QIcon>
 #include <QString>
 #include <QWidget>
@@ -26,6 +27,11 @@ struct FluentNavigationItem
     QIcon   icon;          // optional icon (shown in both compact and expanded)
     QString iconGlyph;     // optional monochrome glyph icon (preferred for font icons)
     QString iconFontFamily; // optional font family for iconGlyph, defaults to Segoe Fluent Icons
+    QString animatedIconSource; // optional Lottie JSON path / qrc resource used instead of icon/iconGlyph
+    QByteArray animatedIconData; // optional in-memory Lottie JSON used instead of animatedIconSource
+    QString animatedIconCacheKey; // optional cache key for animatedIconData
+    QString animatedIconResourcePath; // optional resource path for animatedIconData image assets
+    bool animatedIconLooping = false; // loop while active instead of playing once on hover/selection
     bool    separator = false; // if true, rendered as a horizontal line (text/icon ignored)
     bool    selectsOnInvoked = true; // if false, clicking invokes without changing selectedKey
 
@@ -90,6 +96,19 @@ public:
 
     // --- Header (optional widget above items, e.g. a title) ----------------
     void setHeaderWidget(QWidget *widget);
+
+    // --- Pane chrome motion ------------------------------------------------
+    bool loadPaneToggleAnimation(const QString &path);
+    bool loadPaneToggleAnimationData(const QByteArray &json,
+                                     const QString &cacheKey = QString(),
+                                     const QString &resourcePath = QString());
+    void clearPaneToggleAnimation();
+
+    bool loadBackButtonAnimation(const QString &path);
+    bool loadBackButtonAnimationData(const QByteArray &json,
+                                     const QString &cacheKey = QString(),
+                                     const QString &resourcePath = QString());
+    void clearBackButtonAnimation();
 
     // --- Pane chrome -------------------------------------------------------
     bool isBackButtonVisible() const;

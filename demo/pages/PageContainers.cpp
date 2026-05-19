@@ -32,6 +32,9 @@
 #include <QGridLayout>
 #include <QEvent>
 
+#include <functional>
+#include <memory>
+
 namespace Demo::Pages {
 
 using namespace Fluent;
@@ -288,6 +291,7 @@ QWidget *createContainersPage(FluentMainWindow *window)
             const QString code = QStringLiteral(R"CPP(#include "Fluent/FluentNavigationView.h"
 
 #include <QMap>
+#include <QStringList>
 #include <functional>
 #include <memory>
 
@@ -366,6 +370,36 @@ auto rebuildNavigation = [=]() {
 rebuildNavigation();
 nav->setSelectedKey(QStringLiteral("home"));
 
+auto backStack = std::make_shared<QStringList>();
+auto currentKey = std::make_shared<QString>(nav->selectedKey());
+auto applyingBack = std::make_shared<bool>(false);
+auto updateBackState = [=]() {
+    nav->setBackButtonEnabled(!backStack->isEmpty());
+};
+updateBackState();
+
+QObject::connect(nav, &Fluent::FluentNavigationView::selectedKeyChanged,
+                 nav, [=](const QString &key) {
+    if (*applyingBack) {
+        *applyingBack = false;
+    } else if (!currentKey->isEmpty() && *currentKey != key) {
+        backStack->append(*currentKey);
+    }
+    *currentKey = key;
+    updateBackState();
+});
+
+QObject::connect(nav, &Fluent::FluentNavigationView::backRequested, nav, [=]() {
+    if (backStack->isEmpty()) {
+        updateBackState();
+        return;
+    }
+
+    *applyingBack = true;
+    nav->setSelectedKey(backStack->takeLast());
+    updateBackState();
+});
+
 // ---------------------------------------------------------------------------
 // 3) UI button: append a new child under whichever item is selected. Works
 //    at any depth because rebuildNavigation() walks the tree recursively.
@@ -442,14 +476,14 @@ QObject::connect(nav, &Fluent::FluentNavigationView::selectedKeyChanged,
                 DEMO_TEXT("要点：\n"
                           "-setPaneDisplayMode() 在 Left / LeftCompact / Top 三种布局间切换\n"
                           "-父项可通过 selectsOnInvoked 控制“点击即选中”还是“只打开子菜单”\n"
-                          "-backRequested / itemInvoked / selectedKeyChanged 可分别接回退、点击与选中逻辑\n"
+                          "-backRequested / itemInvoked / selectedKeyChanged 可分别接回退、点击与选中逻辑；本示例维护一个简单返回栈\n"
                           "-Footer 通过 addFooterItem() 显式添加，不再暗示内置设置页\n"
                           "-children 支持任意深度嵌套，setSelectedKey() 会自动展开所有祖先；点击右侧“追加子项到选中项”可动态构建多层结构\n"
                           "-导航项超出可视区域时自动出现垂直滚动条（鼠标滚轮 / 拖动滑块 / 点击轨道翻页均可），调用 setSelectedKey() 还会自动把选中项滚动到可见区域",
                           "Highlights:\n"
                           "-Use setPaneDisplayMode() to switch between Left, LeftCompact, and Top layouts\n"
                           "-Parent items can use selectsOnInvoked to choose between select-on-click and submenu-only behavior\n"
-                          "-backRequested, itemInvoked, and selectedKeyChanged separate back, invoke, and selection logic\n"
+                          "-backRequested, itemInvoked, and selectedKeyChanged separate back, invoke, and selection logic; this sample keeps a small back stack\n"
                           "-Footer entries are added explicitly through addFooterItem() instead of implying a built-in settings page\n"
                           "-children now supports arbitrarily deep nesting; setSelectedKey() auto-expands every ancestor. Use the 'Add child to selected' button on the right to build multi-level structures at runtime\n"
                           "-A vertical scrollbar appears automatically when items overflow the pane (mouse wheel, thumb drag, and track paging are all supported), and setSelectedKey() also auto-scrolls the row into view"),
@@ -475,6 +509,8 @@ QObject::connect(nav, &Fluent::FluentNavigationView::selectedKeyChanged,
                     nav->setPaneTitle(QStringLiteral("Pane Title"));
                     nav->setBackButtonVisible(true);
                     nav->setBackButtonEnabled(true);
+                    nav->loadPaneToggleAnimation(Demo::demoLottieResourcePath(QStringLiteral("menu.json")));
+                    nav->loadBackButtonAnimation(Demo::demoLottieResourcePath(QStringLiteral("left-arrow.json")));
 
                     auto applyGlyph = [](FluentNavigationItem &item, ushort codePoint) {
                         item.iconGlyph = QString(QChar(codePoint));
@@ -609,6 +645,13 @@ QObject::connect(nav, &Fluent::FluentNavigationView::selectedKeyChanged,
                             return QStringLiteral("Top");
                         }
                         return QStringLiteral("Left");
+                    };
+
+                    auto navigationBackStack = std::make_shared<QStringList>();
+                    auto navigationCurrentKey = std::make_shared<QString>();
+                    auto applyingBackNavigation = std::make_shared<bool>(false);
+                    const auto updateBackButtonState = [=]() {
+                        nav->setBackButtonEnabled(backEnabledToggle->isChecked() && !navigationBackStack->isEmpty());
                     };
 
                     const auto rebuildNavigation = [=]() {
@@ -761,26 +804,48 @@ QObject::connect(nav, &Fluent::FluentNavigationView::selectedKeyChanged,
                             detailBody->setText(DEMO_TEXT("使用 addItem / addFooterItem 追加导航项，使用 paneDisplayMode / backRequested / itemInvoked 组织不同布局和交互。", "Use addItem() and addFooterItem() to append navigation entries, then use paneDisplayMode, backRequested, and itemInvoked to organize layout and interaction."));
                         }
 
-                        detailState->setText(DEMO_TEXT("当前 key：%1\nPane 模式：%2\n文档组选中父项：%3\nFooter：%4（通过 addFooterItem() 显式追加）", "Current key: %1\nPane mode: %2\nSelect parent item for Documents: %3\nFooter: %4 (added explicitly via addFooterItem())")
+                        detailState->setText(DEMO_TEXT("当前 key：%1\nPane 模式：%2\n文档组选中父项：%3\nFooter：%4（通过 addFooterItem() 显式追加）\n返回栈：%5 项", "Current key: %1\nPane mode: %2\nSelect parent item for Documents: %3\nFooter: %4 (added explicitly via addFooterItem())\nBack stack: %5 item(s)")
                                                  .arg(key.isEmpty() ? QStringLiteral("<empty>") : key)
                                                  .arg(modeName(nav->paneDisplayMode()))
                                                  .arg(documentInvokesToggle->isChecked() ? DEMO_TEXT("开启", "On") : DEMO_TEXT("关闭", "Off"))
-                                                 .arg(nav->isFooterVisible() ? DEMO_TEXT("可见", "Visible") : DEMO_TEXT("隐藏", "Hidden")));
+                                                 .arg(nav->isFooterVisible() ? DEMO_TEXT("可见", "Visible") : DEMO_TEXT("隐藏", "Hidden"))
+                                                 .arg(navigationBackStack->size()));
                     };
 
                     rebuildNavigation();
                     nav->setSelectedKey(QStringLiteral("home"));
+                    *navigationCurrentKey = nav->selectedKey();
+                    updateBackButtonState();
                     relayoutPreview();
 
                     QObject::connect(nav, &FluentNavigationView::selectedKeyChanged, detailCard, [=](const QString &) {
                         detailEvent->setText(DEMO_TEXT("最近事件：selectedKeyChanged -> %1", "Latest event: selectedKeyChanged -> %1").arg(nav->selectedKey()));
+                        const QString key = nav->selectedKey();
+                        if (*applyingBackNavigation) {
+                            *applyingBackNavigation = false;
+                        } else if (!navigationCurrentKey->isEmpty() && *navigationCurrentKey != key) {
+                            navigationBackStack->append(*navigationCurrentKey);
+                        }
+                        *navigationCurrentKey = key;
+                        updateBackButtonState();
                         updateDetail();
                     });
                     QObject::connect(nav, &FluentNavigationView::itemInvoked, detailCard, [=](const QString &key) {
                         detailEvent->setText(DEMO_TEXT("最近事件：itemInvoked -> %1", "Latest event: itemInvoked -> %1").arg(key));
                     });
                     QObject::connect(nav, &FluentNavigationView::backRequested, detailCard, [=]() {
-                        detailEvent->setText(DEMO_TEXT("最近事件：backRequested", "Latest event: backRequested"));
+                        if (navigationBackStack->isEmpty()) {
+                            detailEvent->setText(DEMO_TEXT("最近事件：backRequested（没有可返回的历史）", "Latest event: backRequested (no history)"));
+                            updateBackButtonState();
+                            updateDetail();
+                            return;
+                        }
+
+                        const QString previousKey = navigationBackStack->takeLast();
+                        *applyingBackNavigation = true;
+                        nav->setSelectedKey(previousKey);
+                        detailEvent->setText(DEMO_TEXT("最近事件：backRequested -> %1", "Latest event: backRequested -> %1").arg(previousKey));
+                        updateBackButtonState();
                     });
                     QObject::connect(nav, &FluentNavigationView::paneDisplayModeChanged, detailCard, [=](FluentNavigationView::PaneDisplayMode) {
                         relayoutPreview();
@@ -805,7 +870,8 @@ QObject::connect(nav, &Fluent::FluentNavigationView::selectedKeyChanged,
                         nav->setBackButtonVisible(checked);
                     });
                     QObject::connect(backEnabledToggle, &FluentToggleSwitch::toggled, nav, [=](bool checked) {
-                        nav->setBackButtonEnabled(checked);
+                        Q_UNUSED(checked)
+                        updateBackButtonState();
                     });
                     QObject::connect(footerVisibleToggle, &FluentToggleSwitch::toggled, nav, [=](bool checked) {
                         nav->setFooterVisible(checked);
@@ -847,7 +913,12 @@ QObject::connect(nav, &Fluent::FluentNavigationView::selectedKeyChanged,
                         dynamicExtras->clear();
                         *dynamicCounter = 0;
                         rebuildNavigation();
+                        navigationBackStack->clear();
+                        *applyingBackNavigation = true;
                         nav->setSelectedKey(QStringLiteral("home"));
+                        *applyingBackNavigation = false;
+                        *navigationCurrentKey = nav->selectedKey();
+                        updateBackButtonState();
                         detailEvent->setText(DEMO_TEXT("最近事件：已清除动态追加的子项",
                                                        "Latest event: dynamic children cleared"));
                         updateDetail();

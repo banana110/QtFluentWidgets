@@ -7,11 +7,13 @@ Demo pages: Inputs (`demo/pages/PageInputs.cpp`), Angle Controls (`demo/pages/Pa
 ## Widget list (public headers)
 
 - `FluentLineEdit` (include: `Fluent/FluentLineEdit.h`)
+- `FluentAutoSuggestBox` / `FluentSearchBox` (include: `Fluent/FluentAutoSuggestBox.h`)
 - `FluentTextEdit` (include: `Fluent/FluentTextEdit.h`)
 - `FluentComboBox` (include: `Fluent/FluentComboBox.h`)
 - `FluentSpinBox` / `FluentDoubleSpinBox` (include: `Fluent/FluentSpinBox.h`)
 - `FluentSlider` (include: `Fluent/FluentSlider.h`)
 - `FluentProgressBar` (include: `Fluent/FluentProgressBar.h`)
+- `FluentProgressRing` (include: `Fluent/FluentProgressRing.h`)
 - `FluentDial` (include: `Fluent/FluentDial.h`)
 - `FluentAngleSelector` (include: `Fluent/FluentAngleSelector.h`)
 
@@ -57,6 +59,47 @@ le->setPlaceholderText(QStringLiteral("Type..."));
 ```
 
 Suggested pattern (search box): this widget does not provide leading/trailing icons; wrap it in `FluentCard` / `FluentWidget` and compose icons/buttons via layout.
+
+---
+
+## FluentAutoSuggestBox / FluentSearchBox
+
+Purpose: single-line input with string suggestions and a search-box variant. `FluentAutoSuggestBox` provides suggestions; `FluentSearchBox` adds a visible search button and submit signals.
+
+Inheritance & construction:
+
+- `class FluentAutoSuggestBox : public QWidget`
+- `class FluentSearchBox : public FluentAutoSuggestBox`
+- Constructors: `FluentAutoSuggestBox(QWidget*)`, `FluentSearchBox(QWidget*)`
+
+Key APIs:
+
+- `setSuggestions(const QStringList&)` / `suggestions()`: set candidate strings.
+- `setPlaceholderText()` / `text()` / `setText()`: input text.
+- `lineEdit()`: access the internal `FluentLineEdit` for fine-grained setup.
+- `submitted(const QString&)`: emitted on Return or search-button click.
+- `suggestionChosen(const QString&)`: emitted when a completion is accepted.
+- `searchRequested(const QString&)`: semantic search-submit signal.
+
+Example:
+
+```cpp
+#include "Fluent/FluentAutoSuggestBox.h"
+
+auto *search = new Fluent::FluentSearchBox();
+search->setPlaceholderText(QStringLiteral("Search controls"));
+search->setSuggestions({QStringLiteral("FluentButton"), QStringLiteral("FluentCard")});
+connect(search, &Fluent::FluentSearchBox::submitted, this, [](const QString &text) {
+    qDebug() << "search:" << text;
+});
+```
+
+Notes:
+
+- The suggestion popup is drawn by the library, matching `FluentComboBox` with a rounded panel, Fluent scroll bar, and custom suggestion rows.
+- `FluentSearchBox` shows the search button by default; use `FluentAutoSuggestBox` for suggestions-only input.
+
+Demo: Inputs / Overview.
 
 ---
 
@@ -241,6 +284,39 @@ pb->setTextPosition(Fluent::FluentProgressBar::TextPosition::Right);
 ```
 
 Demo: Buttons / Containers / Overview.
+
+---
+
+## FluentProgressRing
+
+Purpose: ring-shaped progress indicator with determinate progress and an indeterminate busy state. Useful for compact status areas, inline loading states, and cards that are waiting on work.
+
+Inheritance & construction:
+
+- `class FluentProgressRing : public QProgressBar`
+- Constructor: `FluentProgressRing(QWidget*)`
+
+Key APIs:
+
+- `setRange()` / `setValue()`: inherited determinate progress.
+- `setIndeterminate(true)`: enable the spinning busy state.
+- `setRingWidth(qreal)`: set the ring stroke width.
+
+Example:
+
+```cpp
+#include "Fluent/FluentProgressRing.h"
+
+auto *ring = new Fluent::FluentProgressRing();
+ring->setFixedSize(42, 42);
+ring->setRange(0, 100);
+ring->setValue(66);
+
+auto *busy = new Fluent::FluentProgressRing();
+busy->setIndeterminate(true);
+```
+
+Demo: Buttons / Overview.
 
 ---
 

@@ -9,6 +9,8 @@
 #include "Fluent/FluentButton.h"
 #include "Fluent/FluentCard.h"
 #include "Fluent/FluentDialog.h"
+#include "Fluent/FluentFlyout.h"
+#include "Fluent/FluentInfoBar.h"
 #include "Fluent/FluentLabel.h"
 #include "Fluent/FluentMainWindow.h"
 #include "Fluent/FluentMenu.h"
@@ -16,6 +18,7 @@
 #include "Fluent/FluentScrollArea.h"
 #include "Fluent/FluentToast.h"
 #include "Fluent/FluentTextEdit.h"
+#include "Fluent/FluentTeachingTip.h"
 #include "Fluent/FluentToggleSwitch.h"
 #include "Fluent/FluentWidget.h"
 
@@ -31,6 +34,43 @@ QWidget *createWindowsPage(FluentMainWindow *window)
         auto s = Demo::makeSection(DEMO_TEXT("窗口 / 对话框", "Windows / Dialogs"),
                                    DEMO_TEXT("FluentDialog 可选 resize；FluentMessageBox 四种类型", "FluentDialog with optional resize; FluentMessageBox in four variants"));
         page->addWidget(s.card);
+
+        // InfoBar
+        {
+            QString code;
+#define WINDOWS_INFOBAR(X) \
+    X(auto *info = new FluentInfoBar(FluentInfoBar::Severity::Info, DEMO_TEXT("同步完成", "Sync complete"), DEMO_TEXT("所有控件样式已跟随当前主题刷新。", "All controls have refreshed with the current theme."));) \
+    X(info->setActionText(DEMO_TEXT("查看", "View"));) \
+    X(auto *warn = new FluentInfoBar(FluentInfoBar::Severity::Warning, DEMO_TEXT("注意", "Heads up"), DEMO_TEXT("这是一个可关闭的信息提示条。", "This is a closable inline information bar."));) \
+    X(body->addWidget(info);) \
+    X(body->addWidget(warn);)
+
+#define X(line) code += QStringLiteral(#line "\n");
+            WINDOWS_INFOBAR(X)
+#undef X
+
+            page->addWidget(Demo::makeCollapsedExample(
+                QStringLiteral("FluentInfoBar"),
+                DEMO_TEXT("内嵌信息条：Info / Success / Warning / Error", "Inline information bar: info / success / warning / error"),
+                DEMO_TEXT("要点：\n"
+                          "-setSeverity() 切换语义色\n"
+                          "-setActionText() 增加轻量操作按钮\n"
+                          "-closed()/actionTriggered() 处理关闭与操作",
+                          "Highlights:\n"
+                          "-Use setSeverity() to switch semantic colors\n"
+                          "-Use setActionText() to add a lightweight action button\n"
+                          "-Handle closed() / actionTriggered() for dismissal and action"),
+                code,
+                [=](QVBoxLayout *body) {
+#define X(line) line
+                    WINDOWS_INFOBAR(X)
+#undef X
+                },
+                false,
+                210));
+
+#undef WINDOWS_INFOBAR
+        }
 
         // FluentMessageBox
         {
@@ -199,6 +239,108 @@ QWidget *createWindowsPage(FluentMainWindow *window)
                 210));
 
 #undef WINDOWS_MENU
+        }
+
+        // Popup / Flyout / TeachingTip
+        {
+            QString code;
+#define WINDOWS_POPUP_COMPARE(X) \
+    X(auto *row = new QHBoxLayout(); ) \
+    X(row->setContentsMargins(0, 0, 0, 0); ) \
+    X(row->setSpacing(10); ) \
+    X(auto *openPopup = new FluentButton(DEMO_TEXT("Popup：菜单", "Popup: menu")); ) \
+    X(auto *openFlyout = new FluentButton(DEMO_TEXT("Flyout：设置面板", "Flyout: panel")); ) \
+    X(auto *openTip = new FluentButton(DEMO_TEXT("TeachingTip：引导", "TeachingTip: guidance")); ) \
+    X(row->addWidget(openPopup); ) \
+    X(row->addWidget(openFlyout); ) \
+    X(row->addWidget(openTip); ) \
+    X(row->addStretch(1); ) \
+    X(body->addLayout(row); ) \
+    X(QObject::connect(openPopup, &QPushButton::clicked, window, [=]() { auto *menu = new FluentMenu(window); menu->addAction(DEMO_TEXT("剪切", "Cut")); menu->addAction(DEMO_TEXT("复制", "Copy")); menu->addSeparator(); auto *more = menu->addFluentMenu(DEMO_TEXT("更多", "More")); more->addAction(DEMO_TEXT("固定到顶部", "Pin to top")); QObject::connect(menu, &QMenu::aboutToHide, menu, &QObject::deleteLater); menu->popup(openPopup->mapToGlobal(QPoint(0, openPopup->height() + 4))); }); ) \
+    X(QObject::connect(openFlyout, &QPushButton::clicked, window, [=]() { auto *flyout = new FluentFlyout(window); auto *panel = new FluentWidget(); panel->setBackgroundRole(FluentWidget::BackgroundRole::Transparent); auto *l = new QVBoxLayout(panel); l->setContentsMargins(4, 4, 4, 4); l->setSpacing(10); auto *title = new FluentLabel(DEMO_TEXT("当前视图设置", "Current view settings")); title->setStyleSheet(QStringLiteral("font-weight: 650;")); l->addWidget(title); l->addWidget(new FluentToggleSwitch(DEMO_TEXT("紧凑列表", "Compact list"))); l->addWidget(new FluentToggleSwitch(DEMO_TEXT("显示预览", "Show preview"))); auto *close = new FluentButton(DEMO_TEXT("应用", "Apply")); close->setPrimary(true); QObject::connect(close, &QPushButton::clicked, flyout, &QWidget::hide); l->addWidget(close, 0, Qt::AlignLeft); flyout->setContentWidget(panel); flyout->showFor(openFlyout); }); ) \
+    X(QObject::connect(openTip, &QPushButton::clicked, window, [=]() { auto *tip = new FluentTeachingTip(window); tip->setTitle(DEMO_TEXT("试试新的命令入口", "Try the new command entry")); tip->setSubtitle(DEMO_TEXT("TeachingTip 用于解释某个目标控件，并给出一个明确的下一步。", "TeachingTip explains a target control and offers one clear next step.")); tip->setActionText(DEMO_TEXT("开始", "Start")); tip->setTarget(openTip); tip->open(); }); )
+
+#define X(line) code += QStringLiteral(#line "\n");
+            WINDOWS_POPUP_COMPARE(X)
+#undef X
+
+            page->addWidget(Demo::makeCollapsedExample(
+                QStringLiteral("Popup / FluentFlyout / FluentTeachingTip"),
+                DEMO_TEXT("命令弹层、上下文面板与教学提示的差异", "Differences between command popup, contextual flyout, and teaching tip"),
+                DEMO_TEXT("要点：\n"
+                          "-Popup/Menu 用于短命令或选择，不承载复杂表单\n"
+                          "-FluentFlyout 是上下文小面板，适合放少量自定义 QWidget\n"
+                          "-TeachingTip 用于解释某个目标控件，并提供明确下一步",
+                          "Highlights:\n"
+                          "-Popup/Menu is for short commands or choices, not complex forms\n"
+                          "-FluentFlyout is a contextual mini panel for a small custom QWidget surface\n"
+                          "-TeachingTip explains a target control and offers a clear next step"),
+                code,
+                [=](QVBoxLayout *body) {
+#define X(line) line
+                    WINDOWS_POPUP_COMPARE(X)
+#undef X
+                },
+                false,
+                330));
+
+#undef WINDOWS_POPUP_COMPARE
+        }
+
+        // TeachingTip guided flow
+        {
+            QString code;
+#define WINDOWS_TEACHING_TOUR(X) \
+    X(auto *row = new QHBoxLayout(); ) \
+    X(row->setContentsMargins(0, 0, 0, 0); ) \
+    X(row->setSpacing(10); ) \
+    X(auto *startTour = new FluentButton(DEMO_TEXT("开始引导", "Start tour")); ) \
+    X(startTour->setPrimary(true); ) \
+    X(auto *searchTarget = new FluentButton(DEMO_TEXT("搜索入口", "Search entry")); ) \
+    X(auto *previewTarget = new FluentToggleSwitch(DEMO_TEXT("预览", "Preview")); ) \
+    X(previewTarget->setChecked(true); ) \
+    X(auto *exportTarget = new FluentButton(DEMO_TEXT("导出", "Export")); ) \
+    X(auto *maskToggle = new FluentToggleSwitch(DEMO_TEXT("蒙版遮罩", "Mask")); ) \
+    X(maskToggle->setChecked(true); ) \
+    X(row->addWidget(startTour); ) \
+    X(row->addWidget(searchTarget); ) \
+    X(row->addWidget(previewTarget); ) \
+    X(row->addWidget(exportTarget); ) \
+    X(row->addWidget(maskToggle); ) \
+    X(row->addStretch(1); ) \
+    X(body->addLayout(row); ) \
+    X(auto *note = new FluentLabel(DEMO_TEXT("这个示例按顺序展示 3 个 TeachingTip 引导节点，并可切换蒙版遮罩。", "This sample walks through 3 TeachingTip nodes and lets you toggle the mask overlay.")); ) \
+    X(note->setWordWrap(true); ) \
+    X(body->addWidget(note); ) \
+    X(QObject::connect(startTour, &QPushButton::clicked, window, [=]() { auto *tip = new FluentTeachingTip(window); tip->setMaskEnabled(maskToggle->isChecked()); tip->setMaskOpacity(0.46); auto *previewContent = new FluentLabel(DEMO_TEXT("自定义 contentWidget：这里可以放一段轻量说明、状态或小控件。", "Custom contentWidget: place lightweight notes, state, or small controls here.")); previewContent->setWordWrap(true); tip->setGuideTargets({ searchTarget, previewTarget, exportTarget }); tip->setGuideStyles({ { DEMO_TEXT("1 / 3  搜索入口", "1 / 3  Search entry"), DEMO_TEXT("第一步可以把引导锚定到入口控件，告诉用户从哪里开始。", "First, anchor guidance to the entry point so users know where to start."), DEMO_TEXT("下一步", "Next") }, { DEMO_TEXT("2 / 3  预览开关", "2 / 3  Preview toggle"), DEMO_TEXT("第二步说明一个状态控件，蒙版会突出当前目标并阻止背景误点。", "Second, explain a state control; the mask highlights the target and blocks background clicks."), DEMO_TEXT("下一步", "Next"), DEMO_TEXT("上一步", "Back") }, { DEMO_TEXT("3 / 3  导出动作", "3 / 3  Export action"), DEMO_TEXT("最后一步给出明确完成动作，适合新功能或短流程引导。", "Finally, point to a clear finishing action for feature discovery or a short workflow."), DEMO_TEXT("完成", "Done"), DEMO_TEXT("上一步", "Back") } }); tip->setGuideContentWidgets({ nullptr, previewContent, nullptr }); QObject::connect(tip, &FluentTeachingTip::guideFinished, previewContent, &QObject::deleteLater); QObject::connect(tip, &FluentTeachingTip::guideFinished, tip, &QObject::deleteLater); tip->startGuide(); }); )
+
+#define X(line) code += QStringLiteral(#line "\n");
+            WINDOWS_TEACHING_TOUR(X)
+#undef X
+
+            page->addWidget(Demo::makeCollapsedExample(
+                QStringLiteral("FluentTeachingTip Guided Flow"),
+                DEMO_TEXT("多节点引导：3 步 TeachingTip 与可选蒙版", "Multi-node guidance: 3-step TeachingTip with optional mask"),
+                DEMO_TEXT("要点：\n"
+                          "-setGuideTargets() 设置引导控件列表\n"
+                          "-setGuideStyles() 设置每一步标题、说明、按钮、上一步和位置\n"
+                          "-setGuideContentWidgets() 为步骤提供自定义 contentWidget\n"
+                          "-setMaskEnabled(true) 打开蒙版遮罩并高亮当前目标",
+                          "Highlights:\n"
+                          "-Use setGuideTargets() to set the target control list\n"
+                          "-Use setGuideStyles() to set each step's title, message, action, back action, and placement\n"
+                          "-Use setGuideContentWidgets() to provide custom contentWidget per step\n"
+                          "-Use setMaskEnabled(true) to dim the host and highlight the current target"),
+                code,
+                [=](QVBoxLayout *body) {
+#define X(line) line
+                    WINDOWS_TEACHING_TOUR(X)
+#undef X
+                },
+                false,
+                360));
+
+#undef WINDOWS_TEACHING_TOUR
         }
 
         // FluentToast

@@ -1,5 +1,6 @@
 #pragma once
 
+#include <QByteArray>
 #include <QString>
 #include <QWidget>
 
@@ -29,6 +30,12 @@ public:
     void setCollapseAnimationEnabled(bool enabled);
     bool isCollapseAnimationEnabled() const;
 
+    bool loadCollapseIndicatorAnimation(const QString &path);
+    bool loadCollapseIndicatorAnimationData(const QByteArray &json,
+                                            const QString &cacheKey = QString(),
+                                            const QString &resourcePath = QString());
+    void clearCollapseIndicatorAnimation();
+
     QWidget *contentWidget() const;
     QVBoxLayout *contentLayout() const;
 
@@ -43,6 +50,9 @@ private:
     void applyTheme();
     void ensureCollapsibleUi();
     void updateHeaderUi();
+    void updateCollapseIndicatorState(bool animated);
+    void updateCollapseIndicatorGeometry();
+    void syncCollapseIndicatorSpeed(int startFrame, int endFrame);
     void applyCollapsedState(bool animated);
 
     bool m_collapsible = false;
@@ -53,6 +63,8 @@ private:
     QWidget *m_header = nullptr;
     class FluentLabel *m_titleLabel = nullptr;
     class FluentToolButton *m_chevronButton = nullptr;
+    class FluentAnimatedIcon *m_chevronAnimation = nullptr;
+    bool m_hasChevronAnimation = false;
     QWidget *m_content = nullptr;
     QVBoxLayout *m_contentLayout = nullptr;
     QPropertyAnimation *m_collapseAnim = nullptr;

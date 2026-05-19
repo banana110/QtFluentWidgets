@@ -9,10 +9,103 @@
 - `FluentStatusBar`（include: `Fluent/FluentStatusBar.h`）
 - `FluentDialog`（include: `Fluent/FluentDialog.h`）
 - `FluentMessageBox`（include: `Fluent/FluentMessageBox.h`）
+- `FluentInfoBar`（include: `Fluent/FluentInfoBar.h`）
+- `FluentFlyout`（include: `Fluent/FluentFlyout.h`）
+- `FluentTeachingTip`（include: `Fluent/FluentTeachingTip.h`）
 - `FluentToast`（include: `Fluent/FluentToast.h`）
 - `FluentResizeHelper`（include: `Fluent/FluentResizeHelper.h`）
 
 Demo 页面：Windows（`demo/pages/PageWindows.cpp`）与 Overview（`demo/pages/PageOverview.cpp`）。
+
+## FluentInfoBar
+
+```cpp
+#include "Fluent/FluentInfoBar.h"
+
+auto *bar = new Fluent::FluentInfoBar(
+    Fluent::FluentInfoBar::Severity::Warning,
+    QStringLiteral("注意"),
+    QStringLiteral("这是一条页面内提示。"));
+bar->setActionText(QStringLiteral("查看"));
+```
+
+用途：页面内信息提示条，适合表单校验结果、同步状态、轻量错误说明等不需要打断用户的反馈。
+
+关键 API：
+
+- `setSeverity(Info/Success/Warning/Error)`：切换语义色。
+- `setTitle()` / `setMessage()`：标题与正文。
+- `setActionText()`：显示可选操作按钮。
+- `setClosable(bool)`：是否显示关闭按钮。
+- `actionTriggered()` / `closed()`：操作与关闭信号。
+
+Demo：Windows / Overview。
+
+## Popup / FluentFlyout / FluentTeachingTip
+
+```cpp
+#include "Fluent/FluentFlyout.h"
+#include "Fluent/FluentTeachingTip.h"
+
+auto *flyout = new Fluent::FluentFlyout(parent);
+flyout->setContentWidget(new QLabel(QStringLiteral("Flyout content")));
+flyout->showFor(anchorButton);
+
+auto *tip = new Fluent::FluentTeachingTip(parent);
+tip->setTitle(QStringLiteral("TeachingTip"));
+tip->setSubtitle(QStringLiteral("解释一个新功能。"));
+tip->setContentWidget(new QLabel(QStringLiteral("可以在正文区域放一个轻量 QWidget。")));
+tip->setActionText(QStringLiteral("知道了"));
+tip->setTarget(anchorButton);
+tip->setMaskEnabled(true);
+tip->setMaskOpacity(0.46);
+tip->open();
+
+// 多节点引导：只描述目标控件列表与每一步显示样式。
+auto *tour = new Fluent::FluentTeachingTip(parent);
+tour->setMaskEnabled(true);
+tour->setGuideTargets({ searchButton, previewSwitch, exportButton });
+tour->setGuideStyles({
+    { QStringLiteral("1 / 3  搜索入口"), QStringLiteral("告诉用户从哪里开始。"), QStringLiteral("下一步") },
+    { QStringLiteral("2 / 3  预览开关"), QStringLiteral("解释当前状态控件。"), QStringLiteral("下一步"), QStringLiteral("上一步") },
+    { QStringLiteral("3 / 3  导出动作"), QStringLiteral("指向最后的完成动作。"), QStringLiteral("完成"), QStringLiteral("上一步") },
+});
+tour->setGuideContentWidgets({ nullptr, new QLabel(QStringLiteral("第二步的自定义正文。")), nullptr });
+connect(tour, &Fluent::FluentTeachingTip::guideFinished, tour, &QObject::deleteLater);
+tour->startGuide();
+```
+
+用途：三者都可能“浮在目标控件附近”，但语义不同：
+
+- **Popup/Menu**：短暂的选择或命令弹层，例如 `FluentMenu`、ComboBox popup、Calendar popup。它通常由具体控件内部管理，适合列表、菜单、日期选择等一次性选择。
+- **FluentFlyout**：应用代码主动创建的上下文小面板，可承载任意 QWidget 内容，适合“就地修改少量设置”“查看少量详情”等轻量交互。
+- **FluentTeachingTip**：带教育语义的 Flyout 变体，固定包含标题、说明、关闭按钮和主操作，适合解释新功能、提示下一步，不适合放复杂表单。
+
+关键 API：
+
+- `FluentFlyout::setContentWidget(QWidget*)`：设置浮层内容。
+- `FluentFlyout::showAt(QPoint)` / `showFor(QWidget*, Placement)`：按坐标或目标控件弹出。
+- `FluentTeachingTip::setTitle()` / `setSubtitle()` / `setActionText()`：提示内容。
+- `FluentTeachingTip::setContentWidget(QWidget*)` / `contentWidget()`：设置 TeachingTip 内部正文区域的自定义 QWidget。
+- `FluentTeachingTip::setTarget(QWidget*)` / `open()`：绑定目标并打开。
+- `FluentTeachingTip::setGuideTargets(QList<QWidget*>)` / `setGuideStyles(QList<GuideStyle>)`：声明式配置多节点引导。
+- `FluentTeachingTip::setGuideContentWidgets(QList<QWidget*>)`：为每个引导步骤设置可选正文 QWidget。
+- `FluentTeachingTip::startGuide()` / `nextGuideStep()` / `previousGuideStep()` / `finishGuide()`：启动、前进、后退或结束多节点引导。
+- `FluentTeachingTip::guideStarted()` / `guideStepChanged(int)` / `guideFinished()`：引导流程信号。
+- `FluentTeachingTip::setMaskEnabled(bool)` / `maskEnabled()`：可选遮罩，适合分步引导。
+- `FluentTeachingTip::setMaskOpacity(qreal)` / `maskOpacity()`：设置遮罩透明度。
+- `FluentTeachingTip::actionTriggered()`：用户点击主操作。
+
+注意事项：
+
+- Flyout 使用 `Qt::Popup`，点击外部会按平台 popup 行为关闭。
+- 如果只是弹出命令列表，用 `FluentMenu` / `FluentDropDownButton`；如果需要布局自定义内容，用 `FluentFlyout`；如果是在解释一个目标控件，用 `FluentTeachingTip`。
+- 单个提示仍可使用 `setTarget()` + `open()`；连续引导建议使用 `setGuideTargets()` + `setGuideStyles()` + `startGuide()`，避免在业务代码里手写 step 状态机。
+- 引导第一个步骤会隐藏“上一步”，后续步骤默认显示 `Back`；也可以在 `GuideStyle::previousActionText` 中提供自定义文本。
+- TeachingTip 的 mask overlay 会挂在目标所在顶层窗口上，变暗背景、拦截背景鼠标输入，并在当前 `target` 周围留出高亮区域。
+- TeachingTip 的蒙版 cutout 使用矩形区域，不额外绘制高亮描边，避免 `QRegion` 圆角裁剪和描边层级带来的视觉不确定性。目标控件会保持可见，但背景区域仍会被遮罩拦截。
+
+Demo：Windows / Overview。
 
 ## FluentMainWindow
 

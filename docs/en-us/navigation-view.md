@@ -72,7 +72,7 @@ QObject::connect(nav, &Fluent::FluentNavigationView::itemInvoked,
 - `iconFontFamily`: font family used for `iconGlyph`; defaults to `Segoe Fluent Icons`.
 - `separator`: when `true`, the item is rendered as a horizontal separator.
 - `selectsOnInvoked`: whether clicking the item should also update `selectedKey`; set it to `false` for WinUI-style submenu-only parents.
-- `children`: child items; the current implementation supports one nesting level.
+- `children`: child items; arbitrary nesting is supported, and `setSelectedKey()` auto-expands ancestor items.
 
 ## Pane modes and chrome
 
@@ -113,6 +113,7 @@ Use the incremental APIs when the menu is composed dynamically:
     - In `Left`, clicking the body only expands or collapses the group.
     - In `LeftCompact` and `Top`, clicking the body only opens the flyout and does not change `selectedKey`.
 - For leaf items with `selectsOnInvoked = false`, clicking still emits `itemInvoked`, but the current selection stays unchanged.
+- The back button only emits `backRequested()`; it does not mutate `selectedKey` by itself. Application code should keep its own back stack and call `setSelectedKey(previousKey)` when the signal arrives. The Containers demo shows a minimal back-stack implementation.
 
 ## Header, auto-collapse, and signals
 

@@ -6,11 +6,19 @@
 #include <QObject>
 #include <QWidget>
 
+#include "Fluent/FluentAnimatedButton.h"
+#include "Fluent/FluentAnimatedIcon.h"
+#include "Fluent/FluentAutoSuggestBox.h"
 #include "Fluent/FluentButton.h"
+#include "Fluent/FluentCommandBar.h"
+#include "Fluent/FluentDropDownButton.h"
+#include "Fluent/FluentFlyout.h"
 #include "Fluent/FluentIconButton.h"
+#include "Fluent/FluentInfoBar.h"
 #include "Fluent/FluentLabel.h"
 #include "Fluent/FluentLineEdit.h"
 #include "Fluent/FluentKeySequenceEdit.h"
+#include "Fluent/FluentLottieWidget.h"
 #include "Fluent/FluentTextEdit.h"
 #include "Fluent/FluentCodeEditor.h"
 #include "Fluent/FluentCalendarPicker.h"
@@ -28,6 +36,7 @@
 #include "Fluent/FluentComboBox.h"
 #include "Fluent/FluentSlider.h"
 #include "Fluent/FluentProgressBar.h"
+#include "Fluent/FluentProgressRing.h"
 #include "Fluent/FluentSpinBox.h"
 #include "Fluent/FluentToolButton.h"
 #include "Fluent/FluentTabWidget.h"
@@ -47,7 +56,9 @@
 #include "Fluent/FluentScrollBar.h"
 #include "Fluent/FluentAnnotatedScrollBar.h"
 #include "Fluent/FluentSplitter.h"
+#include "Fluent/FluentSplitButton.h"
 #include "Fluent/FluentToast.h"
+#include "Fluent/FluentTeachingTip.h"
 #include "Fluent/FluentNavigationView.h"
 
 namespace {
@@ -88,10 +99,19 @@ public:
     QWidget *createWidget(QWidget *parent) override
     {
         if (m_className == "FluentButton") return new Fluent::FluentButton(parent);
+        if (m_className == "FluentAnimatedButton") return new Fluent::FluentAnimatedButton(QStringLiteral("FluentAnimatedButton"), parent);
+        if (m_className == "FluentAnimatedIcon") return new Fluent::FluentAnimatedIcon(parent);
+        if (m_className == "FluentAutoSuggestBox") return new Fluent::FluentAutoSuggestBox(parent);
+        if (m_className == "FluentSearchBox") return new Fluent::FluentSearchBox(parent);
         if (m_className == "FluentIconButton") return new Fluent::FluentIconButton(parent);
+        if (m_className == "FluentCommandBar") return new Fluent::FluentCommandBar(parent);
+        if (m_className == "FluentDropDownButton") return new Fluent::FluentDropDownButton(QStringLiteral("DropDown"), parent);
+        if (m_className == "FluentFlyout") return new Fluent::FluentFlyout(parent);
+        if (m_className == "FluentInfoBar") return new Fluent::FluentInfoBar(parent);
         if (m_className == "FluentLabel") return new Fluent::FluentLabel(parent);
         if (m_className == "FluentLineEdit") return new Fluent::FluentLineEdit(parent);
         if (m_className == "FluentKeySequenceEdit") return new Fluent::FluentKeySequenceEdit(parent);
+        if (m_className == "FluentLottieWidget") return new Fluent::FluentLottieWidget(parent);
         if (m_className == "FluentTextEdit") return new Fluent::FluentTextEdit(parent);
         if (m_className == "FluentCodeEditor") return new Fluent::FluentCodeEditor(parent);
         if (m_className == "FluentCalendarPicker") return new Fluent::FluentCalendarPicker(parent);
@@ -109,6 +129,7 @@ public:
         if (m_className == "FluentComboBox") return new Fluent::FluentComboBox(parent);
         if (m_className == "FluentSlider") return new Fluent::FluentSlider(Qt::Horizontal, parent);
         if (m_className == "FluentProgressBar") return new Fluent::FluentProgressBar(parent);
+        if (m_className == "FluentProgressRing") return new Fluent::FluentProgressRing(parent);
         if (m_className == "FluentSpinBox") return new Fluent::FluentSpinBox(parent);
         if (m_className == "FluentDoubleSpinBox") return new Fluent::FluentDoubleSpinBox(parent);
         if (m_className == "FluentToolButton") return new Fluent::FluentToolButton(parent);
@@ -129,7 +150,9 @@ public:
         if (m_className == "FluentScrollBar") return new Fluent::FluentScrollBar(Qt::Vertical, parent);
         if (m_className == "FluentAnnotatedScrollBar") return new Fluent::FluentAnnotatedScrollBar(parent);
         if (m_className == "FluentSplitter") return new Fluent::FluentSplitter(Qt::Horizontal, parent);
+        if (m_className == "FluentSplitButton") return new Fluent::FluentSplitButton(QStringLiteral("Split"), parent);
         if (m_className == "FluentToast") return new Fluent::FluentToast(QStringLiteral("FluentToast"), QStringLiteral("Message"), parent);
+        if (m_className == "FluentTeachingTip") return new Fluent::FluentTeachingTip(parent);
         if (m_className == "FluentNavigationView") return new Fluent::FluentNavigationView(parent);
         return nullptr;
     }
@@ -163,10 +186,19 @@ public:
     {
         const QString group = "Fluent Widgets";
         m_plugins.append(new FluentWidgetPlugin("FluentButton", "Fluent/FluentButton.h", group, false, this));
+        m_plugins.append(new FluentWidgetPlugin("FluentAnimatedButton", "Fluent/FluentAnimatedButton.h", group, false, this));
+        m_plugins.append(new FluentWidgetPlugin("FluentAnimatedIcon", "Fluent/FluentAnimatedIcon.h", group, false, this));
+        m_plugins.append(new FluentWidgetPlugin("FluentAutoSuggestBox", "Fluent/FluentAutoSuggestBox.h", group, false, this));
+        m_plugins.append(new FluentWidgetPlugin("FluentSearchBox", "Fluent/FluentAutoSuggestBox.h", group, false, this));
         m_plugins.append(new FluentWidgetPlugin("FluentIconButton", "Fluent/FluentIconButton.h", group, false, this));
+        m_plugins.append(new FluentWidgetPlugin("FluentCommandBar", "Fluent/FluentCommandBar.h", group, true, this));
+        m_plugins.append(new FluentWidgetPlugin("FluentDropDownButton", "Fluent/FluentDropDownButton.h", group, false, this));
+        m_plugins.append(new FluentWidgetPlugin("FluentFlyout", "Fluent/FluentFlyout.h", group, true, this));
+        m_plugins.append(new FluentWidgetPlugin("FluentInfoBar", "Fluent/FluentInfoBar.h", group, false, this));
         m_plugins.append(new FluentWidgetPlugin("FluentLabel", "Fluent/FluentLabel.h", group, false, this));
         m_plugins.append(new FluentWidgetPlugin("FluentLineEdit", "Fluent/FluentLineEdit.h", group, false, this));
         m_plugins.append(new FluentWidgetPlugin("FluentKeySequenceEdit", "Fluent/FluentKeySequenceEdit.h", group, false, this));
+        m_plugins.append(new FluentWidgetPlugin("FluentLottieWidget", "Fluent/FluentLottieWidget.h", group, false, this));
         m_plugins.append(new FluentWidgetPlugin("FluentTextEdit", "Fluent/FluentTextEdit.h", group, false, this));
         m_plugins.append(new FluentWidgetPlugin("FluentCodeEditor", "Fluent/FluentCodeEditor.h", group, false, this));
         m_plugins.append(new FluentWidgetPlugin("FluentCalendarPicker", "Fluent/FluentCalendarPicker.h", group, false, this));
@@ -184,6 +216,7 @@ public:
         m_plugins.append(new FluentWidgetPlugin("FluentComboBox", "Fluent/FluentComboBox.h", group, false, this));
         m_plugins.append(new FluentWidgetPlugin("FluentSlider", "Fluent/FluentSlider.h", group, false, this));
         m_plugins.append(new FluentWidgetPlugin("FluentProgressBar", "Fluent/FluentProgressBar.h", group, false, this));
+        m_plugins.append(new FluentWidgetPlugin("FluentProgressRing", "Fluent/FluentProgressRing.h", group, false, this));
         m_plugins.append(new FluentWidgetPlugin("FluentSpinBox", "Fluent/FluentSpinBox.h", group, false, this));
         m_plugins.append(new FluentWidgetPlugin("FluentDoubleSpinBox", "Fluent/FluentSpinBox.h", group, false, this));
         m_plugins.append(new FluentWidgetPlugin("FluentToolButton", "Fluent/FluentToolButton.h", group, false, this));
@@ -204,7 +237,9 @@ public:
         m_plugins.append(new FluentWidgetPlugin("FluentScrollBar", "Fluent/FluentScrollBar.h", group, false, this));
         m_plugins.append(new FluentWidgetPlugin("FluentAnnotatedScrollBar", "Fluent/FluentAnnotatedScrollBar.h", group, false, this));
         m_plugins.append(new FluentWidgetPlugin("FluentSplitter", "Fluent/FluentSplitter.h", group, true, this));
+        m_plugins.append(new FluentWidgetPlugin("FluentSplitButton", "Fluent/FluentSplitButton.h", group, false, this));
         m_plugins.append(new FluentWidgetPlugin("FluentToast", "Fluent/FluentToast.h", group, false, this));
+        m_plugins.append(new FluentWidgetPlugin("FluentTeachingTip", "Fluent/FluentTeachingTip.h", group, false, this));
         m_plugins.append(new FluentWidgetPlugin("FluentNavigationView", "Fluent/FluentNavigationView.h", group, true, this));
     }
 

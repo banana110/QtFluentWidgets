@@ -7,6 +7,7 @@
 #include <QHBoxLayout>
 #include <QVBoxLayout>
 
+#include "Fluent/FluentAutoSuggestBox.h"
 #include "Fluent/FluentComboBox.h"
 #include "Fluent/FluentLineEdit.h"
 #include "Fluent/FluentLabel.h"
@@ -69,6 +70,58 @@ QWidget *createInputsPage(FluentMainWindow *window)
                 false));
 
 #undef INPUTS_LINEEDIT
+        }
+
+        // AutoSuggestBox / SearchBox
+        {
+            QString code;
+#define INPUTS_AUTOSUGGEST(X) \
+    X(QStringList suggestions;) \
+    X(suggestions << QStringLiteral("FluentButton") << QStringLiteral("FluentCard") << QStringLiteral("FluentNavigationView");) \
+    X(suggestions << QStringLiteral("FluentLottieWidget") << QStringLiteral("FluentProgressRing") << QStringLiteral("FluentTeachingTip");) \
+    X(auto *row = new QHBoxLayout();) \
+    X(row->setContentsMargins(0, 0, 0, 0);) \
+    X(row->setSpacing(10);) \
+    X(auto *suggest = new FluentAutoSuggestBox();) \
+    X(suggest->setPlaceholderText(DEMO_TEXT("输入控件名", "Type a control name"));) \
+    X(suggest->setSuggestions(suggestions);) \
+    X(auto *search = new FluentSearchBox();) \
+    X(search->setPlaceholderText(DEMO_TEXT("搜索控件", "Search controls"));) \
+    X(search->setSuggestions(suggestions);) \
+    X(auto *status = new FluentLabel(DEMO_TEXT("等待输入", "Waiting for input"));) \
+    X(status->setStyleSheet("font-size: 12px; opacity: 0.85;");) \
+    X(QObject::connect(suggest, &FluentAutoSuggestBox::suggestionChosen, status, [=](const QString &text) { status->setText(DEMO_TEXT("选择：%1", "Chosen: %1").arg(text)); });) \
+    X(QObject::connect(search, &FluentSearchBox::submitted, status, [=](const QString &text) { status->setText(DEMO_TEXT("搜索：%1", "Search: %1").arg(text)); });) \
+    X(row->addWidget(suggest, 1);) \
+    X(row->addWidget(search, 1);) \
+    X(row->addWidget(status);) \
+    X(body->addLayout(row);)
+
+#define X(line) code += QStringLiteral(#line "\n");
+            INPUTS_AUTOSUGGEST(X)
+#undef X
+
+            page->addWidget(Demo::makeCollapsedExample(
+                QStringLiteral("FluentAutoSuggestBox / FluentSearchBox"),
+                DEMO_TEXT("输入建议与搜索提交", "Suggestions and search submission"),
+                DEMO_TEXT("要点：\n"
+                          "-setSuggestions(QStringList) 设置候选项\n"
+                          "-suggestionChosen(text) 响应用户选中的建议\n"
+                          "-SearchBox 在 AutoSuggestBox 基础上增加搜索按钮与 submitted/searchRequested 信号",
+                          "Highlights:\n"
+                          "-Use setSuggestions(QStringList) to provide candidates\n"
+                          "-Use suggestionChosen(text) for accepted suggestions\n"
+                          "-SearchBox adds a search button plus submitted/searchRequested signals on top of AutoSuggestBox"),
+                code,
+                [=](QVBoxLayout *body) {
+#define X(line) line
+                    INPUTS_AUTOSUGGEST(X)
+#undef X
+                },
+                false,
+                260));
+
+#undef INPUTS_AUTOSUGGEST
         }
 
         // TextEdit
@@ -344,6 +397,9 @@ QWidget *createInputsPage(FluentMainWindow *window)
     X(combo3->addItem(DEMO_TEXT("樱桃", "Cherry"));) \
     X(combo3->addItem(DEMO_TEXT("葡萄", "Grape"));) \
     X(combo3->addItem(DEMO_TEXT("芒果", "Mango"));) \
+    X(combo3->addItem(DEMO_TEXT("橘子", "Oringe"));) \
+    X(combo3->addItem(DEMO_TEXT("桃子", "Peach"));) \
+    X(combo3->addItem(DEMO_TEXT("菠萝", "Pineapple"));) \
     X(combo3->setCheckedIndexes({0, 2});) \
     X(auto *status = new FluentLabel(QStringLiteral(""));) \
     X(status->setStyleSheet("font-size: 12px; opacity: 0.85;");) \

@@ -21,9 +21,45 @@ if(FLUENT_BUILD_DESIGNER_PLUGIN)
     find_package(${QT_PACKAGE} REQUIRED COMPONENTS UiPlugin)
 endif()
 
+if(NOT EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/third_party/rlottie/CMakeLists.txt")
+    message(FATAL_ERROR "rlottie submodule is missing. Run: git submodule update --init --recursive")
+endif()
+
+set(_QTFLUENT_BUILD_SHARED_LIBS_WAS_DEFINED FALSE)
+if(DEFINED BUILD_SHARED_LIBS)
+    set(_QTFLUENT_BUILD_SHARED_LIBS_WAS_DEFINED TRUE)
+    set(_QTFLUENT_BUILD_SHARED_LIBS_VALUE "${BUILD_SHARED_LIBS}")
+endif()
+
+set(BUILD_SHARED_LIBS ON)
+set(LOTTIE_MODULE OFF CACHE BOOL "Build rlottie image loader into the rlottie library" FORCE)
+set(LOTTIE_TEST OFF CACHE BOOL "Build rlottie tests" FORCE)
+set(CMAKE_POLICY_VERSION_MINIMUM 3.5)
+add_subdirectory(third_party/rlottie EXCLUDE_FROM_ALL)
+set_target_properties(rlottie PROPERTIES
+    AUTOMOC OFF
+    AUTORCC OFF
+    AUTOUIC OFF
+    FOLDER "third_party"
+)
+
+if(_QTFLUENT_BUILD_SHARED_LIBS_WAS_DEFINED)
+    set(BUILD_SHARED_LIBS "${_QTFLUENT_BUILD_SHARED_LIBS_VALUE}")
+else()
+    unset(BUILD_SHARED_LIBS)
+endif()
+
 add_library(QtFluentWidgets
+    include/Fluent/FluentAnimatedButton.h
+    include/Fluent/FluentAnimatedIcon.h
+    include/Fluent/FluentAutoSuggestBox.h
     include/Fluent/FluentCodeEditor.h
+    include/Fluent/FluentCommandBar.h
     include/Fluent/FluentCppHighlighter.h
+    include/Fluent/FluentDropDownButton.h
+    include/Fluent/FluentFlyout.h
+    include/Fluent/FluentInfoBar.h
+    include/Fluent/FluentLottieWidget.h
     include/Fluent/FluentTheme.h
     include/Fluent/FluentToolTip.h
     include/Fluent/FluentQtCompat.h
@@ -51,6 +87,7 @@ add_library(QtFluentWidgets
     include/Fluent/FluentDial.h
     include/Fluent/FluentSlider.h
     include/Fluent/FluentProgressBar.h
+    include/Fluent/FluentProgressRing.h
     include/Fluent/FluentSpinBox.h
     include/Fluent/FluentDial.h
     include/Fluent/FluentToolButton.h
@@ -73,11 +110,21 @@ add_library(QtFluentWidgets
     include/Fluent/FluentScrollArea.h
     include/Fluent/FluentAnnotatedScrollBar.h
     include/Fluent/FluentSplitter.h
+    include/Fluent/FluentSplitButton.h
     include/Fluent/FluentToast.h
+    include/Fluent/FluentTeachingTip.h
     include/Fluent/FluentDateRangePicker.h
     include/Fluent/FluentNavigationView.h
+    src/FluentAnimatedButton.cpp
+    src/FluentAnimatedIcon.cpp
+    src/FluentAutoSuggestBox.cpp
     src/FluentCodeEditor.cpp
+    src/FluentCommandBar.cpp
     src/FluentCppHighlighter.cpp
+    src/FluentDropDownButton.cpp
+    src/FluentFlyout.cpp
+    src/FluentInfoBar.cpp
+    src/FluentLottieWidget.cpp
     src/FluentTheme.cpp
     src/FluentToolTip.cpp
     src/FluentStyle.cpp
@@ -107,6 +154,7 @@ add_library(QtFluentWidgets
     src/FluentAngleSelector.cpp
     src/FluentSlider.cpp
     src/FluentProgressBar.cpp
+    src/FluentProgressRing.cpp
     src/FluentSpinBox.cpp
     src/FluentDial.cpp
     src/FluentToolButton.cpp
@@ -128,14 +176,19 @@ add_library(QtFluentWidgets
     src/FluentScrollArea.cpp
     src/FluentAnnotatedScrollBar.cpp
     src/FluentSplitter.cpp
+    src/FluentSplitButton.cpp
     src/FluentToast.cpp
+    src/FluentTeachingTip.cpp
     src/FluentDateRangePicker.cpp
     src/FluentNavigationView.cpp
     src/FluentDiagnostics.cpp
 )
 
 target_include_directories(QtFluentWidgets PUBLIC include)
-target_link_libraries(QtFluentWidgets PUBLIC ${QT_PACKAGE}::Widgets ${QT_PACKAGE}::Svg)
+target_link_libraries(QtFluentWidgets PUBLIC ${QT_PACKAGE}::Widgets ${QT_PACKAGE}::Svg rlottie::rlottie)
+if(MSVC)
+    target_compile_options(QtFluentWidgets PRIVATE /utf-8)
+endif()
 
 add_executable(QtFluentDemo WIN32
     demo/main.cpp
@@ -151,6 +204,7 @@ add_executable(QtFluentDemo WIN32
     demo/sidebar/DemoCodeEditorPanel.cpp
     demo/DemoHelpers.h
     demo/DemoHelpers.cpp
+    demo/lottie_assets.qrc
 
     demo/pages/PageOverview.h
     demo/pages/PageOverview.cpp
@@ -160,6 +214,8 @@ add_executable(QtFluentDemo WIN32
     demo/pages/PageInputs.cpp
     demo/pages/PageButtons.h
     demo/pages/PageButtons.cpp
+    demo/pages/PageMotion.h
+    demo/pages/PageMotion.cpp
     demo/pages/PagePickers.h
     demo/pages/PagePickers.cpp
     demo/pages/PageAngleControls.h
@@ -173,6 +229,20 @@ add_executable(QtFluentDemo WIN32
 )
 
 target_link_libraries(QtFluentDemo PRIVATE QtFluentWidgets ${QT_PACKAGE}::Widgets)
+if(MSVC)
+    target_compile_options(QtFluentDemo PRIVATE /utf-8)
+endif()
+target_compile_definitions(QtFluentDemo
+    PRIVATE
+        QTFLUENT_RLOTTIE_RESOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}/third_party/rlottie/example/resource"
+)
+
+if(WIN32)
+    add_custom_command(TARGET QtFluentDemo POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different $<TARGET_FILE:rlottie> $<TARGET_FILE_DIR:QtFluentDemo>
+        VERBATIM
+    )
+endif()
 
 # Demo convenience: run with known paint warnings suppressed.
 option(QTFLUENT_DEMO_SUPPRESS_KNOWN_PAINT_WARNINGS "Suppress known Qt viewport paint warnings in demo via env var" ON)
@@ -203,8 +273,18 @@ if(FLUENT_BUILD_DESIGNER_PLUGIN)
 
     target_include_directories(QtFluentWidgetsPlugin PRIVATE include)
     target_link_libraries(QtFluentWidgetsPlugin PRIVATE QtFluentWidgets ${QT_PACKAGE}::UiPlugin ${QT_PACKAGE}::Widgets)
+    if(MSVC)
+        target_compile_options(QtFluentWidgetsPlugin PRIVATE /utf-8)
+    endif()
 
     set_target_properties(QtFluentWidgetsPlugin PROPERTIES
         LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/designer"
     )
+
+    if(WIN32)
+        add_custom_command(TARGET QtFluentWidgetsPlugin POST_BUILD
+            COMMAND ${CMAKE_COMMAND} -E copy_if_different $<TARGET_FILE:rlottie> $<TARGET_FILE_DIR:QtFluentWidgetsPlugin>
+            VERBATIM
+        )
+    endif()
 endif()

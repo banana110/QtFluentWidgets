@@ -1,5 +1,6 @@
 #include "Fluent/FluentCard.h"
 
+#include "Fluent/FluentAnimatedIcon.h"
 #include "Fluent/FluentLabel.h"
 #include "Fluent/FluentStyle.h"
 #include "Fluent/FluentTheme.h"
@@ -60,6 +61,7 @@ void FluentCard::setCollapsible(bool on)
         ensureCollapsibleUi();
         applyCollapsedState(false);
         updateHeaderUi();
+        updateCollapseIndicatorState(false);
     } else {
         setProperty(kFlowDisableAnimationProperty, false);
         if (m_header) {
@@ -105,6 +107,7 @@ void FluentCard::setCollapsed(bool collapsed)
     if (m_collapsible) {
         applyCollapsedState(m_animateCollapse);
         updateHeaderUi();
+        updateCollapseIndicatorState(m_animateCollapse);
     }
 }
 
@@ -121,6 +124,53 @@ void FluentCard::setCollapseAnimationEnabled(bool enabled)
 bool FluentCard::isCollapseAnimationEnabled() const
 {
     return m_animateCollapse;
+}
+
+bool FluentCard::loadCollapseIndicatorAnimation(const QString &path)
+{
+    if (!m_collapsible) {
+        return false;
+    }
+
+    ensureCollapsibleUi();
+    if (!m_chevronAnimation) {
+        return false;
+    }
+
+    const bool ok = m_chevronAnimation->load(path);
+    m_hasChevronAnimation = ok;
+    updateHeaderUi();
+    updateCollapseIndicatorState(false);
+    return ok;
+}
+
+bool FluentCard::loadCollapseIndicatorAnimationData(const QByteArray &json,
+                                                    const QString &cacheKey,
+                                                    const QString &resourcePath)
+{
+    if (!m_collapsible) {
+        return false;
+    }
+
+    ensureCollapsibleUi();
+    if (!m_chevronAnimation) {
+        return false;
+    }
+
+    const bool ok = m_chevronAnimation->loadData(json, cacheKey, resourcePath);
+    m_hasChevronAnimation = ok;
+    updateHeaderUi();
+    updateCollapseIndicatorState(false);
+    return ok;
+}
+
+void FluentCard::clearCollapseIndicatorAnimation()
+{
+    m_hasChevronAnimation = false;
+    if (m_chevronAnimation) {
+        m_chevronAnimation->hide();
+    }
+    updateHeaderUi();
 }
 
 QWidget *FluentCard::contentWidget() const
@@ -229,6 +279,13 @@ void FluentCard::ensureCollapsibleUi()
         m_chevronButton = new FluentToolButton(m_header);
         m_chevronButton->setObjectName("FluentCardChevron");
         m_chevronButton->setFixedSize(28, 28);
+
+        m_chevronAnimation = new FluentAnimatedIcon(m_chevronButton);
+        m_chevronAnimation->setAttribute(Qt::WA_TransparentForMouseEvents, true);
+        m_chevronAnimation->setInteractive(false);
+        m_chevronAnimation->setFixedSize(20, 20);
+        m_chevronAnimation->hide();
+
         connect(m_chevronButton, &QAbstractButton::clicked, this, [this] {
             if (m_collapsible) {
                 setCollapsed(!m_collapsed);
@@ -287,9 +344,86 @@ void FluentCard::updateHeaderUi()
 
     if (m_chevronButton) {
         const auto colors = ThemeManager::instance().colors();
-        m_chevronButton->setIcon(makeChevronIcon(m_collapsed, colors.subText));
-        m_chevronButton->setIconSize(QSize(16, 16));
+        if (m_hasChevronAnimation && m_chevronAnimation && m_chevronAnimation->isLoaded()) {
+            m_chevronButton->setIcon(QIcon());
+            m_chevronAnimation->setTintColor(colors.subText);
+            updateCollapseIndicatorGeometry();
+            m_chevronAnimation->show();
+        } else {
+            if (m_chevronAnimation) {
+                m_chevronAnimation->hide();
+            }
+            m_chevronButton->setIcon(makeChevronIcon(m_collapsed, colors.subText));
+            m_chevronButton->setIconSize(QSize(16, 16));
+        }
     }
+}
+
+void FluentCard::updateCollapseIndicatorState(bool animated)
+{
+    if (!m_hasChevronAnimation || !m_chevronAnimation || !m_chevronAnimation->isLoaded()) {
+        return;
+    }
+
+    const QString targetState = m_collapsed ? QStringLiteral("Collapsed") : QStringLiteral("Expanded");
+    if (m_chevronAnimation->hasMarker(targetState)) {
+        if (animated) {
+            const QString transition = m_chevronAnimation->state() + QStringLiteral("To") + targetState;
+            const QString transitionStart = transition + QStringLiteral("_Start");
+            const QString transitionEnd = transition + QStringLiteral("_End");
+            if (m_chevronAnimation->hasMarker(transitionStart) && m_chevronAnimation->hasMarker(transitionEnd)) {
+                syncCollapseIndicatorSpeed(m_chevronAnimation->markerFrame(transitionStart),
+                                           m_chevronAnimation->markerFrame(transitionEnd));
+            } else if (m_chevronAnimation->hasMarker(transition)) {
+                syncCollapseIndicatorSpeed(m_chevronAnimation->markerFrame(transition),
+                                           m_chevronAnimation->markerEndFrame(transition));
+            }
+        }
+        m_chevronAnimation->setState(targetState, animated);
+        return;
+    }
+
+    const int lastFrame = qMax(0, m_chevronAnimation->totalFrames() - 1);
+    const int middleFrame = qMax(0, lastFrame / 2);
+    if (animated) {
+        const int startFrame = m_collapsed ? middleFrame : 0;
+        const int endFrame = m_collapsed ? lastFrame : middleFrame;
+        syncCollapseIndicatorSpeed(startFrame, endFrame);
+        m_chevronAnimation->playSegment(startFrame, endFrame);
+        return;
+    }
+
+    m_chevronAnimation->pause();
+    m_chevronAnimation->setCurrentFrame(m_collapsed ? lastFrame : middleFrame);
+}
+
+void FluentCard::syncCollapseIndicatorSpeed(int startFrame, int endFrame)
+{
+    if (!m_chevronAnimation || !m_chevronAnimation->isLoaded()) {
+        return;
+    }
+
+    const int frameDistance = qAbs(endFrame - startFrame);
+    const qreal frameRate = m_chevronAnimation->frameRate();
+    const int durationMs = qMax(1, m_collapseAnim ? m_collapseAnim->duration() : 160);
+    if (frameDistance <= 0 || frameRate <= 0.0) {
+        m_chevronAnimation->setSpeed(1.0);
+        return;
+    }
+
+    m_chevronAnimation->setSpeed((frameDistance * 1000.0) / (frameRate * durationMs));
+}
+
+void FluentCard::updateCollapseIndicatorGeometry()
+{
+    if (!m_chevronButton || !m_chevronAnimation) {
+        return;
+    }
+
+    const QSize size = m_chevronAnimation->size();
+    const QPoint topLeft((m_chevronButton->width() - size.width()) / 2,
+                         (m_chevronButton->height() - size.height()) / 2);
+    m_chevronAnimation->setGeometry(QRect(topLeft, size));
 }
 
 void FluentCard::applyCollapsedState(bool animated)

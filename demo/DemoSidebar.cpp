@@ -120,6 +120,7 @@ DemoSidebar::DemoSidebar(QWidget *hostWindow, QWidget *parent, bool showNavigati
             DEMO_TEXT("总览", "Overview"),
             DEMO_TEXT("输入", "Inputs"),
             DEMO_TEXT("按钮/开关", "Buttons / Toggles"),
+            DEMO_TEXT("动态", "Motion"),
             DEMO_TEXT("选择器", "Pickers"),
             DEMO_TEXT("角度控件", "Angle Controls"),
             DEMO_TEXT("数据视图", "Data Views"),

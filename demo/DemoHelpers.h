@@ -1,5 +1,6 @@
 #pragma once
 
+#include <QByteArray>
 #include <functional>
 #include <QString>
 class QWidget;
@@ -8,7 +9,9 @@ class QString;
 class QColor;
 
 namespace Fluent {
+class FluentAnimatedButton;
 class FluentCard;
+class FluentLottieWidget;
 class FluentScrollArea;
 }
 
@@ -50,6 +53,13 @@ Fluent::FluentCard *makeCollapsedExample(const QString &title,
 void applyAccent(const QColor &accent);
 void applyBackground(const QColor &bg);
 void applySurface(const QColor &surface);
+
+QByteArray animatedSearchIconJson();
+QString rlottieResourcePath(const QString &fileName);
+bool loadRlottieResource(Fluent::FluentLottieWidget *widget, const QString &fileName);
+QString demoLottieResourcePath(const QString &fileName);
+bool loadDemoLottieResource(Fluent::FluentLottieWidget *widget, const QString &fileName);
+Fluent::FluentAnimatedButton *makeAnimatedSearchButton(const QString &text, QWidget *parent = nullptr);
 
 Fluent::FluentScrollArea *makePage(const std::function<void(QVBoxLayout *)> &fill);
 QWidget *makeSidebarCard(QWidget *inner);

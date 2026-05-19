@@ -1,4 +1,5 @@
 #include "Fluent/FluentNavigationView.h"
+#include "Fluent/FluentAnimatedIcon.h"
 #include "Fluent/FluentMenu.h"
 #include "Fluent/FluentStyle.h"
 #include "Fluent/FluentTheme.h"
@@ -7,10 +8,13 @@
 #include <QApplication>
 #include <QEvent>
 #include <QFontMetrics>
+#include <QHash>
 #include <QMouseEvent>
 #include <QPainter>
+#include <QPainterPath>
 #include <QPointer>
 #include <QResizeEvent>
+#include <QSet>
 #include <QVariantAnimation>
 #include <QWheelEvent>
 
@@ -66,6 +70,22 @@ QString defaultGlyphFontFamily()
     return QStringLiteral("Segoe Fluent Icons");
 }
 
+bool hasAnimatedIconSource(const FluentNavigationItem &item)
+{
+    return !item.animatedIconData.isEmpty() || !item.animatedIconSource.isEmpty();
+}
+
+QString animatedIconFingerprint(const FluentNavigationItem &item)
+{
+    if (!item.animatedIconData.isEmpty()) {
+        return QStringLiteral("data:%1:%2:%3")
+            .arg(item.animatedIconData.size())
+            .arg(item.animatedIconCacheKey)
+            .arg(item.animatedIconResourcePath);
+    }
+    return QStringLiteral("source:%1").arg(item.animatedIconSource);
+}
+
 QRectF expanderHitRect(const QRectF &rowRect)
 {
     return QRectF(rowRect.right() - 36.0, rowRect.top(), 36.0, rowRect.height());
@@ -74,6 +94,35 @@ QRectF expanderHitRect(const QRectF &rowRect)
 QRectF topExpanderHitRect(const QRectF &itemRect)
 {
     return QRectF(itemRect.right() - 24.0, itemRect.top(), 24.0, itemRect.height());
+}
+
+QPainterPath navigationSurfacePath(const QRectF &rect, qreal radius, bool roundAllCorners)
+{
+    QPainterPath path;
+    if (rect.isEmpty()) {
+        return path;
+    }
+
+    if (roundAllCorners) {
+        path.addRoundedRect(rect, radius, radius);
+        return path;
+    }
+
+    const qreal r = qMin(radius, qMin(rect.width() / 2.0, rect.height() / 2.0));
+    if (r <= 0.0) {
+        path.addRect(rect);
+        return path;
+    }
+
+    path.moveTo(rect.right(), rect.top());
+    path.lineTo(rect.right(), rect.bottom());
+    path.lineTo(rect.left() + r, rect.bottom());
+    path.quadTo(rect.left(), rect.bottom(), rect.left(), rect.bottom() - r);
+    path.lineTo(rect.left(), rect.top() + r);
+    path.quadTo(rect.left(), rect.top(), rect.left() + r, rect.top());
+    path.lineTo(rect.right(), rect.top());
+    path.closeSubpath();
+    return path;
 }
 
 } // namespace
@@ -99,6 +148,13 @@ struct FluentNavigationView::Private
     QWidget *observedParent = nullptr;
     QPointer<FluentMenu> itemFlyout;
     QString itemFlyoutParentKey;
+    QHash<QString, QPointer<FluentAnimatedIcon>> animatedIconWidgets;
+    QHash<QString, QString> animatedIconFingerprints;
+    QSet<QString> animatedIconActiveKeys;
+    QPointer<FluentAnimatedIcon> paneToggleAnimation;
+    QPointer<FluentAnimatedIcon> backButtonAnimation;
+    bool hasPaneToggleAnimation = false;
+    bool hasBackButtonAnimation = false;
 
     std::vector<QString> expandedGroups;
 
@@ -542,7 +598,7 @@ struct FluentNavigationView::Private
     int topItemWidth(const FluentNavigationItem &item, const QFontMetrics &fm) const
     {
         int width = 24;
-        if (!item.iconGlyph.isEmpty() || !item.icon.isNull()) {
+        if (hasAnimatedIconSource(item) || !item.iconGlyph.isEmpty() || !item.icon.isNull()) {
             width += kIconSize + 8;
         }
 
@@ -875,7 +931,289 @@ struct FluentNavigationView::Private
         QAction *activeAction = menu->activeAction();
         menu->popup(popupPos, activeAction);
     }
+
+    bool animatedIconLoaded(const QString &key) const;
+    void syncAnimatedItemIcon(FluentNavigationView *owner,
+                              const FluentNavigationItem &item,
+                              const QRectF &iconRect,
+                              bool active,
+                              const QColor &tint,
+                              QSet<QString> &visibleKeys);
+    void syncAnimatedIcons(FluentNavigationView *owner, int widgetWidth, int widgetHeight, const QColor &tint);
+    FluentAnimatedIcon *ensureChromeAnimation(FluentNavigationView *owner, QPointer<FluentAnimatedIcon> &animation);
+    bool chromeAnimationLoaded(const QPointer<FluentAnimatedIcon> &animation, bool enabled) const;
+    void syncChromeAnimation(FluentNavigationView *owner,
+                             QPointer<FluentAnimatedIcon> &animation,
+                             bool enabled,
+                             const QRectF &buttonRect,
+                             const QColor &tint,
+                             bool visible);
+    void syncChromeAnimations(FluentNavigationView *owner, int widgetWidth, int widgetHeight, const QColor &tint);
+    void playChromeAnimation(const QPointer<FluentAnimatedIcon> &animation);
 };
+
+bool FluentNavigationView::Private::animatedIconLoaded(const QString &key) const
+{
+    const auto widget = animatedIconWidgets.value(key);
+    return widget && widget->isLoaded() && widget->isVisible();
+}
+
+void FluentNavigationView::Private::syncAnimatedItemIcon(FluentNavigationView *owner,
+                                                         const FluentNavigationItem &item,
+                                                         const QRectF &iconRect,
+                                                         bool active,
+                                                         const QColor &tint,
+                                                         QSet<QString> &visibleKeys)
+{
+    if (!owner || item.key.isEmpty() || !hasAnimatedIconSource(item)) {
+        return;
+    }
+
+    const QString key = item.key;
+    visibleKeys.insert(key);
+
+    FluentAnimatedIcon *icon = animatedIconWidgets.value(key);
+    if (!icon) {
+        icon = new FluentAnimatedIcon(owner);
+        icon->setAttribute(Qt::WA_TransparentForMouseEvents, true);
+        icon->setInteractive(false);
+        icon->setFallbackIconSize(QSize(kIconSize, kIconSize));
+        animatedIconWidgets.insert(key, icon);
+    }
+
+    const QString fingerprint = animatedIconFingerprint(item);
+    if (animatedIconFingerprints.value(key) != fingerprint || !icon->isLoaded()) {
+        const bool ok = item.animatedIconData.isEmpty()
+                            ? icon->load(item.animatedIconSource)
+                            : icon->loadData(item.animatedIconData,
+                                             item.animatedIconCacheKey.isEmpty() ? key : item.animatedIconCacheKey,
+                                             item.animatedIconResourcePath);
+        if (!ok) {
+            icon->hide();
+            animatedIconActiveKeys.remove(key);
+            return;
+        }
+        animatedIconFingerprints.insert(key, fingerprint);
+        icon->setCurrentFrame(0);
+    }
+
+    icon->setGeometry(iconRect.toAlignedRect());
+    icon->setTintColor(tint);
+    icon->show();
+    icon->raise();
+
+    if (active) {
+        if (!animatedIconActiveKeys.contains(key)) {
+            icon->setCurrentFrame(0);
+            icon->setLooping(item.animatedIconLooping);
+            if (item.animatedIconLooping) {
+                icon->play();
+            } else {
+                icon->playSegment(0, qMax(0, icon->totalFrames() - 1));
+            }
+            animatedIconActiveKeys.insert(key);
+        }
+        return;
+    }
+
+    if (animatedIconActiveKeys.remove(key)) {
+        icon->setLooping(false);
+        icon->pause();
+        icon->setCurrentFrame(0);
+    }
+}
+
+void FluentNavigationView::Private::syncAnimatedIcons(FluentNavigationView *owner,
+                                                      int widgetWidth,
+                                                      int widgetHeight,
+                                                      const QColor &tint)
+{
+    QSet<QString> visibleKeys;
+    const QString selectedVisibleKey = visibleKeyForSelection(selectedKey);
+
+    if (displayMode == FluentNavigationView::Top) {
+        const auto layouts = topLayouts(widgetWidth);
+        for (int i = 0; i < static_cast<int>(layouts.size()); ++i) {
+            const auto &layout = layouts[static_cast<size_t>(i)];
+            if (!layout.item || !hasAnimatedIconSource(*layout.item)) {
+                continue;
+            }
+
+            const QRectF iconRect(layout.rect.left() + 12.0,
+                                  layout.rect.center().y() - kIconSize / 2.0,
+                                  kIconSize,
+                                  kIconSize);
+            const bool active = i == hoverRowIndex || layout.key() == selectedVisibleKey || layout.key() == selectedKey;
+            syncAnimatedItemIcon(owner, *layout.item, iconRect, active, tint, visibleKeys);
+        }
+    } else {
+        const int footerStart = footerStartRow();
+        const int scrollableStart = scrollableRowsStart();
+        const int scrollTop = scrollableAreaTop();
+        const int scrollBottom = footerBaseY(widgetHeight);
+
+        auto syncRow = [&](int index, const QRectF &rect) {
+            if (index < 0 || index >= static_cast<int>(rows.size())) {
+                return;
+            }
+            const auto &row = rows[static_cast<size_t>(index)];
+            if (row.kind != FlatRow::Item || !row.item || !hasAnimatedIconSource(*row.item)) {
+                return;
+            }
+
+            const int indent = row.depth * kDepthIndent;
+            const QRectF iconRect(rect.left() + indent + kItemPaddingX,
+                                  rect.center().y() - kIconSize / 2.0,
+                                  kIconSize,
+                                  kIconSize);
+            const bool active = index == hoverRowIndex || row.key() == selectedVisibleKey || row.key() == selectedKey;
+            syncAnimatedItemIcon(owner, *row.item, iconRect, active, tint, visibleKeys);
+        };
+
+        int y = headerHeight();
+        for (int i = 0; i < scrollableStart && i < footerStart && i < static_cast<int>(rows.size()); ++i) {
+            const int rowHeightValue = rowHeight(i);
+            syncRow(i, QRectF(0, y, widgetWidth, rowHeightValue));
+            y += rowHeightValue;
+        }
+
+        int sy = scrollTop - scrollOffset;
+        for (int i = scrollableStart; i < footerStart && i < static_cast<int>(rows.size()); ++i) {
+            const int rowHeightValue = rowHeight(i);
+            const QRectF rect(0, sy, widgetWidth, rowHeightValue);
+            if (rect.bottom() >= scrollTop && rect.top() <= scrollBottom) {
+                syncRow(i, rect);
+            }
+            sy += rowHeightValue;
+        }
+
+        y = footerBaseY(widgetHeight);
+        for (int i = footerStart; i < static_cast<int>(rows.size()); ++i) {
+            const int rowHeightValue = rowHeight(i);
+            syncRow(i, QRectF(0, y, widgetWidth, rowHeightValue));
+            y += rowHeightValue;
+        }
+    }
+
+    for (auto it = animatedIconWidgets.begin(); it != animatedIconWidgets.end(); ++it) {
+        FluentAnimatedIcon *icon = it.value();
+        if (!icon || visibleKeys.contains(it.key())) {
+            continue;
+        }
+        icon->hide();
+        icon->pause();
+        icon->setCurrentFrame(0);
+        animatedIconActiveKeys.remove(it.key());
+    }
+}
+
+FluentAnimatedIcon *FluentNavigationView::Private::ensureChromeAnimation(FluentNavigationView *owner,
+                                                                         QPointer<FluentAnimatedIcon> &animation)
+{
+    if (!owner) {
+        return nullptr;
+    }
+
+    if (!animation) {
+        animation = new FluentAnimatedIcon(owner);
+        animation->setAttribute(Qt::WA_TransparentForMouseEvents, true);
+        animation->setInteractive(false);
+        animation->setFallbackIconSize(QSize(kIconSize, kIconSize));
+        animation->setFixedSize(QSize(kIconSize, kIconSize));
+    }
+
+    return animation;
+}
+
+bool FluentNavigationView::Private::chromeAnimationLoaded(const QPointer<FluentAnimatedIcon> &animation, bool enabled) const
+{
+    return enabled && animation && animation->isLoaded() && animation->isVisible();
+}
+
+void FluentNavigationView::Private::syncChromeAnimation(FluentNavigationView *owner,
+                                                        QPointer<FluentAnimatedIcon> &animation,
+                                                        bool enabled,
+                                                        const QRectF &buttonRect,
+                                                        const QColor &tint,
+                                                        bool visible)
+{
+    if (!owner || !enabled || buttonRect.isEmpty() || !visible) {
+        if (animation) {
+            animation->hide();
+            animation->pause();
+            animation->setCurrentFrame(0);
+        }
+        return;
+    }
+
+    FluentAnimatedIcon *icon = ensureChromeAnimation(owner, animation);
+    if (!icon || !icon->isLoaded()) {
+        if (icon) {
+            icon->hide();
+        }
+        return;
+    }
+
+    const QSize iconSize = icon->size().isEmpty() ? QSize(kIconSize, kIconSize) : icon->size();
+    const QRectF iconRect(buttonRect.center().x() - iconSize.width() / 2.0,
+                          buttonRect.center().y() - iconSize.height() / 2.0,
+                          iconSize.width(),
+                          iconSize.height());
+
+    icon->setGeometry(iconRect.toAlignedRect());
+    icon->setTintColor(tint);
+    icon->show();
+    icon->raise();
+}
+
+void FluentNavigationView::Private::syncChromeAnimations(FluentNavigationView *owner,
+                                                         int widgetWidth,
+                                                         int widgetHeight,
+                                                         const QColor &tint)
+{
+    if (displayMode == FluentNavigationView::Top) {
+        syncChromeAnimation(owner,
+                            backButtonAnimation,
+                            hasBackButtonAnimation,
+                            topBackButtonRect(),
+                            tint,
+                            backButtonVisible);
+        syncChromeAnimation(owner, paneToggleAnimation, hasPaneToggleAnimation, QRectF(), tint, false);
+        return;
+    }
+
+    QRectF controlRect;
+    for (int i = 0; i < static_cast<int>(rows.size()); ++i) {
+        if (rows[static_cast<size_t>(i)].kind == FlatRow::Control) {
+            controlRect = rowRect(i, widgetWidth, widgetHeight);
+            break;
+        }
+    }
+
+    syncChromeAnimation(owner,
+                        backButtonAnimation,
+                        hasBackButtonAnimation,
+                        controlBackRect(controlRect),
+                        tint,
+                        backButtonVisible);
+    syncChromeAnimation(owner,
+                        paneToggleAnimation,
+                        hasPaneToggleAnimation,
+                        controlHamburgerRect(controlRect),
+                        tint,
+                        true);
+}
+
+void FluentNavigationView::Private::playChromeAnimation(const QPointer<FluentAnimatedIcon> &animation)
+{
+    if (!animation || !animation->isLoaded()) {
+        return;
+    }
+
+    animation->setLooping(false);
+    animation->setCurrentFrame(0);
+    animation->playSegment(0, qMax(0, animation->totalFrames() - 1));
+}
 
 FluentNavigationView::FluentNavigationView(QWidget *parent)
     : QWidget(parent)
@@ -1149,6 +1487,78 @@ void FluentNavigationView::setHeaderWidget(QWidget *widget)
     update();
 }
 
+bool FluentNavigationView::loadPaneToggleAnimation(const QString &path)
+{
+    auto *animation = d->ensureChromeAnimation(this, d->paneToggleAnimation);
+    const bool ok = animation && animation->load(path);
+    d->hasPaneToggleAnimation = ok;
+    if (ok) {
+        animation->setCurrentFrame(0);
+    }
+    update();
+    return ok;
+}
+
+bool FluentNavigationView::loadPaneToggleAnimationData(const QByteArray &json,
+                                                       const QString &cacheKey,
+                                                       const QString &resourcePath)
+{
+    auto *animation = d->ensureChromeAnimation(this, d->paneToggleAnimation);
+    const bool ok = animation && animation->loadData(json, cacheKey, resourcePath);
+    d->hasPaneToggleAnimation = ok;
+    if (ok) {
+        animation->setCurrentFrame(0);
+    }
+    update();
+    return ok;
+}
+
+void FluentNavigationView::clearPaneToggleAnimation()
+{
+    d->hasPaneToggleAnimation = false;
+    if (d->paneToggleAnimation) {
+        d->paneToggleAnimation->hide();
+        d->paneToggleAnimation->stop();
+    }
+    update();
+}
+
+bool FluentNavigationView::loadBackButtonAnimation(const QString &path)
+{
+    auto *animation = d->ensureChromeAnimation(this, d->backButtonAnimation);
+    const bool ok = animation && animation->load(path);
+    d->hasBackButtonAnimation = ok;
+    if (ok) {
+        animation->setCurrentFrame(0);
+    }
+    update();
+    return ok;
+}
+
+bool FluentNavigationView::loadBackButtonAnimationData(const QByteArray &json,
+                                                       const QString &cacheKey,
+                                                       const QString &resourcePath)
+{
+    auto *animation = d->ensureChromeAnimation(this, d->backButtonAnimation);
+    const bool ok = animation && animation->loadData(json, cacheKey, resourcePath);
+    d->hasBackButtonAnimation = ok;
+    if (ok) {
+        animation->setCurrentFrame(0);
+    }
+    update();
+    return ok;
+}
+
+void FluentNavigationView::clearBackButtonAnimation()
+{
+    d->hasBackButtonAnimation = false;
+    if (d->backButtonAnimation) {
+        d->backButtonAnimation->hide();
+        d->backButtonAnimation->stop();
+    }
+    update();
+}
+
 bool FluentNavigationView::isBackButtonVisible() const
 {
     return d->backButtonVisible;
@@ -1314,13 +1724,6 @@ void FluentNavigationView::updateModeGeometry()
 
 void FluentNavigationView::paintEvent(QPaintEvent * /*event*/)
 {
-    QPainter p(this);
-    if (!p.isActive()) {
-        return;
-    }
-
-    p.setRenderHint(QPainter::Antialiasing, true);
-
     const auto &colors = ThemeManager::instance().colors();
     const int W = width();
     const int H = height();
@@ -1328,10 +1731,19 @@ void FluentNavigationView::paintEvent(QPaintEvent * /*event*/)
     // the content height (rebuildRows, expand/collapse, resize, etc.).
     d->clampScrollOffset(H);
     const qreal labelOpacity = d->labelOpacity();
+    d->syncAnimatedIcons(this, W, H, colors.text);
+    d->syncChromeAnimations(this, W, H, colors.text);
+
+    QPainter p(this);
+    if (!p.isActive()) {
+        return;
+    }
+
+    p.setRenderHint(QPainter::Antialiasing, true);
 
     p.setPen(Qt::NoPen);
     p.setBrush(colors.surface);
-    p.drawRoundedRect(QRectF(0, 0, W, H), 8.0, 8.0);
+    p.drawPath(navigationSurfacePath(QRectF(0, 0, W, H), 8.0, d->displayMode == Top));
 
     auto drawHamburger = [&](const QRectF &rect, const QColor &color) {
         const QPointF center = rect.center();
@@ -1359,6 +1771,10 @@ void FluentNavigationView::paintEvent(QPaintEvent * /*event*/)
     };
 
     auto drawItemIcon = [&](const QRectF &iconRect, const FluentNavigationItem &item) {
+        if (hasAnimatedIconSource(item) && d->animatedIconLoaded(item.key)) {
+            return;
+        }
+
         if (!item.iconGlyph.isEmpty()) {
             QFont iconFont = font();
             iconFont.setFamily(item.iconFontFamily.isEmpty() ? defaultGlyphFontFamily() : item.iconFontFamily);
@@ -1389,7 +1805,9 @@ void FluentNavigationView::paintEvent(QPaintEvent * /*event*/)
             buttonFill.setAlpha(38);
             p.setBrush(buttonFill);
             p.drawRoundedRect(backRect, 4.0, 4.0);
-            drawBack(backRect, d->backButtonEnabled);
+            if (!d->chromeAnimationLoaded(d->backButtonAnimation, d->hasBackButtonAnimation)) {
+                drawBack(backRect, d->backButtonEnabled);
+            }
         }
 
         p.setPen(QPen(colors.border, 1.0));
@@ -1425,7 +1843,7 @@ void FluentNavigationView::paintEvent(QPaintEvent * /*event*/)
             }
 
             qreal x = layout.rect.left() + 12.0;
-            if (!layout.item->iconGlyph.isEmpty() || !layout.item->icon.isNull()) {
+            if (hasAnimatedIconSource(*layout.item) || !layout.item->iconGlyph.isEmpty() || !layout.item->icon.isNull()) {
                 QRectF iconRect(x, layout.rect.center().y() - kIconSize / 2.0, kIconSize, kIconSize);
                 drawItemIcon(iconRect, *layout.item);
                 x = iconRect.right() + 8.0;
@@ -1506,13 +1924,17 @@ void FluentNavigationView::paintEvent(QPaintEvent * /*event*/)
                 p.setPen(Qt::NoPen);
                 p.setBrush(buttonFill);
                 p.drawRoundedRect(backRect, 4.0, 4.0);
-                drawBack(backRect, d->backButtonEnabled);
+                if (!d->chromeAnimationLoaded(d->backButtonAnimation, d->hasBackButtonAnimation)) {
+                    drawBack(backRect, d->backButtonEnabled);
+                }
             }
 
             p.setPen(Qt::NoPen);
             p.setBrush(buttonFill);
             p.drawRoundedRect(hamburgerRect, 4.0, 4.0);
-            drawHamburger(hamburgerRect, colors.text);
+            if (!d->chromeAnimationLoaded(d->paneToggleAnimation, d->hasPaneToggleAnimation)) {
+                drawHamburger(hamburgerRect, colors.text);
+            }
 
             if (labelOpacity > 0.0 && !d->paneTitle.isEmpty()) {
                 const qreal textLeft = hamburgerRect.right() + 10.0;
@@ -1683,6 +2105,7 @@ void FluentNavigationView::mousePressEvent(QMouseEvent *event)
     if (d->displayMode == Top) {
         const QRectF backRect = d->topBackButtonRect();
         if (d->backButtonVisible && backRect.contains(event->pos())) {
+            d->playChromeAnimation(d->backButtonAnimation);
             if (d->backButtonEnabled) {
                 emit backRequested();
             }
@@ -1732,6 +2155,7 @@ void FluentNavigationView::mousePressEvent(QMouseEvent *event)
         const QRectF rowRect = d->rowRect(hit, width(), height());
         const QRectF backRect = d->controlBackRect(rowRect);
         if (d->backButtonVisible && backRect.contains(event->pos())) {
+            d->playChromeAnimation(d->backButtonAnimation);
             if (d->backButtonEnabled) {
                 emit backRequested();
             }
@@ -1740,6 +2164,7 @@ void FluentNavigationView::mousePressEvent(QMouseEvent *event)
 
         if (d->controlHamburgerRect(rowRect).contains(event->pos())) {
             d->closeItemFlyout();
+            d->playChromeAnimation(d->paneToggleAnimation);
             toggleExpanded();
         }
         return;

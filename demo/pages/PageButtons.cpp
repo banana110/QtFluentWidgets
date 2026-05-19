@@ -2,16 +2,25 @@
 
 #include "../DemoHelpers.h"
 
+#include <QAction>
 #include <QHBoxLayout>
 #include <QVBoxLayout>
 
+#include "Fluent/FluentAnimatedButton.h"
 #include "Fluent/FluentButton.h"
+#include "Fluent/FluentAnimatedIcon.h"
 #include "Fluent/FluentCard.h"
 #include "Fluent/FluentCheckBox.h"
+#include "Fluent/FluentCommandBar.h"
+#include "Fluent/FluentDropDownButton.h"
+#include "Fluent/FluentLabel.h"
 #include "Fluent/FluentMainWindow.h"
+#include "Fluent/FluentMenu.h"
 #include "Fluent/FluentProgressBar.h"
+#include "Fluent/FluentProgressRing.h"
 #include "Fluent/FluentRadioButton.h"
 #include "Fluent/FluentScrollArea.h"
+#include "Fluent/FluentSplitButton.h"
 #include "Fluent/FluentToggleSwitch.h"
 #include "Fluent/FluentToolButton.h"
 
@@ -115,6 +124,181 @@ QWidget *createButtonsPage(FluentMainWindow *window)
 #undef BUTTONS_TOOL_BUTTON
         }
 
+        // FluentAnimatedButton demo
+        {
+            QString code;
+#define BUTTONS_ANIMATED_BUTTON(X) \
+    X(auto *row = new QHBoxLayout();) \
+    X(row->setContentsMargins(0, 0, 0, 0);) \
+    X(row->setSpacing(10);) \
+    X(auto *search = new FluentAnimatedButton(DEMO_TEXT("搜索", "Search"));) \
+    X(search->loadAnimationData(Demo::animatedSearchIconJson(), QStringLiteral("demo-search-button"));) \
+    X(auto *primary = new FluentAnimatedButton(DEMO_TEXT("Primary Search", "Primary Search"));) \
+    X(primary->setPrimary(true);) \
+    X(primary->loadAnimationData(Demo::animatedSearchIconJson(), QStringLiteral("demo-primary-search-button"));) \
+    X(auto *iconOnly = new FluentAnimatedButton();) \
+    X(iconOnly->setFixedSize(40, 32);) \
+    X(iconOnly->loadAnimationData(Demo::animatedSearchIconJson(), QStringLiteral("demo-icon-only-search-button"));) \
+    X(row->addWidget(search);) \
+    X(row->addWidget(primary);) \
+    X(row->addWidget(iconOnly);) \
+    X(row->addStretch(1);) \
+    X(body->addLayout(row);)
+
+#define X(line) code += QStringLiteral(#line "\n");
+            BUTTONS_ANIMATED_BUTTON(X)
+#undef X
+
+            page->addWidget(Demo::makeCollapsedExample(
+                QStringLiteral("FluentAnimatedButton"),
+                DEMO_TEXT("带 Lottie marker 动效的按钮", "Button with Lottie marker animation"),
+                DEMO_TEXT("要点：\n"
+                          "-按钮本身仍是 QPushButton 语义，可直接连接 clicked/toggled\n"
+                          "-hover 自动播放 NormalToPointerOver，press 自动播放 PointerOverToPressed\n"
+                          "-支持 Primary 与纯图标尺寸",
+                          "Highlights:\n"
+                          "-Still uses QPushButton semantics, so clicked/toggled work normally\n"
+                          "-Hover plays NormalToPointerOver; press plays PointerOverToPressed\n"
+                          "-Supports primary and icon-only layouts"),
+                code,
+                [=](QVBoxLayout *body) {
+#define X(line) line
+                    BUTTONS_ANIMATED_BUTTON(X)
+#undef X
+                },
+                false));
+
+#undef BUTTONS_ANIMATED_BUTTON
+        }
+
+        // AnimatedIcon demo
+        {
+            QString code;
+#define BUTTONS_ANIMATED_ICON(X) \
+    X(auto *row = new QHBoxLayout();) \
+    X(row->setContentsMargins(0, 0, 0, 0);) \
+    X(row->setSpacing(10);) \
+    X(auto *icon = new FluentAnimatedIcon();) \
+    X(icon->setFixedSize(64, 64);) \
+    X(icon->loadData(Demo::animatedSearchIconJson(), QStringLiteral("demo-search-icon"));) \
+    X(icon->setInteractive(true);) \
+    X(icon->setState(QStringLiteral("Normal"), false);) \
+    X(auto *normal = new FluentButton(QStringLiteral("Normal"));) \
+    X(auto *over = new FluentButton(QStringLiteral("PointerOver"));) \
+    X(auto *pressed = new FluentButton(QStringLiteral("Pressed"));) \
+    X(QObject::connect(normal, &QPushButton::clicked, icon, [icon]() { icon->setState(QStringLiteral("Normal")); });) \
+    X(QObject::connect(over, &QPushButton::clicked, icon, [icon]() { icon->setState(QStringLiteral("PointerOver")); });) \
+    X(QObject::connect(pressed, &QPushButton::clicked, icon, [icon]() { icon->setState(QStringLiteral("Pressed")); });) \
+    X(row->addWidget(icon);) \
+    X(row->addWidget(normal);) \
+    X(row->addWidget(over);) \
+    X(row->addWidget(pressed);) \
+    X(row->addStretch(1);) \
+    X(body->addLayout(row);)
+
+#define X(line) code += QStringLiteral(#line "\n");
+            BUTTONS_ANIMATED_ICON(X)
+#undef X
+
+            page->addWidget(Demo::makeCollapsedExample(
+                QStringLiteral("FluentAnimatedIcon"),
+                DEMO_TEXT("基于 Lottie marker 的状态动画图标", "Stateful animated icon driven by Lottie markers"),
+                DEMO_TEXT("要点：\n"
+                          "-loadData()/load() 加载 Lottie JSON\n"
+                          "-setState(\"Normal/PointerOver/Pressed\") 使用 marker 切换状态\n"
+                          "-setInteractive(true) 让控件自身 hover/press 自动切换状态",
+                          "Highlights:\n"
+                          "-Use loadData() or load() to load Lottie JSON\n"
+                          "-Use setState(\"Normal/PointerOver/Pressed\") to switch marker states\n"
+                          "-Use setInteractive(true) for automatic hover / press states"),
+                code,
+                [=](QVBoxLayout *body) {
+#define X(line) line
+                    BUTTONS_ANIMATED_ICON(X)
+#undef X
+                }));
+
+#undef BUTTONS_ANIMATED_ICON
+        }
+
+        // Commanding controls
+        {
+            QString code;
+#define BUTTONS_COMMANDING(X) \
+    X(auto *status = new FluentLabel(DEMO_TEXT("命令状态：选择一个命令，或打开只读模式查看 QAction 状态同步。", "Command status: choose a command, or enable read-only mode to see QAction state sync."));) \
+    X(status->setWordWrap(true);) \
+    X(auto *row = new QHBoxLayout();) \
+    X(row->setContentsMargins(0, 0, 0, 0);) \
+    X(row->setSpacing(10);) \
+    X(auto *drop = new FluentDropDownButton(DEMO_TEXT("更多操作", "More actions"));) \
+    X(auto *copyFromDrop = drop->addAction(DEMO_TEXT("复制链接", "Copy link"));) \
+    X(auto *moveFromDrop = drop->addAction(DEMO_TEXT("移动到...", "Move to..."));) \
+    X(auto *split = new FluentSplitButton(DEMO_TEXT("保存", "Save"));) \
+    X(auto *saveAction = new QAction(DEMO_TEXT("保存", "Save"), split);) \
+    X(split->setDefaultAction(saveAction);) \
+    X(auto *saveMenu = new FluentMenu(split);) \
+    X(saveMenu->addAction(DEMO_TEXT("另存为", "Save as"));) \
+    X(saveMenu->addAction(DEMO_TEXT("保存副本", "Save a copy"));) \
+    X(split->setMenu(saveMenu);) \
+    X(row->addWidget(drop);) \
+    X(row->addWidget(split);) \
+    X(row->addStretch(1);) \
+    X(body->addLayout(row);) \
+    X(auto *bar = new FluentCommandBar();) \
+    X(auto *newAction = new QAction(DEMO_TEXT("新建", "New"), bar);) \
+    X(auto *renameAction = new QAction(DEMO_TEXT("重命名", "Rename"), bar);) \
+    X(auto *deleteAction = new QAction(DEMO_TEXT("删除", "Delete"), bar);) \
+    X(bar->addCommand(newAction);) \
+    X(bar->addCommand(renameAction);) \
+    X(bar->addSeparator();) \
+    X(bar->addCommand(deleteAction);) \
+    X(auto *more = new FluentMenu(bar);) \
+    X(more->setTitle(DEMO_TEXT("导出", "Export"));) \
+    X(auto *pdfAction = more->addAction(QStringLiteral("PDF"));) \
+    X(auto *pngAction = more->addAction(QStringLiteral("PNG"));) \
+    X(bar->addCommand(more->menuAction());) \
+    X(bar->addSeparator();) \
+    X(auto *readOnly = new FluentToggleSwitch(DEMO_TEXT("只读", "Read only"));) \
+    X(bar->addWidget(readOnly);) \
+    X(body->addWidget(bar);) \
+    X(body->addWidget(status);) \
+    X(QObject::connect(copyFromDrop, &QAction::triggered, status, [=]() { status->setText(DEMO_TEXT("命令状态：已复制链接。", "Command status: copied link.")); });) \
+    X(QObject::connect(moveFromDrop, &QAction::triggered, status, [=]() { status->setText(DEMO_TEXT("命令状态：打开移动目标选择。", "Command status: opened move destination picker.")); });) \
+    X(QObject::connect(saveAction, &QAction::triggered, status, [=]() { status->setText(DEMO_TEXT("命令状态：默认保存动作已执行。", "Command status: default save action ran.")); });) \
+    X(QObject::connect(newAction, &QAction::triggered, status, [=]() { status->setText(DEMO_TEXT("命令状态：新建文档。", "Command status: new document.")); });) \
+    X(QObject::connect(renameAction, &QAction::triggered, status, [=]() { status->setText(DEMO_TEXT("命令状态：进入重命名。", "Command status: renaming.")); });) \
+    X(QObject::connect(deleteAction, &QAction::triggered, status, [=]() { status->setText(DEMO_TEXT("命令状态：删除命令已执行。", "Command status: delete command ran.")); });) \
+    X(QObject::connect(pdfAction, &QAction::triggered, status, [=]() { status->setText(DEMO_TEXT("命令状态：导出 PDF。", "Command status: export PDF.")); });) \
+    X(QObject::connect(pngAction, &QAction::triggered, status, [=]() { status->setText(DEMO_TEXT("命令状态：导出 PNG。", "Command status: export PNG.")); });) \
+    X(QObject::connect(readOnly, &FluentToggleSwitch::toggled, status, [=](bool checked) { renameAction->setEnabled(!checked); deleteAction->setEnabled(!checked); status->setText(checked ? DEMO_TEXT("命令状态：只读模式已开启，编辑类命令自动禁用。", "Command status: read-only mode is on; editing commands are disabled.") : DEMO_TEXT("命令状态：只读模式已关闭，命令恢复可用。", "Command status: read-only mode is off; commands are enabled.")); });)
+
+#define X(line) code += QStringLiteral(#line "\n");
+            BUTTONS_COMMANDING(X)
+#undef X
+
+            page->addWidget(Demo::makeCollapsedExample(
+                QStringLiteral("CommandBar / DropDownButton / SplitButton"),
+                DEMO_TEXT("命令入口：独立下拉、默认动作与状态同步命令栏", "Command entry points: standalone drop-down, default action, and state-synced command bar"),
+                DEMO_TEXT("要点：\n"
+                          "-FluentDropDownButton 适合单个按钮展开一组次级动作\n"
+                          "-FluentSplitButton 左侧执行默认动作，右侧展开同一动作的变体\n"
+                          "-FluentCommandBar 以 QAction 为中心组织常用命令、分隔线、菜单命令和自定义控件",
+                          "Highlights:\n"
+                          "-FluentDropDownButton is for one button that opens secondary actions\n"
+                          "-FluentSplitButton runs a default action on the left and opens variants on the right\n"
+                          "-FluentCommandBar organizes frequent QAction commands, separators, menu commands, and custom widgets"),
+                code,
+                [=](QVBoxLayout *body) {
+#define X(line) line
+                    BUTTONS_COMMANDING(X)
+#undef X
+                },
+                false,
+                250));
+
+#undef BUTTONS_COMMANDING
+        }
+
         // Check/Radio/Toggle demo
         {
             QString code;
@@ -168,20 +352,34 @@ QWidget *createButtonsPage(FluentMainWindow *window)
     X(pb->setRange(0, 100);) \
     X(pb->setValue(62);) \
     X(pb->setFixedWidth(340);) \
-    X(body->addWidget(pb);)
+    X(auto *row = new QHBoxLayout();) \
+    X(row->setContentsMargins(0, 0, 0, 0);) \
+    X(row->setSpacing(14);) \
+    X(auto *ring = new FluentProgressRing();) \
+    X(ring->setFixedSize(42, 42);) \
+    X(ring->setValue(62);) \
+    X(auto *busy = new FluentProgressRing();) \
+    X(busy->setFixedSize(42, 42);) \
+    X(busy->setIndeterminate(true);) \
+    X(row->addWidget(pb, 1);) \
+    X(row->addWidget(ring);) \
+    X(row->addWidget(busy);) \
+    X(body->addLayout(row);)
 
 #define X(line) code += QStringLiteral(#line "\n");
             BUTTONS_PROGRESS(X)
 #undef X
 
             page->addWidget(Demo::makeCollapsedExample(
-                QStringLiteral("FluentProgressBar"),
-                DEMO_TEXT("进度条（Accent 会影响进度颜色）", "Progress bar (Accent affects the progress color)"),
+                QStringLiteral("FluentProgressBar / FluentProgressRing"),
+                DEMO_TEXT("线性进度与环形进度（Accent 会影响进度颜色）", "Linear and ring progress indicators (Accent affects the progress color)"),
                 DEMO_TEXT("要点：\n"
                           "-setRange()/setValue()\n"
+                          "-ProgressRing 支持确定进度与 indeterminate 忙碌态\n"
                           "-主题/Accent 联动（填充色、背景）",
                           "Highlights:\n"
                           "-Use setRange() and setValue()\n"
+                          "-ProgressRing supports determinate progress and indeterminate busy state\n"
                           "-Theme and Accent both influence the fill and background"),
                 code,
                 [=](QVBoxLayout *body) {
@@ -192,8 +390,6 @@ QWidget *createButtonsPage(FluentMainWindow *window)
 
 #undef BUTTONS_PROGRESS
         }
-
-        Q_UNUSED(window);
     });
 }
 

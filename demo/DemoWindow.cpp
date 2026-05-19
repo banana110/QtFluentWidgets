@@ -9,6 +9,7 @@
 #include "pages/PageDataViews.h"
 #include "pages/PageAngleControls.h"
 #include "pages/PageInputs.h"
+#include "pages/PageMotion.h"
 #include "pages/PageOverview.h"
 #include "pages/PagePickers.h"
 #include "pages/PageWindows.h"
@@ -26,6 +27,7 @@
 #include <QVBoxLayout>
 #include <array>
 
+#include "Fluent/FluentAnimatedButton.h"
 #include "Fluent/FluentButton.h"
 #include "Fluent/FluentCalendarPicker.h"
 #include "Fluent/FluentCard.h"
@@ -158,11 +160,29 @@ void DemoWindow::buildUi()
 
     // TitleBar custom slots demo
     {
-        auto *search = new FluentLineEdit();
-        m_titleBarLeftOwnedWidget = search;
+        auto *searchHost = new QWidget();
+        m_titleBarLeftOwnedWidget = searchHost;
+        auto *searchLayout = new QHBoxLayout(searchHost);
+        searchLayout->setContentsMargins(0, 0, 0, 0);
+        searchLayout->setSpacing(6);
+
+        auto *search = new FluentLineEdit(searchHost);
         search->setPlaceholderText(DEMO_TEXT("搜索…", "Search..."));
-        search->setFixedWidth(160);
-        window.setFluentTitleBarLeftWidget(search);
+        search->setFixedWidth(150);
+
+        auto *searchButton = Demo::makeAnimatedSearchButton(QString(), searchHost);
+        searchButton->setFixedSize(34, 28);
+        searchButton->setToolTip(DEMO_TEXT("填入示例搜索词", "Fill a sample search term"));
+        QObject::connect(searchButton, &QPushButton::clicked, search, [search]() {
+            search->setText(QStringLiteral("AnimatedIcon"));
+            search->setFocus();
+            search->selectAll();
+        });
+
+        searchLayout->addWidget(search);
+        searchLayout->addWidget(searchButton);
+        searchHost->setFixedWidth(190);
+        window.setFluentTitleBarLeftWidget(searchHost);
 
         auto *toastControls = new QWidget();
         m_titleBarRightOwnedWidget = toastControls;
@@ -320,10 +340,15 @@ void DemoWindow::buildUi()
     nav->setCompactWidth(48);
     nav->setAutoCollapseWidth(800);
     nav->setPaneTitle(QStringLiteral("Qt Fluent"));
+    nav->loadPaneToggleAnimation(Demo::demoLottieResourcePath(QStringLiteral("menu.json")));
+    nav->loadBackButtonAnimation(Demo::demoLottieResourcePath(QStringLiteral("left-arrow.json")));
 
     auto applyGlyph = [](FluentNavigationItem &item, ushort codePoint) {
         item.iconGlyph = QString(QChar(codePoint));
         item.iconFontFamily = QStringLiteral("Segoe Fluent Icons");
+    };
+    auto applyAnimatedIcon = [](FluentNavigationItem &item, const QString &fileName) {
+        item.animatedIconSource = Demo::demoLottieResourcePath(fileName);
     };
 
     // Build navigation items matching the demo pages
@@ -356,6 +381,12 @@ void DemoWindow::buildUi()
             basicInput.children.push_back(buttons);
         }
         mainItems.push_back(basicInput);
+
+        NI motion;
+        motion.key  = QStringLiteral("motion");
+        motion.text = DEMO_TEXT("动态", "Motion");
+        applyGlyph(motion, 0xE768);
+        mainItems.push_back(motion);
 
         // "选择器" category
         NI pickers;
@@ -396,6 +427,7 @@ void DemoWindow::buildUi()
         settings.key  = QStringLiteral("settings");
         settings.text = DEMO_TEXT("设置", "Settings");
         applyGlyph(settings, 0xE713);
+        applyAnimatedIcon(settings, QStringLiteral("setting.json"));
         nav->addFooterItem(settings);
     }
 
@@ -408,6 +440,7 @@ void DemoWindow::buildUi()
             QStringLiteral("basic_input"),
             QStringLiteral("inputs"),
             QStringLiteral("buttons"),
+            QStringLiteral("motion"),
             QStringLiteral("pickers"),
             QStringLiteral("angles"),
             QStringLiteral("dataviews"),
@@ -423,15 +456,16 @@ void DemoWindow::buildUi()
     stack->addWidget(Demo::Pages::createBasicInputPage(&window, jumpTo)); // 1
     stack->addWidget(Demo::Pages::createInputsPage(&window));             // 2
     stack->addWidget(Demo::Pages::createButtonsPage(&window));            // 3
-    stack->addWidget(Demo::Pages::createPickersPage(&window));            // 4
-    stack->addWidget(Demo::Pages::createAngleControlsPage(&window));      // 5
-    stack->addWidget(Demo::Pages::createDataViewsPage(&window));          // 6
-    stack->addWidget(Demo::Pages::createContainersPage(&window));         // 7
-    stack->addWidget(Demo::Pages::createWindowsPage(&window));            // 8
+    stack->addWidget(Demo::Pages::createMotionPage());                    // 4
+    stack->addWidget(Demo::Pages::createPickersPage(&window));            // 5
+    stack->addWidget(Demo::Pages::createAngleControlsPage(&window));      // 6
+    stack->addWidget(Demo::Pages::createDataViewsPage(&window));          // 7
+    stack->addWidget(Demo::Pages::createContainersPage(&window));         // 8
+    stack->addWidget(Demo::Pages::createWindowsPage(&window));            // 9
 
     // Settings page: reuse the DemoSidebar as a standalone settings panel
     auto *settingsPage = new DemoSidebar(&window, nullptr, false);
-    stack->addWidget(settingsPage);                                       // 9
+    stack->addWidget(settingsPage);                                       // 10
 
     // Map navigation keys to stack indices
     QObject::connect(nav, &FluentNavigationView::selectedKeyChanged, this, [this, stack](const QString &key) {
@@ -441,12 +475,13 @@ void DemoWindow::buildUi()
             { QStringLiteral("basic_input"), 1 },
             { QStringLiteral("inputs"),     2 },
             { QStringLiteral("buttons"),    3 },
-            { QStringLiteral("pickers"),    4 },
-            { QStringLiteral("angles"),     5 },
-            { QStringLiteral("dataviews"),  6 },
-            { QStringLiteral("containers"), 7 },
-            { QStringLiteral("windows"),    8 },
-            { QStringLiteral("settings"),   9 },
+            { QStringLiteral("motion"),     4 },
+            { QStringLiteral("pickers"),    5 },
+            { QStringLiteral("angles"),     6 },
+            { QStringLiteral("dataviews"),  7 },
+            { QStringLiteral("containers"), 8 },
+            { QStringLiteral("windows"),    9 },
+            { QStringLiteral("settings"),   10 },
         };
         auto it = keyMap.find(key);
         if (it != keyMap.end()) {

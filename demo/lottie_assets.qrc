@@ -1,0 +1,12 @@
+<RCC>
+    <qresource prefix="/qtfluent/demo/lottie">
+        <file alias="delete.json">assets/lottie/delete.json</file>
+        <file alias="dropdown.json">assets/lottie/dropdown.json</file>
+        <file alias="left-arrow.json">assets/lottie/left-arrow.json</file>
+        <file alias="menu.json">assets/lottie/menu.json</file>
+        <file alias="right-arrow.json">assets/lottie/right-arrow.json</file>
+        <file alias="scroll-down.json">assets/lottie/scroll-down.json</file>
+        <file alias="scroll-top.json">assets/lottie/scroll-top.json</file>
+        <file alias="setting.json">assets/lottie/setting.json</file>
+    </qresource>
+</RCC>

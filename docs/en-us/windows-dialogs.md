@@ -9,10 +9,103 @@
 - `FluentStatusBar` (include: `Fluent/FluentStatusBar.h`)
 - `FluentDialog` (include: `Fluent/FluentDialog.h`)
 - `FluentMessageBox` (include: `Fluent/FluentMessageBox.h`)
+- `FluentInfoBar` (include: `Fluent/FluentInfoBar.h`)
+- `FluentFlyout` (include: `Fluent/FluentFlyout.h`)
+- `FluentTeachingTip` (include: `Fluent/FluentTeachingTip.h`)
 - `FluentToast` (include: `Fluent/FluentToast.h`)
 - `FluentResizeHelper` (include: `Fluent/FluentResizeHelper.h`)
 
 Demo pages: Windows (`demo/pages/PageWindows.cpp`) and Overview (`demo/pages/PageOverview.cpp`).
+
+## FluentInfoBar
+
+```cpp
+#include "Fluent/FluentInfoBar.h"
+
+auto *bar = new Fluent::FluentInfoBar(
+    Fluent::FluentInfoBar::Severity::Warning,
+    QStringLiteral("Heads up"),
+    QStringLiteral("This is an inline message."));
+bar->setActionText(QStringLiteral("View"));
+```
+
+Purpose: inline feedback for validation results, sync status, lightweight errors, and other messages that should not interrupt the user.
+
+Key APIs:
+
+- `setSeverity(Info/Success/Warning/Error)`: semantic color.
+- `setTitle()` / `setMessage()`: title and body.
+- `setActionText()`: optional action button.
+- `setClosable(bool)`: show or hide the close button.
+- `actionTriggered()` / `closed()`: action and dismissal signals.
+
+Demo: Windows / Overview.
+
+## Popup / FluentFlyout / FluentTeachingTip
+
+```cpp
+#include "Fluent/FluentFlyout.h"
+#include "Fluent/FluentTeachingTip.h"
+
+auto *flyout = new Fluent::FluentFlyout(parent);
+flyout->setContentWidget(new QLabel(QStringLiteral("Flyout content")));
+flyout->showFor(anchorButton);
+
+auto *tip = new Fluent::FluentTeachingTip(parent);
+tip->setTitle(QStringLiteral("TeachingTip"));
+tip->setSubtitle(QStringLiteral("Explain a new feature."));
+tip->setContentWidget(new QLabel(QStringLiteral("Place a lightweight QWidget in the body area.")));
+tip->setActionText(QStringLiteral("Got it"));
+tip->setTarget(anchorButton);
+tip->setMaskEnabled(true);
+tip->setMaskOpacity(0.46);
+tip->open();
+
+// Multi-step guide: describe the target list and each step's visual style.
+auto *tour = new Fluent::FluentTeachingTip(parent);
+tour->setMaskEnabled(true);
+tour->setGuideTargets({ searchButton, previewSwitch, exportButton });
+tour->setGuideStyles({
+    { QStringLiteral("1 / 3  Search entry"), QStringLiteral("Tell users where to start."), QStringLiteral("Next") },
+    { QStringLiteral("2 / 3  Preview toggle"), QStringLiteral("Explain the current state control."), QStringLiteral("Next"), QStringLiteral("Back") },
+    { QStringLiteral("3 / 3  Export action"), QStringLiteral("Point to the final action."), QStringLiteral("Done"), QStringLiteral("Back") },
+});
+tour->setGuideContentWidgets({ nullptr, new QLabel(QStringLiteral("Custom body for step 2.")), nullptr });
+connect(tour, &Fluent::FluentTeachingTip::guideFinished, tour, &QObject::deleteLater);
+tour->startGuide();
+```
+
+Purpose: all three can appear near a target control, but they serve different jobs:
+
+- **Popup/Menu**: a short-lived selection or command surface, such as `FluentMenu`, a ComboBox popup, or a calendar popup. It is usually managed by a concrete control and is best for lists, menus, dates, and one-shot choices.
+- **FluentFlyout**: a contextual mini panel created by application code. It hosts arbitrary QWidget content and fits lightweight interactions such as local view settings or small detail panels.
+- **FluentTeachingTip**: a guidance-oriented Flyout variant with title, subtitle, close button, and primary action. Use it to explain a target control or introduce a feature; avoid complex forms inside it.
+
+Key APIs:
+
+- `FluentFlyout::setContentWidget(QWidget*)`: set popup content.
+- `FluentFlyout::showAt(QPoint)` / `showFor(QWidget*, Placement)`: open by global point or target widget.
+- `FluentTeachingTip::setTitle()` / `setSubtitle()` / `setActionText()`: tip content.
+- `FluentTeachingTip::setContentWidget(QWidget*)` / `contentWidget()`: set the custom QWidget body area inside the TeachingTip.
+- `FluentTeachingTip::setTarget(QWidget*)` / `open()`: bind a target and open.
+- `FluentTeachingTip::setGuideTargets(QList<QWidget*>)` / `setGuideStyles(QList<GuideStyle>)`: declaratively configure a multi-step guide.
+- `FluentTeachingTip::setGuideContentWidgets(QList<QWidget*>)`: set an optional body QWidget for each guide step.
+- `FluentTeachingTip::startGuide()` / `nextGuideStep()` / `previousGuideStep()` / `finishGuide()`: start, advance, go back, or finish a multi-step guide.
+- `FluentTeachingTip::guideStarted()` / `guideStepChanged(int)` / `guideFinished()`: guide lifecycle signals.
+- `FluentTeachingTip::setMaskEnabled(bool)` / `maskEnabled()`: optional mask for guided flows.
+- `FluentTeachingTip::setMaskOpacity(qreal)` / `maskOpacity()`: mask opacity.
+- `FluentTeachingTip::actionTriggered()`: primary action signal.
+
+Notes:
+
+- Flyout uses `Qt::Popup`; clicking outside follows platform popup-dismiss behavior.
+- Use `FluentMenu` / `FluentDropDownButton` for command lists, `FluentFlyout` for custom contextual content, and `FluentTeachingTip` when the surface is explaining a target control.
+- A single tip can still use `setTarget()` + `open()`. For sequential guidance, prefer `setGuideTargets()` + `setGuideStyles()` + `startGuide()` so application code does not need to maintain a custom step state machine.
+- The first guide step hides the back action; later steps show `Back` by default, or use `GuideStyle::previousActionText` for custom text.
+- TeachingTip's mask overlay is attached to the target's top-level window. It dims the background, blocks background mouse input, and leaves a highlighted cutout around the current `target`.
+- TeachingTip uses a rectangular mask cutout and does not draw an extra highlight ring, avoiding both jagged `QRegion` rounded clipping and visual ambiguity from a separate stroke layer. The target remains visible, while the background area is still blocked by the mask.
+
+Demo: Windows / Overview.
 
 ## FluentMainWindow
 

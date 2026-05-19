@@ -11,6 +11,8 @@ A Fluent Design styled widget library built on **Qt Widgets** (with a full demo 
 - Qt5 / Qt6 compatible (CMake auto-detects Qt6, otherwise falls back to Qt5).
 - Unified theming: `ThemeManager` + `ThemeColors`.
 - Fluent-like input surfaces via `Style::paintControlSurface()` (radius/border/focus ring).
+- Includes `FluentLottieWidget` / `FluentAnimatedIcon` / `FluentAnimatedButton`, backed by the `third_party/rlottie` submodule for Lottie JSON rendering and marker-based state animation.
+- Adds WinUI Gallery-style controls such as `FluentProgressRing`, `FluentInfoBar`, `FluentAutoSuggestBox` / `FluentSearchBox`, `FluentFlyout` / `FluentTeachingTip`, and `FluentCommandBar` / `FluentDropDownButton` / `FluentSplitButton`.
 - Includes `FluentDateRangePicker` with a dual-panel range popup and configurable prefix / suffix / separator text.
 - Window-layer support includes `FluentMainWindow` title-bar slots, Windows 11-style accent border / trace animation, and menu-bar embedding into the custom title bar.
 - Demo covers all widgets and includes a sidebar panel to configure the CodeEditor (including clang-format path).
@@ -23,6 +25,24 @@ A Fluent Design styled widget library built on **Qt Widgets** (with a full demo 
 - CMake >= 3.16
 - Qt Widgets (Qt5 or Qt6)
 - Qt Svg, Qt UiPlugin (Demo / Designer plugin)
+- rlottie submodule (see "Get the code" below)
+
+### Get the code (including submodules)
+
+If you have not cloned the repository yet, use `--recursive` so Git downloads `third_party/rlottie` as well:
+
+```bash
+git clone --recursive https://github.com/Type3limit/QtFluentWidgets.git
+cd QtFluentWidgets
+```
+
+If you already cloned the repository without `--recursive`, no problem. Run this once from the repository root:
+
+```bash
+git submodule update --init --recursive
+```
+
+After this, `third_party/rlottie` should contain source files instead of being empty. This step is usually needed only the first time you set up the project; run the same command again later if submodules are updated.
 
 ### Build (out-of-source recommended)
 
@@ -75,6 +95,7 @@ Controls are documented by module under `docs/`:
 
 - Theme / Style: [docs/en-us/theme-style.md](docs/en-us/theme-style.md)
 - Buttons & toggles: [docs/en-us/buttons.md](docs/en-us/buttons.md)
+- Lottie motion: [docs/en-us/lottie.md](docs/en-us/lottie.md)
 - Inputs: [docs/en-us/inputs.md](docs/en-us/inputs.md)
 - Code editor: [docs/en-us/code-editor.md](docs/en-us/code-editor.md)
 - Pickers: [docs/en-us/pickers.md](docs/en-us/pickers.md)
@@ -86,7 +107,9 @@ Controls are documented by module under `docs/`:
 
 `docs/en-us/pickers.md` now also contains a dedicated `FluentDateRangePicker` section, including prefix/suffix/separator customization and the range mode behavior of `FluentCalendarPopup`.
 
-`docs/en-us/inputs.md` now also covers angle-input controls such as `FluentDial` and `FluentAngleSelector`. `docs/en-us/windows-dialogs.md` documents the current `FluentMainWindow` behavior: title-bar slots, auto-collapse rules, Windows frameless resize, DWM rounded corners, and the top-level accent-border overlay.
+`docs/en-us/lottie.md` documents the `FluentLottieWidget` / `FluentAnimatedIcon` / `FluentAnimatedButton` APIs, marker-state rules, theme tint linkage, asset authoring guidance, and performance notes. See [docs/en-us/animated-icon-plan.md](docs/en-us/animated-icon-plan.md) for the broader implementation plan.
+
+`docs/en-us/inputs.md` now also covers `FluentAutoSuggestBox` / `FluentSearchBox`, `FluentProgressRing`, and angle-input controls such as `FluentDial` and `FluentAngleSelector`. `docs/en-us/buttons.md` documents `FluentCommandBar` / `FluentDropDownButton` / `FluentSplitButton`. `docs/en-us/windows-dialogs.md` covers `FluentInfoBar`, `FluentFlyout` / `FluentTeachingTip`, and the current `FluentMainWindow` behavior: title-bar slots, auto-collapse rules, Windows frameless resize, DWM rounded corners, and the top-level accent-border overlay.
 
 `docs/en-us/navigation-view.md` now documents the `FluentNavigationView` data model, parent/child interaction semantics, glyph icon usage, and the parent-landing-page / auto-collapse behavior used by the current demo shell.
 

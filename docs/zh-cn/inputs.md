@@ -7,11 +7,13 @@ Demo 页面：Inputs（`demo/pages/PageInputs.cpp`）、Angle Controls（`demo/p
 ## 控件清单（对应公开头文件）
 
 - `FluentLineEdit`（include: `Fluent/FluentLineEdit.h`）
+- `FluentAutoSuggestBox` / `FluentSearchBox`（include: `Fluent/FluentAutoSuggestBox.h`）
 - `FluentTextEdit`（include: `Fluent/FluentTextEdit.h`）
 - `FluentComboBox`（include: `Fluent/FluentComboBox.h`）
 - `FluentSpinBox` / `FluentDoubleSpinBox`（include: `Fluent/FluentSpinBox.h`）
 - `FluentSlider`（include: `Fluent/FluentSlider.h`）
 - `FluentProgressBar`（include: `Fluent/FluentProgressBar.h`）
+- `FluentProgressRing`（include: `Fluent/FluentProgressRing.h`）
 - `FluentDial`（include: `Fluent/FluentDial.h`）
 - `FluentAngleSelector`（include: `Fluent/FluentAngleSelector.h`）
 
@@ -57,6 +59,47 @@ le->setPlaceholderText(QStringLiteral("输入…"));
 ```
 
 建议用法：如果你需要“搜索框”一类的图标/按钮组合，推荐外层用 `FluentCard`/`FluentWidget` 包一层，再用布局组合（该控件本身不内置 leading/trailing icon）。
+
+---
+
+## FluentAutoSuggestBox / FluentSearchBox
+
+用途：带候选建议的单行输入与搜索框组合。`FluentAutoSuggestBox` 负责输入建议，`FluentSearchBox` 在其基础上显示搜索按钮并发出提交信号。
+
+继承与构造：
+
+- `class FluentAutoSuggestBox : public QWidget`
+- `class FluentSearchBox : public FluentAutoSuggestBox`
+- 构造：`FluentAutoSuggestBox(QWidget*)`、`FluentSearchBox(QWidget*)`
+
+关键 API：
+
+- `setSuggestions(const QStringList&)` / `suggestions()`：设置候选项。
+- `setPlaceholderText()` / `text()` / `setText()`：输入文本。
+- `lineEdit()`：访问内部 `FluentLineEdit` 以做更细粒度配置。
+- `submitted(const QString&)`：回车或点击搜索按钮时发出。
+- `suggestionChosen(const QString&)`：用户接受补全项时发出。
+- `searchRequested(const QString&)`：搜索提交语义信号。
+
+示例：
+
+```cpp
+#include "Fluent/FluentAutoSuggestBox.h"
+
+auto *search = new Fluent::FluentSearchBox();
+search->setPlaceholderText(QStringLiteral("Search controls"));
+search->setSuggestions({QStringLiteral("FluentButton"), QStringLiteral("FluentCard")});
+connect(search, &Fluent::FluentSearchBox::submitted, this, [](const QString &text) {
+    qDebug() << "search:" << text;
+});
+```
+
+注意事项：
+
+- 建议弹层使用库内自绘 popup，与 `FluentComboBox` 一致采用圆角面板、Fluent 滚动条和自绘候选项。
+- `FluentSearchBox` 默认显示搜索按钮；如果只需要建议输入，用 `FluentAutoSuggestBox`。
+
+Demo：Inputs / Overview。
 
 ---
 
@@ -241,6 +284,39 @@ pb->setTextPosition(Fluent::FluentProgressBar::TextPosition::Right);
 ```
 
 Demo：Buttons / Containers / Overview。
+
+---
+
+## FluentProgressRing
+
+用途：环形进度指示器，支持确定进度与 indeterminate 忙碌态，适合紧凑状态区域、按钮旁状态、加载中的卡片等场景。
+
+继承与构造：
+
+- `class FluentProgressRing : public QProgressBar`
+- 构造：`FluentProgressRing(QWidget*)`
+
+关键 API：
+
+- `setRange()` / `setValue()`：继承自 `QProgressBar` 的确定进度。
+- `setIndeterminate(true)`：启用忙碌态旋转。
+- `setRingWidth(qreal)`：设置圆环宽度。
+
+示例：
+
+```cpp
+#include "Fluent/FluentProgressRing.h"
+
+auto *ring = new Fluent::FluentProgressRing();
+ring->setFixedSize(42, 42);
+ring->setRange(0, 100);
+ring->setValue(66);
+
+auto *busy = new Fluent::FluentProgressRing();
+busy->setIndeterminate(true);
+```
+
+Demo：Buttons / Overview。
 
 ---
 

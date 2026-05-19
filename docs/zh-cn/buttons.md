@@ -5,12 +5,98 @@
 ## 控件清单（对应公开头文件）
 
 - `FluentButton`（include: `Fluent/FluentButton.h`）
+- `FluentAnimatedButton`（include: `Fluent/FluentAnimatedButton.h`）
+- `FluentAnimatedIcon`（include: `Fluent/FluentAnimatedIcon.h`）
+- `FluentLottieWidget`（include: `Fluent/FluentLottieWidget.h`）
 - `FluentToolButton`（include: `Fluent/FluentToolButton.h`）
+- `FluentDropDownButton`（include: `Fluent/FluentDropDownButton.h`）
+- `FluentSplitButton`（include: `Fluent/FluentSplitButton.h`）
+- `FluentCommandBar`（include: `Fluent/FluentCommandBar.h`）
 - `FluentToggleSwitch`（include: `Fluent/FluentToggleSwitch.h`）
 - `FluentCheckBox`（include: `Fluent/FluentCheckBox.h`）
 - `FluentRadioButton`（include: `Fluent/FluentRadioButton.h`）
+- `FluentProgressRing`（include: `Fluent/FluentProgressRing.h`）
 
 Demo 页面：Buttons（`demo/pages/PageButtons.cpp`），以及 Overview（`demo/pages/PageOverview.cpp`）。
+
+---
+
+## FluentLottieWidget / FluentAnimatedIcon / FluentAnimatedButton
+
+用途：`FluentLottieWidget` 是通用 Lottie JSON 播放控件；`FluentAnimatedIcon` 在它之上增加 WinUI 风格的状态语义；`FluentAnimatedButton` 则把 animated icon 接到 `QPushButton` 语义里，适合搜索、导航、按钮图标等需要 hover / pressed / selected 动效的场景。
+
+完整用法、主题 tint、资源制作与性能说明见 [lottie.md](lottie.md)；本节保留按钮页相关的快速参考。
+
+依赖：项目通过 `third_party/rlottie` Git 子模块源码级集成 rlottie。新 clone 仓库后需执行：
+
+```bash
+git submodule update --init --recursive
+```
+
+继承与构造：
+
+- `class FluentLottieWidget : public QWidget`
+- `class FluentAnimatedIcon : public FluentLottieWidget`
+- `class FluentAnimatedButton : public QPushButton`
+- 构造：`FluentLottieWidget(QWidget*)`、`FluentAnimatedIcon(QWidget*)`、`FluentAnimatedButton(QWidget*)`、`FluentAnimatedButton(const QString&, QWidget*)`
+
+关键 API：
+
+- `load(const QString&)`：从 `.json` 文件加载 Lottie。
+- `loadData(const QByteArray&, const QString& cacheKey = {}, const QString& resourcePath = {})`：从内存加载 Lottie。
+- `play()` / `pause()` / `stop()`：播放控制。
+- `setCurrentFrame(int)` / `setProgress(qreal)`：定位帧。
+- `playSegment(int, int)` / `playMarker(const QString&)`：播放帧区间或 marker 区间。
+- `markerNames()` / `hasMarker()` / `markerFrame()` / `markerEndFrame()`：查询 Lottie 顶层 markers。
+- `FluentLottieWidget::setTintColor(const QColor&)` / `resetTintColor()`：可选地把渲染帧按 alpha 重染为单色，适合图标型 Lottie。
+- `FluentAnimatedIcon::setState(const QString&, bool animated = true)`：按状态切换 marker 动画。
+- `FluentAnimatedIcon::setInteractive(true)`：控件自身 hover / press 时自动切换 `Normal`、`PointerOver`、`Pressed`。
+- `FluentAnimatedButton::loadAnimation()` / `loadAnimationData()`：加载按钮图标动画。
+- `FluentAnimatedButton::animatedIcon()`：访问内部图标控件，用于设置 fallback icon、查询 marker 等。
+- `FluentAnimatedButton::setAnimatedIconSize()`：设置按钮内动画图标尺寸。
+- `FluentAnimatedButton` 会自动把内部动画图标 tint 到当前前景色，因此 Primary 按钮会使用白色动画图标，禁用态会使用禁用文本色。
+
+`FluentAnimatedIcon` 的 marker 查找规则：
+
+- `[PreviousState]To[NewState]_Start` + `_End`：播放这一段。
+- `[PreviousState]To[NewState]`：播放或跳转 transition marker。
+- `[NewState]`：跳转到状态 marker。
+- 任意 `To[NewState]_End`：作为兜底状态帧。
+- 数字 state：作为目标帧。
+- 找不到 marker 时回到 0 帧。
+
+示例：
+
+```cpp
+#include "Fluent/FluentAnimatedIcon.h"
+
+auto *icon = new Fluent::FluentAnimatedIcon();
+icon->setFixedSize(48, 48);
+icon->load(QStringLiteral(":/lottie/search.json"));
+icon->setInteractive(true);
+icon->setState(QStringLiteral("Normal"), false);
+```
+
+按钮示例：
+
+```cpp
+#include "Fluent/FluentAnimatedButton.h"
+
+auto *button = new Fluent::FluentAnimatedButton(QStringLiteral("Search"));
+button->loadAnimation(QStringLiteral(":/lottie/search.json"));
+connect(button, &QPushButton::clicked, this, [] {
+    qDebug() << "Search clicked";
+});
+```
+
+注意事项：
+
+- `FluentAnimatedButton` 适合动作入口，不建议把所有普通表单按钮都替换成动画按钮。
+- 第一版不会把 animated icon 自动接入所有导航控件；目前可作为独立 QWidget 或按钮放进布局。
+- 如果 Lottie 加载失败，会绘制 fallback icon 或默认静态 glyph。
+- 公开头文件不暴露 rlottie 类型，后续替换/扩展后端不影响使用方 API。
+
+完整接入计划见 [animated-icon-plan.md](animated-icon-plan.md)。
 
 ---
 
@@ -99,6 +185,72 @@ connect(toggle, &QAbstractButton::toggled, this, [](bool on) {
 - `hoverLevel` / `pressLevel`（Q_PROPERTY）：动效层（内部动画驱动）。
 
 Demo：Buttons / Overview（也用于若干容器控件内部）。
+
+---
+
+## FluentDropDownButton / FluentSplitButton / FluentCommandBar
+
+用途：命令入口类控件，适合工具栏、页面命令区、卡片标题区等需要组织一组操作的场景。三者的侧重点不同：
+
+- `FluentDropDownButton`：一个按钮只负责展开一组次级动作。
+- `FluentSplitButton`：左侧是高频默认动作，右侧是同一动作的变体或更多选项。
+- `FluentCommandBar`：以 `QAction` 为中心组织一组常用命令，统一承载按钮、菜单命令、分隔线和少量自定义控件；当 action 的 enabled/text/icon 改变时，命令栏中的按钮会同步更新。
+
+继承与构造：
+
+- `class FluentDropDownButton : public FluentButton`
+- `class FluentSplitButton : public QWidget`
+- `class FluentCommandBar : public QWidget`
+
+关键 API：
+
+- `FluentDropDownButton::setMenu(QMenu*)` / `addAction()`：按钮点击时展开菜单。
+- `FluentSplitButton::setDefaultAction(QAction*)`：左侧执行主动作。
+- `FluentSplitButton::setMenu(QMenu*)`：右侧箭头展开更多动作。
+- `FluentCommandBar::addAction()` / `addCommand(QAction*)` / `addSeparator()` / `addWidget()`：组织命令按钮、菜单命令、分隔线和自定义控件。
+
+示例：
+
+```cpp
+#include "Fluent/FluentDropDownButton.h"
+#include "Fluent/FluentSplitButton.h"
+#include "Fluent/FluentCommandBar.h"
+#include "Fluent/FluentMenu.h"
+
+#include <QAction>
+
+auto *drop = new Fluent::FluentDropDownButton(QStringLiteral("More"));
+drop->addAction(QStringLiteral("Copy"));
+drop->addAction(QStringLiteral("Move"));
+
+auto *split = new Fluent::FluentSplitButton(QStringLiteral("Save"));
+split->setDefaultAction(new QAction(QStringLiteral("Save"), split));
+auto *menu = new Fluent::FluentMenu(split);
+menu->addAction(QStringLiteral("Save as"));
+split->setMenu(menu);
+
+auto *bar = new Fluent::FluentCommandBar();
+auto *newAction = new QAction(QStringLiteral("New"), bar);
+auto *editAction = new QAction(QStringLiteral("Edit"), bar);
+bar->addCommand(newAction);
+bar->addCommand(editAction);
+bar->addSeparator();
+
+auto *exportMenu = new Fluent::FluentMenu(bar);
+exportMenu->setTitle(QStringLiteral("Export"));
+exportMenu->addAction(QStringLiteral("PDF"));
+bar->addCommand(exportMenu->menuAction());
+
+editAction->setEnabled(false); // CommandBar 内对应按钮会同步禁用。
+```
+
+注意事项：
+
+- `FluentCommandBar` 是轻量命令容器，不替代 `QToolBar`；需要主窗口工具栏语义时继续使用 `FluentToolBar`。
+- `FluentSplitButton` 左右两块分别响应，适合“默认动作 + 更多选项”；如果只有菜单，使用 `FluentDropDownButton` 更清楚。
+- `FluentCommandBar` 的价值在于集中管理一组命令，而不是简单替代 `QHBoxLayout + Button`。
+
+Demo：Buttons / Overview。
 
 ---
 
