@@ -118,6 +118,7 @@ private:
 
     void syncBorderVisualState();
     void updateFrameHost();
+    void adoptNativeMenuBarIfNeeded();
 
 #ifdef Q_OS_WIN
     void applyWindowsDwmAttributes();
@@ -149,11 +150,13 @@ private:
 
     FluentMenuBar *m_menuBar = nullptr;
     // The original plain QMenuBar that was passed to setMenuBar() and adopted
-    // (typically the one created by uic's setupUi). We keep it alive, reparented
-    // under m_menuBar, and forward its QActionEvents into m_menuBar so that any
-    // actions added by setupUi *after* setMenuBar() (the standard uic order) still
-    // reach the title bar's FluentMenuBar.
+    // (typically the one created by uic's setupUi). We keep it alive and hidden,
+    // moving its QAction additions into m_menuBar so that uic's standard order
+    // (setMenuBar first, add actions later) still reaches the visible
+    // FluentMenuBar without leaving the same QAction owned by two menubars.
     QPointer<QMenuBar> m_adoptedSource;
+    bool m_adoptedSourceInNativeMenuSlot = false;
+    bool m_movingAdoptedSourceAction = false;
     FluentToolButton *m_minBtn = nullptr;
     FluentToolButton *m_maxBtn = nullptr;
     FluentToolButton *m_closeBtn = nullptr;

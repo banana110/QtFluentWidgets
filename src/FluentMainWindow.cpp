@@ -133,6 +133,21 @@ private:
     const FluentBorderEffect *m_border = nullptr;
 };
 
+// FluentMainWindow uses QMainWindow's menu-widget slot for the custom title bar,
+// but the host itself must stay a plain widget. If it inherits QMenuBar, promoted
+// Designer forms end up with both a native-looking title-bar menubar host and the
+// real FluentMenuBar embedded inside it.
+class TitleBarHost final : public QWidget
+{
+public:
+    explicit TitleBarHost(QWidget *parent = nullptr)
+        : QWidget(parent)
+    {
+        setAttribute(Qt::WA_StyledBackground, true);
+        setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
+    }
+};
+
 // ---------------------------------------------------------------------------
 // WindowFrameHost – a simple container that sits inside the MainWindow as the
 // central widget.  It only paints the Fluent surface fill (rounded rect).
@@ -213,7 +228,6 @@ FluentMainWindow::FluentMainWindow(QWidget *parent)
         updateFrameHost();
     });
 
-    ensureTitleBar();
     setFluentTitleBarEnabled(true);
     // Frameless windows need manual resize support; keep it on by default.
     setFluentResizeEnabled(true);
@@ -278,6 +292,7 @@ void FluentMainWindow::insertToolBar(QToolBar *before, QToolBar *toolbar)
 void FluentMainWindow::setStatusBar(QStatusBar *statusbar)
 {
     if (statusbar) {
+        statusbar->setProperty("_fluentIgnoredStatusBar", true);
         statusbar->hide();
         statusbar->deleteLater();
     }
@@ -628,6 +643,7 @@ QMenuBar *FluentMainWindow::menuBar() const
 {
     // Note: QMainWindow::menuBar() is not virtual; this is a convenience shim.
     auto *self = const_cast<FluentMainWindow *>(this);
+    self->adoptNativeMenuBarIfNeeded();
     self->ensureTitleBar();
 
     if (!self->m_menuBar) {
@@ -637,27 +653,57 @@ QMenuBar *FluentMainWindow::menuBar() const
     return self->m_menuBar;
 }
 
+void FluentMainWindow::adoptNativeMenuBarIfNeeded()
+{
+    auto *nativeMenuBar = qobject_cast<QMenuBar *>(QMainWindow::menuWidget());
+    if (!nativeMenuBar
+        || nativeMenuBar == m_titleBarHost
+        || nativeMenuBar == m_menuBar
+        || nativeMenuBar == m_adoptedSource) {
+        return;
+    }
+
+    setMenuBar(nativeMenuBar);
+}
+
 void FluentMainWindow::setMenuBar(QMenuBar *menuBar)
 {
-    ensureTitleBar();
+    auto clearAdoptedSource = [this]() {
+        if (!m_adoptedSource) {
+            m_adoptedSourceInNativeMenuSlot = false;
+            return;
+        }
+
+        m_adoptedSource->removeEventFilter(this);
+        m_adoptedSource->hide();
+        if (m_adoptedSourceInNativeMenuSlot) {
+            // The menu bar was installed by QMainWindow::setMenuBar() before we
+            // could intercept it. Leave ownership with QMainWindow; reparenting
+            // or deleting it here can leave QMainWindowLayout with a stale item.
+            m_adoptedSource->setFixedHeight(0);
+        } else {
+            m_adoptedSource->deleteLater();
+        }
+        m_adoptedSource = nullptr;
+        m_adoptedSourceInNativeMenuSlot = false;
+    };
 
     if (!menuBar) {
-        if (m_adoptedSource) {
-            m_adoptedSource->removeEventFilter(this);
-            m_adoptedSource->deleteLater();
-            m_adoptedSource = nullptr;
+        clearAdoptedSource();
+        if (m_titleBarHost) {
+            setFluentMenuBar(nullptr);
+        } else {
+            m_menuBar = nullptr;
         }
-        setFluentMenuBar(nullptr);
         return;
     }
 
     if (auto *fluent = qobject_cast<FluentMenuBar *>(menuBar)) {
         // Already a FluentMenuBar (e.g. Designer promoted ui->menubar). Drop any
         // previously adopted plain QMenuBar and install the fluent one directly.
+        ensureTitleBar();
         if (m_adoptedSource && m_adoptedSource != menuBar) {
-            m_adoptedSource->removeEventFilter(this);
-            m_adoptedSource->deleteLater();
-            m_adoptedSource = nullptr;
+            clearAdoptedSource();
         }
         setFluentMenuBar(fluent);
         return;
@@ -674,33 +720,82 @@ void FluentMainWindow::setMenuBar(QMenuBar *menuBar)
     // deleteLater()'d the source, so every menu added afterwards was attached to
     // a dangling object and never made it into the title bar.
     //
-    // The new strategy: build the FluentMenuBar, mirror whatever is already on
-    // the source, then keep the source alive (hidden, reparented under the
-    // FluentMenuBar) and install an event filter that forwards subsequent
-    // QActionEvents into the FluentMenuBar. uic's later addAction()/removeAction()
-    // calls therefore propagate naturally and ui->menubar stays a valid pointer
-    // for the rest of the program's lifetime.
-    auto *fluent = new FluentMenuBar(m_leftHost ? m_leftHost : m_titleBarHost);
+    // The new strategy: build the FluentMenuBar, move whatever is already on
+    // the source, then keep the source alive (hidden) and install an event
+    // filter that moves subsequent ActionAdded events into the FluentMenuBar.
+    // That preserves uic's ordering without leaving one QAction owned by both
+    // the hidden source menubar and the visible FluentMenuBar.
+    const bool sourceInNativeMenuSlot = (QMainWindow::menuWidget() == menuBar);
 
     const QList<QAction *> initialActions = menuBar->actions();
-    for (QAction *a : initialActions) {
-        if (!a) {
-            continue;
-        }
-        // QMenuBar::addAction(QAction*) accepts both leaf actions and menu actions
-        // (QMenu::menuAction()), so we don't need to special-case QMenu.
-        fluent->addAction(a);
-    }
-
     if (m_adoptedSource && m_adoptedSource != menuBar) {
-        m_adoptedSource->removeEventFilter(this);
-        m_adoptedSource->deleteLater();
+        clearAdoptedSource();
     }
     m_adoptedSource = menuBar;
+    m_adoptedSourceInNativeMenuSlot = sourceInNativeMenuSlot;
     menuBar->setVisible(false);
-    menuBar->setParent(fluent);
+    menuBar->setFixedHeight(0);
     menuBar->installEventFilter(this);
+    if (sourceInNativeMenuSlot && m_titleBarHost) {
+        // QMainWindow::setMenuBar() replaced FluentMainWindow's title-bar host
+        // with the uic-created source menubar. Put our title-bar host back into
+        // the native slot first; our event filter below keeps Qt's deleteLater()
+        // for the source menubar from destroying the object that user code still
+        // knows as ui->menubar.
+        auto forgetTitleBarPointers = [this]() {
+            m_titleBarHost = nullptr;
+            m_leftHost = nullptr;
+            m_leftSlotHost = nullptr;
+            m_centerHost = nullptr;
+            m_rightHost = nullptr;
+            m_rightSlotHost = nullptr;
+            m_windowButtonsHost = nullptr;
+            m_titleLabel = nullptr;
+            m_iconLabel = nullptr;
+            m_menuBar = nullptr;
+            m_minBtn = nullptr;
+            m_maxBtn = nullptr;
+            m_closeBtn = nullptr;
+        };
+        forgetTitleBarPointers();
+        ensureTitleBar();
+        // Keep the source menubar parented to the window. Reparenting an object
+        // that has already passed through QMainWindowLayout can trip Qt's
+        // internal menu/style state once the window is actually shown.
+        m_adoptedSourceInNativeMenuSlot = false;
+    } else {
+        // In the normal uic fallback path the constructor has not created a
+        // native title-bar widget yet, so QMainWindow::setMenuBar() can complete
+        // without tripping over a non-QMenuBar menu widget. Now that the source
+        // menubar is hidden and protected by our event filter, create/restore the
+        // Fluent title bar and replace the native menu slot with it.
+        ensureTitleBar();
+        if (sourceInNativeMenuSlot) {
+            m_adoptedSourceInNativeMenuSlot = false;
+        }
+    }
 
+    auto *fluent = new FluentMenuBar(m_leftHost ? m_leftHost : m_titleBarHost);
+    auto moveActionToFluent = [this, menuBar, fluent](QAction *action, QAction *before = nullptr) {
+        if (!action) {
+            return;
+        }
+        if (before && fluent->actions().contains(before)) {
+            fluent->insertAction(before, action);
+        } else {
+            fluent->addAction(action);
+        }
+        if (menuBar->actions().contains(action)) {
+            m_movingAdoptedSourceAction = true;
+            menuBar->removeAction(action);
+            m_movingAdoptedSourceAction = false;
+        }
+    };
+    for (QAction *a : initialActions) {
+        // QMenuBar::addAction(QAction*) accepts both leaf actions and menu actions
+        // (QMenu::menuAction()), so we don't need to special-case QMenu.
+        moveActionToFluent(a);
+    }
     setFluentMenuBar(fluent);
 }
 
@@ -822,6 +917,8 @@ void FluentMainWindow::resizeEvent(QResizeEvent *event)
 void FluentMainWindow::showEvent(QShowEvent *event)
 {
     QMainWindow::showEvent(event);
+    adoptNativeMenuBarIfNeeded();
+    ensureTitleBar();
 
     // Allow painting after the first event loop cycle.
     if (!property("_fluentPaintReady").toBool()) {
@@ -863,16 +960,14 @@ bool FluentMainWindow::eventFilter(QObject *watched, QEvent *event)
             if (ce->child() && ce->child()->isWidgetType()) {
                 ce->child()->installEventFilter(this);
 
-                // Auto-adopt a QMenuBar that was installed via QMainWindow::setMenuBar()
-                // *bypassing* our non-virtual override. This happens when the .ui
-                // file's root widget is still declared as QMainWindow (not promoted
-                // to FluentMainWindow): uic generates setupUi(QMainWindow *MainWindow)
-                // and the setMenuBar() call dispatches statically to the base, not
-                // to FluentMainWindow::setMenuBar(). Without this hook the menubar
-                // ends up parented to the QMainWindowLayout slot which is hidden
-                // behind our title bar / frame host, so the user sees nothing.
+                // Defensive fallback for a QMenuBar installed through
+                // QMainWindow::setMenuBar(), bypassing our non-virtual shim.
+                // The documented Designer path promotes the root widget so uic
+                // calls FluentMainWindow::setMenuBar() directly; this hook exists
+                // only to keep accidental static dispatch from leaving a native
+                // menubar in the main-window layout.
                 if (auto *mb = qobject_cast<QMenuBar *>(ce->child())) {
-                    if (mb != m_menuBar && mb != m_adoptedSource) {
+                    if (mb != m_titleBarHost && mb != m_menuBar && mb != m_adoptedSource) {
                         QPointer<QMenuBar> mbRef(mb);
                         QPointer<FluentMainWindow> selfRef(this);
                         // Defer to next event-loop tick so uic's `menubar->addAction(...)`
@@ -889,6 +984,24 @@ bool FluentMainWindow::eventFilter(QObject *watched, QEvent *event)
                         });
                     }
                 }
+
+                if (auto *sb = qobject_cast<QStatusBar *>(ce->child())) {
+                    QPointer<QStatusBar> sbRef(sb);
+                    QPointer<FluentMainWindow> selfRef(this);
+                    QTimer::singleShot(0, this, [selfRef, sbRef]() {
+                        if (!selfRef || !sbRef) {
+                            return;
+                        }
+                        if (sbRef->property("_fluentIgnoredStatusBar").toBool()) {
+                            return;
+                        }
+                        selfRef->QMainWindow::setStatusBar(nullptr);
+                        if (sbRef) {
+                            sbRef->hide();
+                            sbRef->deleteLater();
+                        }
+                    });
+                }
             }
         }
 
@@ -903,25 +1016,35 @@ bool FluentMainWindow::eventFilter(QObject *watched, QEvent *event)
         return QMainWindow::eventFilter(watched, event);
     }
 
-    // Forward QActionEvents from the adopted source QMenuBar (the original
+    // Move QAction additions from the adopted source QMenuBar (the original
     // ui->menubar) into the live FluentMenuBar in the title bar. This is what
     // makes uic's `menubar->addAction(...)` calls (issued *after* setMenuBar())
-    // show up in the title bar, and keeps later user-driven addMenu/addAction
-    // calls on ui->menubar working as if nothing had changed.
-    if (m_adoptedSource && watched == m_adoptedSource.data() && m_menuBar) {
+    // show up in the title bar without also keeping those actions on the hidden
+    // source menubar.
+    if (m_adoptedSource && watched == m_adoptedSource.data()) {
+        if (event->type() == QEvent::DeferredDelete) {
+            return true;
+        }
+        if (m_movingAdoptedSourceAction) {
+            return QMainWindow::eventFilter(watched, event);
+        }
+        if (!m_menuBar) {
+            return QMainWindow::eventFilter(watched, event);
+        }
         if (event->type() == QEvent::ActionAdded || event->type() == QEvent::ActionRemoved) {
             auto *ae = static_cast<QActionEvent *>(event);
             QAction *act = ae->action();
             if (act) {
                 if (event->type() == QEvent::ActionAdded) {
                     QAction *before = ae->before();
-                    // QMenuBar will silently no-op if `act` is already present,
-                    // so we don't have to dedupe ourselves.
                     if (before && m_menuBar->actions().contains(before)) {
                         m_menuBar->insertAction(before, act);
                     } else {
                         m_menuBar->addAction(act);
                     }
+                    m_movingAdoptedSourceAction = true;
+                    m_adoptedSource->removeAction(act);
+                    m_movingAdoptedSourceAction = false;
                 } else {
                     m_menuBar->removeAction(act);
                 }
@@ -1156,9 +1279,29 @@ void FluentMainWindow::ensureTitleBar()
         return;
     }
 
-    m_titleBarHost = new QWidget(this);
+    auto *titleBarHost = new TitleBarHost();
+    m_titleBarHost = titleBarHost;
     m_titleBarHost->setObjectName("FluentTitleBarHost");
+    m_titleBarHost->setParent(this);
     m_titleBarHost->installEventFilter(this);
+    connect(m_titleBarHost, &QObject::destroyed, this, [this, titleBarHost]() {
+        if (m_titleBarHost != titleBarHost) {
+            return;
+        }
+        m_titleBarHost = nullptr;
+        m_leftHost = nullptr;
+        m_leftSlotHost = nullptr;
+        m_centerHost = nullptr;
+        m_rightHost = nullptr;
+        m_rightSlotHost = nullptr;
+        m_windowButtonsHost = nullptr;
+        m_titleLabel = nullptr;
+        m_iconLabel = nullptr;
+        m_menuBar = nullptr;
+        m_minBtn = nullptr;
+        m_maxBtn = nullptr;
+        m_closeBtn = nullptr;
+    });
 
     const auto wm = Style::windowMetrics();
     m_titleBarHost->setMinimumHeight(0);

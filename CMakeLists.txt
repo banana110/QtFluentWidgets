@@ -8,6 +8,7 @@ set(CMAKE_AUTOUIC ON)
 set(CMAKE_AUTORCC ON)
 
 option(FLUENT_BUILD_DESIGNER_PLUGIN "Build Qt Designer plugin" ON)
+option(FLUENT_BUILD_TESTS "Build QtFluent widget tests" OFF)
 
 find_package(Qt6 COMPONENTS Widgets Svg QUIET)
 if(Qt6_FOUND)
@@ -19,6 +20,12 @@ endif()
 
 if(FLUENT_BUILD_DESIGNER_PLUGIN)
     find_package(${QT_PACKAGE} REQUIRED COMPONENTS UiPlugin)
+endif()
+
+if(FLUENT_BUILD_TESTS)
+    find_package(${QT_PACKAGE} REQUIRED COMPONENTS Test)
+    enable_testing()
+    get_filename_component(FLUENT_QT_BIN_DIR "${${QT_PACKAGE}_DIR}/../../../bin" ABSOLUTE)
 endif()
 
 if(NOT EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/third_party/rlottie/CMakeLists.txt")
@@ -242,6 +249,53 @@ if(WIN32)
         COMMAND ${CMAKE_COMMAND} -E copy_if_different $<TARGET_FILE:rlottie> $<TARGET_FILE_DIR:QtFluentDemo>
         VERBATIM
     )
+endif()
+
+if(FLUENT_BUILD_TESTS)
+    add_executable(QtFluentWidgetsDesignerCompatTest
+        tests/QtFluentWidgetsDesignerCompatTest.cpp
+        tests/ui/DesignerCompatMainWindow.ui
+        tests/ui/DesignerPromotedMainWindow.ui
+    )
+    set_target_properties(QtFluentWidgetsDesignerCompatTest PROPERTIES
+        AUTOUIC_SEARCH_PATHS "${CMAKE_CURRENT_SOURCE_DIR}/tests/ui"
+    )
+    target_link_libraries(QtFluentWidgetsDesignerCompatTest PRIVATE QtFluentWidgets ${QT_PACKAGE}::Widgets ${QT_PACKAGE}::Test)
+    if(MSVC)
+        target_compile_options(QtFluentWidgetsDesignerCompatTest PRIVATE /utf-8)
+    endif()
+    add_test(NAME QtFluentWidgetsDesignerCompatTest COMMAND QtFluentWidgetsDesignerCompatTest)
+    add_custom_target(run-QtFluentWidgetsDesignerCompatTest
+        COMMAND ${CMAKE_COMMAND} -E env
+            "PATH=$<TARGET_FILE_DIR:QtFluentWidgetsDesignerCompatTest>$<SEMICOLON>${FLUENT_QT_BIN_DIR}$<SEMICOLON>$ENV{PATH}"
+            QTFLUENT_DESIGNER_COMPAT_TEST_VISIBLE=1
+            QTFLUENT_DESIGNER_COMPAT_TEST_VISIBLE_MS=0
+            $<TARGET_FILE:QtFluentWidgetsDesignerCompatTest>
+        DEPENDS QtFluentWidgetsDesignerCompatTest
+        WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+        VERBATIM
+    )
+
+    if(WIN32)
+        add_custom_command(TARGET QtFluentWidgetsDesignerCompatTest POST_BUILD
+            COMMAND ${CMAKE_COMMAND} -E copy_if_different $<TARGET_FILE:rlottie> $<TARGET_FILE_DIR:QtFluentWidgetsDesignerCompatTest>
+            VERBATIM
+        )
+        if(CMAKE_VERSION VERSION_GREATER_EQUAL 3.22)
+            set(_fluent_designer_compat_test_environment
+                "PATH=path_list_prepend:$<TARGET_FILE_DIR:QtFluentWidgetsDesignerCompatTest>"
+                "PATH=path_list_prepend:${FLUENT_QT_BIN_DIR}"
+                "QT_QPA_PLATFORM=set:offscreen"
+            )
+            set_tests_properties(QtFluentWidgetsDesignerCompatTest PROPERTIES
+                ENVIRONMENT_MODIFICATION "${_fluent_designer_compat_test_environment}"
+            )
+        else()
+            set_tests_properties(QtFluentWidgetsDesignerCompatTest PROPERTIES
+                ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
+            )
+        endif()
+    endif()
 endif()
 
 # Demo convenience: run with known paint warnings suppressed.

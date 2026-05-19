@@ -103,15 +103,8 @@ Controls are documented by module under `docs/`:
 - Containers / layout: [docs/en-us/containers-layout.md](docs/en-us/containers-layout.md)
 - NavigationView: [docs/en-us/navigation-view.md](docs/en-us/navigation-view.md)
 - Windows / menus / dialogs: [docs/en-us/windows-dialogs.md](docs/en-us/windows-dialogs.md)
+- Qt Designer compatibility test: [docs/en-us/designer-compat-test.md](docs/en-us/designer-compat-test.md)
 - Utilities: [docs/en-us/utilities.md](docs/en-us/utilities.md)
-
-`docs/en-us/pickers.md` now also contains a dedicated `FluentDateRangePicker` section, including prefix/suffix/separator customization and the range mode behavior of `FluentCalendarPopup`.
-
-`docs/en-us/lottie.md` documents the `FluentLottieWidget` / `FluentAnimatedIcon` / `FluentAnimatedButton` APIs, marker-state rules, theme tint linkage, asset authoring guidance, and performance notes. See [docs/en-us/animated-icon-plan.md](docs/en-us/animated-icon-plan.md) for the broader implementation plan.
-
-`docs/en-us/inputs.md` now also covers `FluentAutoSuggestBox` / `FluentSearchBox`, `FluentProgressRing`, and angle-input controls such as `FluentDial` and `FluentAngleSelector`. `docs/en-us/buttons.md` documents `FluentCommandBar` / `FluentDropDownButton` / `FluentSplitButton`. `docs/en-us/windows-dialogs.md` covers `FluentInfoBar`, `FluentFlyout` / `FluentTeachingTip`, and the current `FluentMainWindow` behavior: title-bar slots, auto-collapse rules, Windows frameless resize, DWM rounded corners, and the top-level accent-border overlay.
-
-`docs/en-us/navigation-view.md` now documents the `FluentNavigationView` data model, parent/child interaction semantics, glyph icon usage, and the parent-landing-page / auto-collapse behavior used by the current demo shell.
 
 ## Qt Designer Plugin
 
@@ -123,7 +116,3 @@ Disable the plugin build:
 cmake -S . -B build -DFLUENT_BUILD_DESIGNER_PLUGIN=OFF
 cmake --build build
 ```
-
-## License
-
-Add license information here if you plan to publish/distribute (the repository currently does not include a license text).

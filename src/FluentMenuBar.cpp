@@ -665,7 +665,6 @@ void FluentMenuBar::openMenuForAction(QAction *action)
     QMenu *menu = menuForAction(action);
     if (!menu) {
         // Non-menu actions still should appear active briefly.
-        setActiveAction(action);
         updateHighlightForAction(action, true);
         startHoverAnimation(1.0);
         return;
@@ -693,7 +692,6 @@ void FluentMenuBar::openMenuForAction(QAction *action)
     m_openMenu = menu;
     m_openAction = action;
 
-    setActiveAction(action);
     updateHighlightForAction(action, true);
     startHoverAnimation(1.0);
 
@@ -738,7 +736,6 @@ void FluentMenuBar::openMenuForAction(QAction *action)
             m_openPopup = nullptr;
             m_openMenu = nullptr;
             m_openAction = nullptr;
-            setActiveAction(nullptr);
             updateHighlightForAction(m_hoverAction, true);
         };
         popup->popupAt(popupPos);
@@ -753,7 +750,6 @@ void FluentMenuBar::onOpenMenuAboutToHide()
     if (sender() == m_openMenu) {
         m_openMenu = nullptr;
         m_openAction = nullptr;
-        setActiveAction(nullptr);
         updateHighlightForAction(m_hoverAction, true);
     }
 }

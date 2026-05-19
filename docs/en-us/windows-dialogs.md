@@ -182,17 +182,19 @@ One subtle detail: calling only `setWindowTitle()` / `setWindowIcon()` does **no
 - `menuBar()` here is a convenience shim (Qt's `QMainWindow::menuBar()` is not virtual). The first call creates and installs a `FluentMenuBar`.
 - `setMenuBar(QMenuBar*)`:
     - passing a `FluentMenuBar*`: installs it directly.
-    - passing a plain `QMenuBar*` (typically the one created by `setupUi()` in `ui_*.h`): **adopts** it — keeps the original object alive, hides it and reparents it under a new `FluentMenuBar`, and installs an event filter that forwards subsequent `QActionEvent`s (ActionAdded/ActionRemoved) into the `FluentMenuBar`. Consequences:
+    - passing a plain `QMenuBar*` (typically from a `.ui` file whose root is promoted but whose menubar is not): **adopts** it — keeps the original object alive and hidden, and installs an event filter that moves uic's later `ActionAdded` events into the `FluentMenuBar`. Consequences:
         1. The `ui->menubar` pointer stays valid; later `ui->menubar->addMenu(...)` calls keep working.
-        2. The standard uic order — `setMenuBar(menubar)` on an *empty* menubar, then `menubar->addAction(menuFile->menuAction())` *afterwards* — works correctly. The previous implementation copied the (still empty) action list once and then `deleteLater()`'d the source, losing every menu added after that point.
-    - The same `eventFilter` also auto-adopts any `QMenuBar` that gets attached via `QMainWindow::setMenuBar()` (i.e. when the `.ui` root is still declared as `QMainWindow`, so `setupUi(QMainWindow*)` statically dispatches to the base, bypassing our override). Switching the C++ base of `MainWindow` to `Fluent::FluentMainWindow` is enough — you don't have to also promote the `.ui` root.
+        2. The standard uic order — `setMenuBar(menubar)` on an *empty* menubar, then `menubar->addAction(menuFile->menuAction())` *afterwards* — works correctly. The previous implementation copied the (still empty) action list once and then lost every menu added after that point.
+        3. The adopted source menubar stays hidden and does not retain actions, so the same actions are not owned by both a native `QMenuBar` and the visible `FluentMenuBar`.
+    - If the `.ui` root is still declared as `QMainWindow`, uic generates `setupUi(QMainWindow*)` and statically bypasses several hidden `FluentMainWindow` methods. This is not the recommended workflow; promote the root widget at minimum.
 - To reduce native overflow, the title bar menu bar uses `QSizePolicy::Minimum` and sets `minimumWidth(minimumSizeHint().width())`.
 
 **Recommended Qt Designer workflow:**
 
 1. Promote the `.ui` root widget to `Fluent::FluentMainWindow` (header `Fluent/FluentMainWindow.h`) so that `setupUi()` takes a `Fluent::FluentMainWindow*` and `MainWindow->setMenuBar(...)` statically binds to our overload.
-2. (Optional) Promote the menubar itself to `Fluent::FluentMenuBar` (header `Fluent/FluentMenuBar.h`). If you don't, the library transparently adopts the plain `QMenuBar` via the path above; promotion only matters when you want to call `FluentMenuBar`-specific APIs like `addFluentMenu()` directly.
-3. **Don't** call `setFluentMenuBar(ui->menubar)` again from `initUI()` — `setupUi()` has already installed it into the title bar. Calling it again is redundant, and the line wouldn't compile anyway if `ui->menubar`'s static type is `QMenuBar*`.
+2. Prefer promoting the menubar to `Fluent::FluentMenuBar` (header `Fluent/FluentMenuBar.h`) and menus to `Fluent::FluentMenu` (header `Fluent/FluentMenu.h`). Then `ui->menubar` is the final visible Fluent menubar and can use `FluentMenuBar`-specific APIs directly.
+3. If only the root is promoted, the library uses the adoption/action-move compatibility path. It is fine for uic-generated menu structure, but later action removal/reordering should be done on `window->fluentMenuBar()`.
+4. **Don't** call `setFluentMenuBar(ui->menubar)` again from `initUI()` — promoted `setupUi()` has already installed it into the title bar. Calling it again is redundant, and the line would not compile if `ui->menubar`'s static type is `QMenuBar*`.
 
 ### Windows: frameless resize (WM_NCHITTEST)
 
@@ -228,6 +230,8 @@ Demo: Windows / Overview.
 
 - **Click-to-popup**: menu opens on left mouse press (`popup()`); `mouseReleaseEvent` swallows the left release to avoid QMenuBar's native popup logic.
 - **Automatic QMenu → FluentMenu conversion**: whenever actions are added/changed, it scans and converts native `QMenu` into `FluentMenu` (preserves the original `QAction` instances, migrates actions, then deletes the old menu).
+- **Single popup path**: the custom menubar no longer calls `QMenuBar::setActiveAction()`, so clicking a top-level menu only shows the Fluent popup and does not also activate Qt's native `QMenu` popup.
+- **Neutral menu border**: menu popups use the normal popup border instead of the window accent border, so a one-item menu does not read as a second button/menu strip.
 - **Disable native overflow button**: hides/disables `qt_menubar_ext_button` and clears its menu to avoid the native-styled overflow UI.
 - **Highlight animations**:
     - hoverLevel: 120ms linear;
