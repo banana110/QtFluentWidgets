@@ -89,8 +89,17 @@ Demo：Windows / Overview（Demo 主窗口也基于此）。
 - `menuBar()`：不是 `QMainWindow::menuBar()` 的虚函数覆写（Qt 本身不可覆写），而是一个“便利 shim”。第一次调用会自动创建并安装 `FluentMenuBar`。
 - `setMenuBar(QMenuBar*)`：
     - 传入 `FluentMenuBar*`：直接安装；
-    - 传入原生 `QMenuBar*`：会 best-effort 迁移其 actions/menus 到新的 `FluentMenuBar`（保留 `QAction` 实例），并在原 menuBar 属于本窗口时 `deleteLater()`。
+    - 传入原生 `QMenuBar*`（典型来自 `ui_*.h` 的 `setupUi()`）：会**领养**这个 menubar——保留原对象、隐藏并 reparent 到新建的 `FluentMenuBar` 下，同时安装事件过滤器把它的后续 `QActionEvent`（ActionAdded/ActionRemoved）转发到 `FluentMenuBar`。这样：
+        1. `ui->menubar` 指针**始终有效**，你后续在代码里继续 `ui->menubar->addMenu(...)` 完全没问题；
+        2. uic 生成的 `MainWindow->setMenuBar(menubar)` 在 menubar 为空时被调用、紧接着 `menubar->addAction(menuFile->menuAction())` 这种“setMenuBar 之后再追加”的顺序，也能正确把菜单送到标题栏（旧版本会丢失这些后追加的菜单）。
+    - 同时还在 `eventFilter` 里捕获 `ChildAdded`，自动领养任何被 `QMainWindow::setMenuBar()` 安插进来的 `QMenuBar`。这覆盖了 `.ui` 根元素仍是 `QMainWindow` 时 `setupUi(QMainWindow*)` 静态绕过我们重载的情况：你只把 `MainWindow.h` 的基类改成 `Fluent::FluentMainWindow`、不动 `.ui` 根 class，也能看到菜单。
 - 为避免 QMenuBar 自带 overflow：标题栏里的 menuBar 会被设置为 `QSizePolicy::Minimum`，并且设置 `minimumWidth(minimumSizeHint().width())`。
+
+**与 Qt Designer 的协作（推荐顺序）：**
+
+1. 把 `.ui` 文件根 widget 的 class 提升为 `Fluent::FluentMainWindow`（头文件 `Fluent/FluentMainWindow.h`），让 `setupUi()` 的形参类型变成 `Fluent::FluentMainWindow*`，从而 `MainWindow->setMenuBar(...)` 静态绑定到我们的重载。
+2. （可选）把 menubar 自身也提升为 `Fluent::FluentMenuBar`（头文件 `Fluent/FluentMenuBar.h`）。如果不提升，库会自动走上面的“领养 + 转发”路径，效果几乎一致；只有提升后才能直接调用 `FluentMenuBar` 专属的 `addFluentMenu()` 等扩展 API。
+3. **不要**在 `initUI()` 里再写 `setFluentMenuBar(ui->menubar)`——`setupUi()` 已经把它装到标题栏了，重复调用是多余的（且 `ui->menubar` 的静态类型如果是 `QMenuBar*`，这一行根本编不过）。
 
 ### Windows 平台：无边框 resize（WM_NCHITTEST）
 

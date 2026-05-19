@@ -2,6 +2,7 @@
 
 #include <QIcon>
 #include <QMainWindow>
+#include <QPointer>
 #include <QtGlobal>
 
 #include "Fluent/FluentBorderEffect.h"
@@ -147,6 +148,12 @@ private:
     bool m_hasIconOverride = false;
 
     FluentMenuBar *m_menuBar = nullptr;
+    // The original plain QMenuBar that was passed to setMenuBar() and adopted
+    // (typically the one created by uic's setupUi). We keep it alive, reparented
+    // under m_menuBar, and forward its QActionEvents into m_menuBar so that any
+    // actions added by setupUi *after* setMenuBar() (the standard uic order) still
+    // reach the title bar's FluentMenuBar.
+    QPointer<QMenuBar> m_adoptedSource;
     FluentToolButton *m_minBtn = nullptr;
     FluentToolButton *m_maxBtn = nullptr;
     FluentToolButton *m_closeBtn = nullptr;

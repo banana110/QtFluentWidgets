@@ -10,6 +10,7 @@
 #include "Fluent/FluentToolButton.h"
 
 #include <QAbstractButton>
+#include <QActionEvent>
 #include <QApplication>
 #include <QEvent>
 #include <QHBoxLayout>
@@ -641,42 +642,64 @@ void FluentMainWindow::setMenuBar(QMenuBar *menuBar)
     ensureTitleBar();
 
     if (!menuBar) {
+        if (m_adoptedSource) {
+            m_adoptedSource->removeEventFilter(this);
+            m_adoptedSource->deleteLater();
+            m_adoptedSource = nullptr;
+        }
         setFluentMenuBar(nullptr);
         return;
     }
 
     if (auto *fluent = qobject_cast<FluentMenuBar *>(menuBar)) {
+        // Already a FluentMenuBar (e.g. Designer promoted ui->menubar). Drop any
+        // previously adopted plain QMenuBar and install the fluent one directly.
+        if (m_adoptedSource && m_adoptedSource != menuBar) {
+            m_adoptedSource->removeEventFilter(this);
+            m_adoptedSource->deleteLater();
+            m_adoptedSource = nullptr;
+        }
         setFluentMenuBar(fluent);
         return;
     }
 
-    // Best-effort migration from a native QMenuBar to FluentMenuBar.
+    // Adoption path for a plain QMenuBar (the common case when this is called
+    // from uic-generated setupUi). The key observation: uic emits
+    //     menubar = new QMenuBar(MainWindow);
+    //     MainWindow->setMenuBar(menubar);   // <-- we are here, menubar is EMPTY
+    //     menuFile = new QMenu(menubar);
+    //     ...
+    //     menubar->addAction(menuFile->menuAction());   // <-- happens AFTER
+    // The old implementation copied the (still-empty) action list once and then
+    // deleteLater()'d the source, so every menu added afterwards was attached to
+    // a dangling object and never made it into the title bar.
+    //
+    // The new strategy: build the FluentMenuBar, mirror whatever is already on
+    // the source, then keep the source alive (hidden, reparented under the
+    // FluentMenuBar) and install an event filter that forwards subsequent
+    // QActionEvents into the FluentMenuBar. uic's later addAction()/removeAction()
+    // calls therefore propagate naturally and ui->menubar stays a valid pointer
+    // for the rest of the program's lifetime.
     auto *fluent = new FluentMenuBar(m_leftHost ? m_leftHost : m_titleBarHost);
 
-    const QList<QAction *> actions = menuBar->actions();
-    for (QAction *a : actions) {
+    const QList<QAction *> initialActions = menuBar->actions();
+    for (QAction *a : initialActions) {
         if (!a) {
             continue;
         }
-
-        if (a->isSeparator()) {
-            fluent->addSeparator();
-            continue;
-        }
-
-        if (QMenu *m = a->menu()) {
-            // Re-parent menu by adding it again.
-            fluent->addMenu(m);
-            continue;
-        }
-
+        // QMenuBar::addAction(QAction*) accepts both leaf actions and menu actions
+        // (QMenu::menuAction()), so we don't need to special-case QMenu.
         fluent->addAction(a);
     }
 
-    // If the passed menu bar is owned by this window, it's safe to discard.
-    if (menuBar->parent() == this || menuBar->parent() == m_titleBarHost) {
-        menuBar->deleteLater();
+    if (m_adoptedSource && m_adoptedSource != menuBar) {
+        m_adoptedSource->removeEventFilter(this);
+        m_adoptedSource->deleteLater();
     }
+    m_adoptedSource = menuBar;
+    menuBar->setVisible(false);
+    menuBar->setParent(fluent);
+    menuBar->installEventFilter(this);
 
     setFluentMenuBar(fluent);
 }
@@ -839,6 +862,33 @@ bool FluentMainWindow::eventFilter(QObject *watched, QEvent *event)
         if (auto *ce = static_cast<QChildEvent *>(event)) {
             if (ce->child() && ce->child()->isWidgetType()) {
                 ce->child()->installEventFilter(this);
+
+                // Auto-adopt a QMenuBar that was installed via QMainWindow::setMenuBar()
+                // *bypassing* our non-virtual override. This happens when the .ui
+                // file's root widget is still declared as QMainWindow (not promoted
+                // to FluentMainWindow): uic generates setupUi(QMainWindow *MainWindow)
+                // and the setMenuBar() call dispatches statically to the base, not
+                // to FluentMainWindow::setMenuBar(). Without this hook the menubar
+                // ends up parented to the QMainWindowLayout slot which is hidden
+                // behind our title bar / frame host, so the user sees nothing.
+                if (auto *mb = qobject_cast<QMenuBar *>(ce->child())) {
+                    if (mb != m_menuBar && mb != m_adoptedSource) {
+                        QPointer<QMenuBar> mbRef(mb);
+                        QPointer<FluentMainWindow> selfRef(this);
+                        // Defer to next event-loop tick so uic's `menubar->addAction(...)`
+                        // calls (which follow setMenuBar(menubar)) finish first.
+                        QTimer::singleShot(0, this, [selfRef, mbRef]() {
+                            if (!selfRef || !mbRef) {
+                                return;
+                            }
+                            if (mbRef.data() == selfRef->m_menuBar
+                                || mbRef.data() == selfRef->m_adoptedSource) {
+                                return;
+                            }
+                            selfRef->setMenuBar(mbRef.data());
+                        });
+                    }
+                }
             }
         }
 
@@ -851,6 +901,32 @@ bool FluentMainWindow::eventFilter(QObject *watched, QEvent *event)
         }
 
         return QMainWindow::eventFilter(watched, event);
+    }
+
+    // Forward QActionEvents from the adopted source QMenuBar (the original
+    // ui->menubar) into the live FluentMenuBar in the title bar. This is what
+    // makes uic's `menubar->addAction(...)` calls (issued *after* setMenuBar())
+    // show up in the title bar, and keeps later user-driven addMenu/addAction
+    // calls on ui->menubar working as if nothing had changed.
+    if (m_adoptedSource && watched == m_adoptedSource.data() && m_menuBar) {
+        if (event->type() == QEvent::ActionAdded || event->type() == QEvent::ActionRemoved) {
+            auto *ae = static_cast<QActionEvent *>(event);
+            QAction *act = ae->action();
+            if (act) {
+                if (event->type() == QEvent::ActionAdded) {
+                    QAction *before = ae->before();
+                    // QMenuBar will silently no-op if `act` is already present,
+                    // so we don't have to dedupe ourselves.
+                    if (before && m_menuBar->actions().contains(before)) {
+                        m_menuBar->insertAction(before, act);
+                    } else {
+                        m_menuBar->addAction(act);
+                    }
+                } else {
+                    m_menuBar->removeAction(act);
+                }
+            }
+        }
     }
 
     const bool titleBarActuallyVisible =
@@ -909,6 +985,18 @@ bool FluentMainWindow::eventFilter(QObject *watched, QEvent *event)
                 }
 
                 if (windowHandle()) {
+                    // When the window is maximized, do NOT initiate a system move
+                    // on press: on Windows 11, startSystemMove() while maximized
+                    // immediately restores the window and enters a modal move
+                    // loop, which swallows the second click of an incoming
+                    // double-click. That manifests as "the first double-click on
+                    // the title bar does nothing" — the window silently restores
+                    // on the first press, then the dblclick toggles it back to
+                    // maximized via showMaximized() (issue #10). Skip the move
+                    // here so the dblclick branch below can handle the toggle.
+                    if (isMaximized() || isFullScreen()) {
+                        return QMainWindow::eventFilter(watched, event);
+                    }
                     windowHandle()->startSystemMove();
                     return true;
                 }
