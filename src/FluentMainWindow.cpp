@@ -1157,10 +1157,6 @@ bool FluentMainWindow::nativeEvent(const QByteArray &eventType, void *message, l
     }
 
     if (msg->message == WM_NCHITTEST && m_titleBarEnabled) {
-        if (isMaximized()) {
-            return QMainWindow::nativeEvent(eventType, message, result);
-        }
-
         const QPoint globalPos(GET_X_LPARAM(msg->lParam), GET_Y_LPARAM(msg->lParam));
         const QPoint localPos = mapFromGlobal(globalPos);
 
@@ -1170,10 +1166,17 @@ bool FluentMainWindow::nativeEvent(const QByteArray &eventType, void *message, l
         const int h = height();
         const int b = Style::windowMetrics().resizeBorder;
 
-        const bool left = x >= 0 && x < b;
-        const bool right = x <= w && x > w - b;
-        const bool top = y >= 0 && y < b;
-        const bool bottom = y <= h && y > h - b;
+        // Resize borders are meaningless when maximized/fullscreen; skip them so
+        // they don't shadow the title bar's HTCAPTION area. But we still want to
+        // report HTCAPTION for the title bar itself even when maximized, so that
+        // the OS handles native drag-to-restore and double-click-to-restore
+        // (DefWindowProc's WM_NCLBUTTONDBLCLK on HTCAPTION). Issue #10.
+        const bool sizable = !isMaximized() && !isFullScreen();
+
+        const bool left = sizable && x >= 0 && x < b;
+        const bool right = sizable && x <= w && x > w - b;
+        const bool top = sizable && y >= 0 && y < b;
+        const bool bottom = sizable && y <= h && y > h - b;
 
         if (top && left) {
             *result = HTTOPLEFT;
