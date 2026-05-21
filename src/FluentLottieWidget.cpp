@@ -2,6 +2,7 @@
 
 #include "Fluent/FluentStyle.h"
 #include "Fluent/FluentTheme.h"
+#include "FluentPaintSupport.h"
 
 #include <rlottie.h>
 
@@ -449,6 +450,10 @@ void FluentLottieWidget::playMarker(const QString &name)
 void FluentLottieWidget::paintEvent(QPaintEvent *event)
 {
     Q_UNUSED(event)
+
+    if (!Detail::canBeginWidgetPainter(this)) {
+        return;
+    }
 
     QPainter painter(this);
     if (!painter.isActive()) {

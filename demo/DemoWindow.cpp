@@ -8,6 +8,7 @@
 #include "pages/PageContainers.h"
 #include "pages/PageDataViews.h"
 #include "pages/PageAngleControls.h"
+#include "pages/PageIcons.h"
 #include "pages/PageInputs.h"
 #include "pages/PageMotion.h"
 #include "pages/PageOverview.h"
@@ -20,12 +21,18 @@
 #include <QClipboard>
 #include <QComboBox>
 #include <QCursor>
+#include <QDebug>
+#include <QElapsedTimer>
 #include <QHBoxLayout>
 #include <QPointer>
 #include <QStackedWidget>
 #include <QTimer>
 #include <QVBoxLayout>
+#include <QVector>
 #include <array>
+#include <functional>
+#include <memory>
+#include <utility>
 
 #include "Fluent/FluentAnimatedButton.h"
 #include "Fluent/FluentButton.h"
@@ -38,6 +45,7 @@
 #include "Fluent/FluentDialog.h"
 #include "Fluent/FluentFlowLayout.h"
 #include "Fluent/FluentGroupBox.h"
+#include "Fluent/FluentIcon.h"
 #include "Fluent/FluentLabel.h"
 #include "Fluent/FluentLineEdit.h"
 #include "Fluent/FluentMenu.h"
@@ -66,6 +74,63 @@ namespace Demo {
 
 using namespace Fluent;
 
+namespace {
+
+class DemoStartupTrace
+{
+public:
+    explicit DemoStartupTrace(QString context)
+        : m_context(std::move(context))
+    {
+        m_timer.start();
+        qInfo().noquote() << QStringLiteral("[DemoStartup] %1 begin").arg(m_context);
+    }
+
+    ~DemoStartupTrace()
+    {
+        qInfo().noquote() << QStringLiteral("[DemoStartup] %1 done at %2 ms").arg(m_context).arg(m_timer.elapsed());
+    }
+
+    void mark(const QString &label)
+    {
+        const qint64 now = m_timer.elapsed();
+        qInfo().noquote() << QStringLiteral("[DemoStartup] %1 %2 +%3 ms, total %4 ms")
+                                  .arg(m_context, label)
+                                  .arg(now - m_lastMark)
+                                  .arg(now);
+        m_lastMark = now;
+    }
+
+    template <typename Factory>
+    QWidget *addPage(QStackedWidget *stack, const QString &name, Factory factory)
+    {
+        const qint64 beforeCreate = m_timer.elapsed();
+        QWidget *page = factory();
+        const qint64 afterCreate = m_timer.elapsed();
+        qInfo().noquote() << QStringLiteral("[DemoStartup] %1 page %2 created +%3 ms, total %4 ms")
+                                  .arg(m_context, name)
+                                  .arg(afterCreate - beforeCreate)
+                                  .arg(afterCreate);
+        if (stack && page) {
+            const qint64 beforeAdd = m_timer.elapsed();
+            stack->addWidget(page);
+            const qint64 afterAdd = m_timer.elapsed();
+            qInfo().noquote() << QStringLiteral("[DemoStartup] %1 page %2 added +%3 ms, total %4 ms")
+                                      .arg(m_context, name)
+                                      .arg(afterAdd - beforeAdd)
+                                      .arg(afterAdd);
+        }
+        return page;
+    }
+
+private:
+    QString m_context;
+    QElapsedTimer m_timer;
+    qint64 m_lastMark = 0;
+};
+
+} // namespace
+
 DemoWindow::DemoWindow(QWidget *parent,
                        const QString &selectedNavigationKey,
                        FluentToast::Position toastPosition)
@@ -73,7 +138,9 @@ DemoWindow::DemoWindow(QWidget *parent,
     , m_toastPosition(toastPosition)
     , m_selectedNavigationKey(selectedNavigationKey)
 {
+    qInfo().noquote() << QStringLiteral("[DemoStartup] DemoWindow ctor body begin");
     buildUi();
+    qInfo().noquote() << QStringLiteral("[DemoStartup] DemoWindow ctor body done");
 }
 
 void DemoWindow::clearUi()
@@ -120,16 +187,21 @@ void DemoWindow::clearUi()
 
 void DemoWindow::buildUi()
 {
+    DemoStartupTrace trace(QStringLiteral("DemoWindow::buildUi"));
     auto &window = *this;
 
     window.setWindowTitle(QStringLiteral("QtFluentWidgets Showcase"));
+    trace.mark(QStringLiteral("window title"));
 
     // Menu / Toolbar / StatusBar: demonstrate window-level Fluent components.
     auto *menuBar = new FluentMenuBar();
     m_ownedMenuBar = menuBar;
+    trace.mark(QStringLiteral("menu bar object"));
+
     auto *fileMenu = menuBar->addFluentMenu(DEMO_TEXT("文件", "File"));
     QAction *exitAction = fileMenu->addAction(DEMO_TEXT("退出", "Exit"));
     QObject::connect(exitAction, &QAction::triggered, this, &QWidget::close);
+    trace.mark(QStringLiteral("file menu"));
 
     auto *viewMenu = menuBar->addFluentMenu(DEMO_TEXT("视图", "View"));
     QAction *lightAction = viewMenu->addAction(DEMO_TEXT("浅色", "Light"));
@@ -150,8 +222,10 @@ void DemoWindow::buildUi()
         darkAction->setChecked(isDark);
         lightAction->setChecked(!isDark);
     });
+    trace.mark(QStringLiteral("view menu"));
 
     window.setFluentMenuBar(menuBar);
+    trace.mark(QStringLiteral("menu bar"));
 
     auto *demoMenu = menuBar->addFluentMenu(DEMO_TEXT("演示", "Demo"));
     QAction *msgInfo = demoMenu->addAction(DEMO_TEXT("消息框", "Message box"));
@@ -318,6 +392,7 @@ void DemoWindow::buildUi()
             }
         });
     }
+    trace.mark(QStringLiteral("title bar controls"));
 
     auto *root = new FluentWidget();
     m_rootWidget = root;
@@ -333,6 +408,7 @@ void DemoWindow::buildUi()
     auto *contentLayout = new QVBoxLayout(contentHost);
     contentLayout->setContentsMargins(0, 8, 16, 16);
     contentLayout->setSpacing(0);
+    trace.mark(QStringLiteral("root layout"));
 
     // ---- NavigationView (left pane) ----
     auto *nav = new FluentNavigationView(root);
@@ -343,9 +419,9 @@ void DemoWindow::buildUi()
     nav->loadPaneToggleAnimation(Demo::demoLottieResourcePath(QStringLiteral("menu.json")));
     nav->loadBackButtonAnimation(Demo::demoLottieResourcePath(QStringLiteral("left-arrow.json")));
 
-    auto applyGlyph = [](FluentNavigationItem &item, ushort codePoint) {
-        item.iconGlyph = QString(QChar(codePoint));
-        item.iconFontFamily = QStringLiteral("Segoe Fluent Icons");
+    auto applyIcon = [](FluentNavigationItem &item, FluentIconType type) {
+        item.hasFluentIcon = true;
+        item.fluentIcon = type;
     };
     auto applyAnimatedIcon = [](FluentNavigationItem &item, const QString &fileName) {
         item.animatedIconSource = Demo::demoLottieResourcePath(fileName);
@@ -359,77 +435,85 @@ void DemoWindow::buildUi()
         NI overview;
         overview.key  = QStringLiteral("overview");
         overview.text = DEMO_TEXT("总览", "Overview");
-        applyGlyph(overview, 0xE80F);
+        applyIcon(overview, FluentIconType::Home);
         mainItems.push_back(overview);
 
         // "基本输入" category with sub-items
         NI basicInput;
         basicInput.key  = QStringLiteral("basic_input");
         basicInput.text = DEMO_TEXT("基本输入", "Basic Input");
-        applyGlyph(basicInput, 0xE961);
+        applyIcon(basicInput, FluentIconType::Input);
         {
             NI inputs;
             inputs.key  = QStringLiteral("inputs");
             inputs.text = DEMO_TEXT("输入", "Inputs");
-            applyGlyph(inputs, 0xEF60);
+            applyIcon(inputs, FluentIconType::Edit);
             basicInput.children.push_back(inputs);
 
             NI buttons;
             buttons.key  = QStringLiteral("buttons");
             buttons.text = DEMO_TEXT("按钮/开关", "Buttons / Toggles");
-            applyGlyph(buttons, 0xF19F);
+            applyIcon(buttons, FluentIconType::Controls);
             basicInput.children.push_back(buttons);
         }
         mainItems.push_back(basicInput);
 
+        NI icons;
+        icons.key  = QStringLiteral("icons");
+        icons.text = DEMO_TEXT("图标", "Icons");
+        applyIcon(icons, FluentIconType::Icons);
+        mainItems.push_back(icons);
+
         NI motion;
         motion.key  = QStringLiteral("motion");
         motion.text = DEMO_TEXT("动态", "Motion");
-        applyGlyph(motion, 0xE768);
+        applyIcon(motion, FluentIconType::Play);
         mainItems.push_back(motion);
 
         // "选择器" category
         NI pickers;
         pickers.key  = QStringLiteral("pickers");
         pickers.text = DEMO_TEXT("选择器", "Pickers");
-        applyGlyph(pickers, 0xE787);
+        applyIcon(pickers, FluentIconType::Calendar);
         mainItems.push_back(pickers);
 
         NI angles;
         angles.key  = QStringLiteral("angles");
         angles.text = DEMO_TEXT("角度控件", "Angle Controls");
-        applyGlyph(angles, 0xF0B4);
+        applyIcon(angles, FluentIconType::Gauge);
         mainItems.push_back(angles);
 
         NI dataViews;
         dataViews.key  = QStringLiteral("dataviews");
         dataViews.text = DEMO_TEXT("数据视图", "Data Views");
-        applyGlyph(dataViews, 0xEA37);
+        applyIcon(dataViews, FluentIconType::Data);
         mainItems.push_back(dataViews);
 
         NI containers;
         containers.key  = QStringLiteral("containers");
         containers.text = DEMO_TEXT("容器/布局", "Containers / Layout");
-        applyGlyph(containers, 0xF168);
+        applyIcon(containers, FluentIconType::Layout);
         mainItems.push_back(containers);
 
         NI windows;
         windows.key  = QStringLiteral("windows");
         windows.text = DEMO_TEXT("窗口/对话框", "Windows / Dialogs");
-        applyGlyph(windows, 0xE73F);
+        applyIcon(windows, FluentIconType::Dialog);
         mainItems.push_back(windows);
     }
     nav->setItems(mainItems);
+    trace.mark(QStringLiteral("navigation items"));
 
     // Footer items (e.g. Settings / Theme)
     {
         NI settings;
         settings.key  = QStringLiteral("settings");
         settings.text = DEMO_TEXT("设置", "Settings");
-        applyGlyph(settings, 0xE713);
+        applyIcon(settings, FluentIconType::Settings);
         applyAnimatedIcon(settings, QStringLiteral("setting.json"));
         nav->addFooterItem(settings);
     }
+    trace.mark(QStringLiteral("navigation footer"));
 
     // ---- Content area (stacked pages) ----
     auto *stack = new QStackedWidget(contentHost);
@@ -440,6 +524,7 @@ void DemoWindow::buildUi()
             QStringLiteral("basic_input"),
             QStringLiteral("inputs"),
             QStringLiteral("buttons"),
+            QStringLiteral("icons"),
             QStringLiteral("motion"),
             QStringLiteral("pickers"),
             QStringLiteral("angles"),
@@ -452,49 +537,104 @@ void DemoWindow::buildUi()
         }
     };
 
-    stack->addWidget(Demo::Pages::createOverviewPage(&window, jumpTo));   // 0
-    stack->addWidget(Demo::Pages::createBasicInputPage(&window, jumpTo)); // 1
-    stack->addWidget(Demo::Pages::createInputsPage(&window));             // 2
-    stack->addWidget(Demo::Pages::createButtonsPage(&window));            // 3
-    stack->addWidget(Demo::Pages::createMotionPage());                    // 4
-    stack->addWidget(Demo::Pages::createPickersPage(&window));            // 5
-    stack->addWidget(Demo::Pages::createAngleControlsPage(&window));      // 6
-    stack->addWidget(Demo::Pages::createDataViewsPage(&window));          // 7
-    stack->addWidget(Demo::Pages::createContainersPage(&window));         // 8
-    stack->addWidget(Demo::Pages::createWindowsPage(&window));            // 9
+    auto pageNames = std::make_shared<QStringList>();
+    auto pageFactories = std::make_shared<QVector<std::function<QWidget *()>>>();
+    auto pageWidgets = std::make_shared<QVector<QPointer<QWidget>>>();
+    auto *windowPtr = this;
 
-    // Settings page: reuse the DemoSidebar as a standalone settings panel
-    auto *settingsPage = new DemoSidebar(&window, nullptr, false);
-    stack->addWidget(settingsPage);                                       // 10
+    const auto addLazyPage = [&](const QString &name, std::function<QWidget *()> factory) {
+        auto *placeholder = new QWidget(stack);
+        placeholder->setProperty("_demoLazyPlaceholder", true);
+        placeholder->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
+        stack->addWidget(placeholder);
+        pageNames->append(name);
+        pageFactories->append(std::move(factory));
+        pageWidgets->append(placeholder);
+    };
+
+    addLazyPage(QStringLiteral("Overview"), [windowPtr, jumpTo]() { return Demo::Pages::createOverviewPage(windowPtr, jumpTo); });       // 0
+    addLazyPage(QStringLiteral("BasicInput"), [windowPtr, jumpTo]() { return Demo::Pages::createBasicInputPage(windowPtr, jumpTo); });  // 1
+    addLazyPage(QStringLiteral("Inputs"), [windowPtr]() { return Demo::Pages::createInputsPage(windowPtr); });                          // 2
+    addLazyPage(QStringLiteral("Buttons"), [windowPtr]() { return Demo::Pages::createButtonsPage(windowPtr); });                        // 3
+    addLazyPage(QStringLiteral("Icons"), []() { return Demo::Pages::createIconsPage(); });                                               // 4
+    addLazyPage(QStringLiteral("Motion"), []() { return Demo::Pages::createMotionPage(); });                                             // 5
+    addLazyPage(QStringLiteral("Pickers"), [windowPtr]() { return Demo::Pages::createPickersPage(windowPtr); });                        // 6
+    addLazyPage(QStringLiteral("AngleControls"), [windowPtr]() { return Demo::Pages::createAngleControlsPage(windowPtr); });            // 7
+    addLazyPage(QStringLiteral("DataViews"), [windowPtr]() { return Demo::Pages::createDataViewsPage(windowPtr); });                    // 8
+    addLazyPage(QStringLiteral("Containers"), [windowPtr]() { return Demo::Pages::createContainersPage(windowPtr); });                  // 9
+    addLazyPage(QStringLiteral("Windows"), [windowPtr]() { return Demo::Pages::createWindowsPage(windowPtr); });                        // 10
+    addLazyPage(QStringLiteral("SettingsSidebar"), [this, windowPtr]() {                                                                 // 11
+        auto *settingsPage = new DemoSidebar(windowPtr, nullptr, false);
+        QObject::connect(settingsPage, &DemoSidebar::toastPositionChanged, this, [this](FluentToast::Position pos) {
+            m_toastPosition = pos;
+        });
+        QObject::connect(settingsPage, &DemoSidebar::languageChanged, this, &DemoWindow::switchLanguage);
+        return settingsPage;
+    });
+    trace.mark(QStringLiteral("lazy page placeholders"));
+
+    auto ensurePage = [stack, pageNames, pageFactories, pageWidgets](int index) -> QWidget * {
+        if (!stack || index < 0 || index >= pageFactories->size() || index >= pageWidgets->size()) {
+            return nullptr;
+        }
+
+        QWidget *current = pageWidgets->at(index);
+        if (current && !current->property("_demoLazyPlaceholder").toBool()) {
+            return current;
+        }
+
+        const QString name = index < pageNames->size() ? pageNames->at(index) : QString::number(index);
+        QElapsedTimer timer;
+        timer.start();
+        QWidget *page = pageFactories->at(index)();
+        const qint64 createdMs = timer.elapsed();
+        qInfo().noquote() << QStringLiteral("[DemoStartup] lazy page %1 created +%2 ms")
+                                  .arg(name)
+                                  .arg(createdMs);
+        if (!page) {
+            return nullptr;
+        }
+
+        const int stackIndex = current ? stack->indexOf(current) : index;
+        if (current) {
+            stack->removeWidget(current);
+            current->deleteLater();
+        }
+        stack->insertWidget(qBound(0, stackIndex, stack->count()), page);
+        pageWidgets->replace(index, page);
+
+        qInfo().noquote() << QStringLiteral("[DemoStartup] lazy page %1 installed +%2 ms")
+                                  .arg(name)
+                                  .arg(timer.elapsed() - createdMs);
+        return page;
+    };
 
     // Map navigation keys to stack indices
-    QObject::connect(nav, &FluentNavigationView::selectedKeyChanged, this, [this, stack](const QString &key) {
+    QObject::connect(nav, &FluentNavigationView::selectedKeyChanged, this, [this, stack, ensurePage](const QString &key) {
         m_selectedNavigationKey = key;
         static const QHash<QString, int> keyMap = {
             { QStringLiteral("overview"),   0 },
             { QStringLiteral("basic_input"), 1 },
             { QStringLiteral("inputs"),     2 },
             { QStringLiteral("buttons"),    3 },
-            { QStringLiteral("motion"),     4 },
-            { QStringLiteral("pickers"),    5 },
-            { QStringLiteral("angles"),     6 },
-            { QStringLiteral("dataviews"),  7 },
-            { QStringLiteral("containers"), 8 },
-            { QStringLiteral("windows"),    9 },
-            { QStringLiteral("settings"),   10 },
+            { QStringLiteral("icons"),      4 },
+            { QStringLiteral("motion"),     5 },
+            { QStringLiteral("pickers"),    6 },
+            { QStringLiteral("angles"),     7 },
+            { QStringLiteral("dataviews"),  8 },
+            { QStringLiteral("containers"), 9 },
+            { QStringLiteral("windows"),    10 },
+            { QStringLiteral("settings"),   11 },
         };
         auto it = keyMap.find(key);
         if (it != keyMap.end()) {
+            ensurePage(it.value());
             stack->setCurrentIndex(it.value());
         }
     });
 
-    QObject::connect(settingsPage, &DemoSidebar::toastPositionChanged, this, [this](FluentToast::Position pos) {
-        m_toastPosition = pos;
-    });
-    QObject::connect(settingsPage, &DemoSidebar::languageChanged, this, &DemoWindow::switchLanguage);
-
     nav->setSelectedKey(m_selectedNavigationKey.isEmpty() ? QStringLiteral("overview") : m_selectedNavigationKey);
+    trace.mark(QStringLiteral("signals and selected page"));
 
     rootLayout->addWidget(nav);
     rootLayout->addSpacing(8);
@@ -511,6 +651,7 @@ void DemoWindow::buildUi()
     QObject::connect(dlgAction, &QAction::triggered, this, [nav]() {
         nav->setSelectedKey(QStringLiteral("windows"));
     });
+    trace.mark(QStringLiteral("final connections"));
 }
 
 void DemoWindow::switchLanguage(DemoLanguage language)

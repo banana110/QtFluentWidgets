@@ -1,5 +1,6 @@
 #pragma once
 
+#include "Fluent/FluentIcon.h"
 #include "Fluent/FluentQtCompat.h"
 
 #include <QByteArray>
@@ -25,6 +26,8 @@ struct FluentNavigationItem
     QString key;           // unique identifier
     QString text;          // display label
     QIcon   icon;          // optional icon (shown in both compact and expanded)
+    bool hasFluentIcon = false; // optional built-in SVG icon rendered with current theme
+    FluentIconType fluentIcon = FluentIconType::Info;
     QString iconGlyph;     // optional monochrome glyph icon (preferred for font icons)
     QString iconFontFamily; // optional font family for iconGlyph, defaults to Segoe Fluent Icons
     QString animatedIconSource; // optional Lottie JSON path / qrc resource used instead of icon/iconGlyph

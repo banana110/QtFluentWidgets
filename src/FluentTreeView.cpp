@@ -2,6 +2,7 @@
 #include "Fluent/FluentScrollBar.h"
 #include "Fluent/FluentTheme.h"
 #include "FluentItemEditorSupport.h"
+#include "FluentPaintSupport.h"
 
 #include <QAbstractItemModel>
 #include <QEvent>
@@ -41,18 +42,8 @@ protected:
             return baseResult;
         }
 
-        if (viewport() && !viewport()->testAttribute(Qt::WA_WState_InPaintEvent)) {
+        if (!Detail::canBeginWidgetPainter(viewport())) {
             return baseResult;
-        }
-
-        // Avoid creating a QPainter for the header viewport before the window is exposed.
-        // This prevents sporadic "Paint device returned engine == 0" warnings on startup.
-        if (QWidget *vp = viewport()) {
-            if (QWidget *w = vp->window()) {
-                if (w->windowHandle() && !w->windowHandle()->isExposed()) {
-                    return baseResult;
-                }
-            }
         }
 
         const auto &colors = ThemeManager::instance().colors();
@@ -338,8 +329,8 @@ void FluentTreeView::paintEvent(QPaintEvent *event)
             const auto &colors = ThemeManager::instance().colors();
             const QRectF r = paintAnim ? m_selRect : selectionRectForIndex(cur);
             const qreal opacity = paintAnim ? qBound<qreal>(0.0, m_selOpacity, 1.0) : 1.0;
-            QPainter p(viewport());
-            if (p.isActive()) {
+            if (Detail::canBeginWidgetPainter(viewport())) {
+                QPainter p(viewport());
                 p.setRenderHint(QPainter::Antialiasing, true);
 
                 QColor fill = colors.accent;

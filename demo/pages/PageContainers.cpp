@@ -17,6 +17,7 @@
 #include <QFrame>
 
 #include "Fluent/FluentGroupBox.h"
+#include "Fluent/FluentIcon.h"
 #include "Fluent/FluentLabel.h"
 #include "Fluent/FluentLineEdit.h"
 #include "Fluent/FluentMainWindow.h"
@@ -289,6 +290,7 @@ QWidget *createContainersPage(FluentMainWindow *window)
         // NavigationView
         {
             const QString code = QStringLiteral(R"CPP(#include "Fluent/FluentNavigationView.h"
+#include "Fluent/FluentIcon.h"
 
 #include <QMap>
 #include <QStringList>
@@ -304,9 +306,9 @@ nav->setPaneDisplayMode(Fluent::FluentNavigationView::Left);
 nav->setPaneTitle(QStringLiteral("Pane Title"));
 nav->setBackButtonVisible(true);
 
-auto applyGlyph = [](NI &item, ushort codePoint) {
-    item.iconGlyph = QString(QChar(codePoint));
-    item.iconFontFamily = QStringLiteral("Segoe Fluent Icons");
+auto applyIcon = [](NI &item, Fluent::FluentIconType type) {
+    item.hasFluentIcon = true;
+    item.fluentIcon = type;
 };
 
 // ---------------------------------------------------------------------------
@@ -315,25 +317,25 @@ auto applyGlyph = [](NI &item, ushort codePoint) {
 NI home;
 home.key = QStringLiteral("home");
 home.text = QStringLiteral("Home");
-applyGlyph(home, 0xE80F);
+applyIcon(home, Fluent::FluentIconType::Home);
 
 NI documents;
 documents.key = QStringLiteral("documents");
 documents.text = QStringLiteral("Document options");
 documents.selectsOnInvoked = false;
-applyGlyph(documents, 0xE8A5);
+applyIcon(documents, Fluent::FluentIconType::Folder);
 {
     NI recent;
     recent.key = QStringLiteral("recent_files");
     recent.text = QStringLiteral("Recent Files");
-    applyGlyph(recent, 0xE823);
+    applyIcon(recent, Fluent::FluentIconType::More);
     documents.children.push_back(recent);
 }
 
 NI help;
 help.key = QStringLiteral("help_center");
 help.text = QStringLiteral("Help Center");
-applyGlyph(help, 0xE897);
+applyIcon(help, Fluent::FluentIconType::Info);
 
 // ---------------------------------------------------------------------------
 // 2) Dynamic-extras layer: per-parent extra children appended at runtime.
@@ -417,7 +419,7 @@ QObject::connect(addChildButton, &QAbstractButton::clicked, nav, [=]() {
     NI child;
     child.key = QStringLiteral("dyn_%1").arg(n);
     child.text = QStringLiteral("Dynamic child %1").arg(n);
-    applyGlyph(child, 0xE710); // plus glyph
+    applyIcon(child, Fluent::FluentIconType::Add);
 
     (*dynamicExtras)[parentKey].push_back(child);
     rebuildNavigation();
@@ -449,7 +451,7 @@ QObject::connect(bulkAddButton, &QAbstractButton::clicked, nav, [=]() {
         NI child;
         child.key = QStringLiteral("dyn_%1").arg(n);
         child.text = QStringLiteral("Dynamic child %1").arg(n);
-        applyGlyph(child, 0xE710);
+        applyIcon(child, Fluent::FluentIconType::Add);
         (*dynamicExtras)[parentKey].push_back(child);
     }
     rebuildNavigation();
@@ -512,9 +514,9 @@ QObject::connect(nav, &Fluent::FluentNavigationView::selectedKeyChanged,
                     nav->loadPaneToggleAnimation(Demo::demoLottieResourcePath(QStringLiteral("menu.json")));
                     nav->loadBackButtonAnimation(Demo::demoLottieResourcePath(QStringLiteral("left-arrow.json")));
 
-                    auto applyGlyph = [](FluentNavigationItem &item, ushort codePoint) {
-                        item.iconGlyph = QString(QChar(codePoint));
-                        item.iconFontFamily = QStringLiteral("Segoe Fluent Icons");
+                    auto applyIcon = [](FluentNavigationItem &item, FluentIconType type) {
+                        item.hasFluentIcon = true;
+                        item.fluentIcon = type;
                     };
 
                     using NI = FluentNavigationItem;
@@ -660,24 +662,24 @@ QObject::connect(nav, &Fluent::FluentNavigationView::selectedKeyChanged,
                         NI home;
                         home.key = QStringLiteral("home");
                         home.text = QStringLiteral("Home");
-                        applyGlyph(home, 0xE80F);
+                        applyIcon(home, FluentIconType::Home);
                         items.push_back(home);
 
                         NI account;
                         account.key = QStringLiteral("account");
                         account.text = QStringLiteral("Account");
-                        applyGlyph(account, 0xE77B);
+                        applyIcon(account, FluentIconType::Person);
                         {
                             NI profile;
                             profile.key = QStringLiteral("profile");
                             profile.text = DEMO_TEXT("个人资料", "Profile");
-                            applyGlyph(profile, 0xE77B);
+                            applyIcon(profile, FluentIconType::Person);
                             account.children.push_back(profile);
 
                             NI security;
                             security.key = QStringLiteral("security");
                             security.text = DEMO_TEXT("安全中心", "Security Center");
-                            applyGlyph(security, 0xE72E);
+                            applyIcon(security, FluentIconType::Lock);
                             account.children.push_back(security);
                         }
                         items.push_back(account);
@@ -686,18 +688,18 @@ QObject::connect(nav, &Fluent::FluentNavigationView::selectedKeyChanged,
                         documents.key = QStringLiteral("documents");
                         documents.text = QStringLiteral("Document options");
                         documents.selectsOnInvoked = documentInvokesToggle->isChecked();
-                        applyGlyph(documents, 0xE8A5);
+                        applyIcon(documents, FluentIconType::Folder);
                         {
                             NI recent;
                             recent.key = QStringLiteral("recent_files");
                             recent.text = DEMO_TEXT("最近文件", "Recent Files");
-                            applyGlyph(recent, 0xE823);
+                            applyIcon(recent, FluentIconType::More);
                             documents.children.push_back(recent);
 
                             NI templates;
                             templates.key = QStringLiteral("templates");
                             templates.text = DEMO_TEXT("模板库", "Template Library");
-                            applyGlyph(templates, 0xE7C3);
+                            applyIcon(templates, FluentIconType::Layout);
                             documents.children.push_back(templates);
                         }
                         items.push_back(documents);
@@ -726,13 +728,13 @@ QObject::connect(nav, &Fluent::FluentNavigationView::selectedKeyChanged,
                         NI help;
                         help.key = QStringLiteral("help_center");
                         help.text = DEMO_TEXT("帮助中心", "Help Center");
-                        applyGlyph(help, 0xE897);
+                        applyIcon(help, FluentIconType::Info);
                         nav->addFooterItem(help);
 
                         NI feedback;
                         feedback.key = QStringLiteral("feedback");
                         feedback.text = DEMO_TEXT("反馈", "Feedback");
-                        applyGlyph(feedback, 0xE939);
+                        applyIcon(feedback, FluentIconType::Mail);
                         nav->addFooterItem(feedback);
 
                         if (nav->selectedKey().isEmpty()) {
@@ -897,7 +899,7 @@ QObject::connect(nav, &Fluent::FluentNavigationView::selectedKeyChanged,
                         NI child;
                         child.key = QStringLiteral("dyn_%1").arg(n);
                         child.text = DEMO_TEXT("动态子项 %1", "Dynamic child %1").arg(n);
-                        applyGlyph(child, 0xE710); // plus glyph
+                        applyIcon(child, FluentIconType::Add);
 
                         (*dynamicExtras)[parentKey].push_back(child);
                         rebuildNavigation();
@@ -938,7 +940,7 @@ QObject::connect(nav, &Fluent::FluentNavigationView::selectedKeyChanged,
                             NI child;
                             child.key = QStringLiteral("dyn_%1").arg(n);
                             child.text = DEMO_TEXT("动态子项 %1", "Dynamic child %1").arg(n);
-                            applyGlyph(child, 0xE710);
+                            applyIcon(child, FluentIconType::Add);
                             (*dynamicExtras)[parentKey].push_back(child);
                             lastAddedKey = child.key;
                         }

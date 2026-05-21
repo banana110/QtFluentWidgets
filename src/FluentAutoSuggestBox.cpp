@@ -191,10 +191,10 @@ public:
         , m_border(this, this)
     {
         setObjectName(QStringLiteral("FluentAutoSuggestPopup"));
-        setWindowFlag(Qt::Popup, true);
-        setWindowFlag(Qt::FramelessWindowHint, true);
-        setWindowFlag(Qt::NoDropShadowWindowHint, true);
-        setWindowFlag(Qt::WindowDoesNotAcceptFocus, true);
+        setWindowFlags(Qt::Tool |
+                       Qt::FramelessWindowHint |
+                       Qt::NoDropShadowWindowHint |
+                       Qt::WindowDoesNotAcceptFocus);
         setAttribute(Qt::WA_TranslucentBackground, true);
         setAttribute(Qt::WA_StyledBackground, false);
         setAttribute(Qt::WA_ShowWithoutActivating, true);
@@ -322,6 +322,9 @@ public:
         raise();
         m_view->show();
         m_view->raise();
+        if (m_owner && m_owner->lineEdit()) {
+            m_owner->lineEdit()->setFocus(Qt::OtherFocusReason);
+        }
 
         if (!m_appFilterInstalled && qApp) {
             qApp->installEventFilter(this);

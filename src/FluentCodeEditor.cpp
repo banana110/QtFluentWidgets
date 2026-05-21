@@ -213,6 +213,7 @@ FluentCodeEditor::FluentCodeEditor(QWidget *parent)
         viewport()->setMouseTracking(true);
         viewport()->setAutoFillBackground(false);
         viewport()->setAttribute(Qt::WA_StyledBackground, true);
+        viewport()->setAttribute(Qt::WA_TranslucentBackground, true);
         viewport()->installEventFilter(this);
     }
 
@@ -369,56 +370,20 @@ void FluentCodeEditor::applyTheme()
     }
 
     QPalette pal = palette();
+    pal.setColor(QPalette::Base, QColor(Qt::transparent));
+    pal.setColor(QPalette::Window, QColor(Qt::transparent));
     // Keep caret accent like other Fluent inputs; text color itself is controlled by stylesheet.
     pal.setColor(QPalette::Text, colors.accent);
     pal.setColor(QPalette::Highlight, selectionBg);
     pal.setColor(QPalette::HighlightedText, colors.text);
     setPalette(pal);
+    if (viewport()) {
+        viewport()->setPalette(pal);
+    }
 }
 
 void FluentCodeEditor::paintEvent(QPaintEvent *event)
 {
-    const auto &colors = ThemeManager::instance().colors();
-
-    QPainter painter(this);
-    if (!painter.isActive()) {
-        QPlainTextEdit::paintEvent(event);
-        return;
-    }
-
-    painter.setCompositionMode(QPainter::CompositionMode_SourceOver);
-
-    // Draw only the Fluent surface fill here; border/focus ring is painted by overlay
-    // to avoid being overwritten by QPlainTextEdit internals.
-    {
-        const auto m = Style::metrics();
-
-        QColor fill = colors.surface;
-        if (!isEnabled()) {
-            fill = Style::mix(colors.surface, colors.hover, 0.35);
-        } else if (m_hoverLevel > 0.0) {
-            fill = Style::mix(colors.surface, colors.hover, 0.45 * qBound<qreal>(0.0, m_hoverLevel, 1.0));
-        }
-
-        painter.save();
-        painter.setRenderHint(QPainter::Antialiasing, true);
-
-        qreal dpr = 1.0;
-        if (painter.device()) {
-            dpr = painter.device()->devicePixelRatioF();
-            if (dpr <= 0.0) {
-                dpr = 1.0;
-            }
-        }
-        const qreal px = 0.5 / dpr;
-        const QRectF r = QRectF(rect()).adjusted(px, px, -px, -px);
-
-        painter.setPen(Qt::NoPen);
-        painter.setBrush(fill);
-        painter.drawPath(Style::roundedRectPath(r, m.radius));
-        painter.restore();
-    }
-
     // Keep viewport marked as in paint while QPlainTextEdit paints its viewport.
     struct ScopedViewportPaintFlag {
         QWidget *vp = nullptr;

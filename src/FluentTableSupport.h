@@ -2,6 +2,7 @@
 
 #include "Fluent/FluentTheme.h"
 #include "FluentItemEditorSupport.h"
+#include "FluentPaintSupport.h"
 
 #include <QAbstractItemModel>
 #include <QEvent>
@@ -38,15 +39,8 @@ protected:
         if (orientation() != Qt::Horizontal) {
             return baseResult;
         }
-        if (viewport() && !viewport()->testAttribute(Qt::WA_WState_InPaintEvent)) {
+        if (!canBeginWidgetPainter(viewport())) {
             return baseResult;
-        }
-        if (QWidget *vp = viewport()) {
-            if (QWidget *w = vp->window()) {
-                if (w->windowHandle() && !w->windowHandle()->isExposed()) {
-                    return baseResult;
-                }
-            }
         }
 
         const auto &colors = ThemeManager::instance().colors();

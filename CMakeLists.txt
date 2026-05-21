@@ -66,6 +66,7 @@ add_library(QtFluentWidgets
     include/Fluent/FluentDropDownButton.h
     include/Fluent/FluentFlyout.h
     include/Fluent/FluentInfoBar.h
+    include/Fluent/FluentIcon.h
     include/Fluent/FluentLottieWidget.h
     include/Fluent/FluentTheme.h
     include/Fluent/FluentToolTip.h
@@ -131,6 +132,7 @@ add_library(QtFluentWidgets
     src/FluentDropDownButton.cpp
     src/FluentFlyout.cpp
     src/FluentInfoBar.cpp
+    src/FluentIcon.cpp
     src/FluentLottieWidget.cpp
     src/FluentTheme.cpp
     src/FluentToolTip.cpp
@@ -189,6 +191,7 @@ add_library(QtFluentWidgets
     src/FluentDateRangePicker.cpp
     src/FluentNavigationView.cpp
     src/FluentDiagnostics.cpp
+    resources/icons/fluent_icons.qrc
 )
 
 target_include_directories(QtFluentWidgets PUBLIC include)
@@ -221,6 +224,8 @@ add_executable(QtFluentDemo WIN32
     demo/pages/PageInputs.cpp
     demo/pages/PageButtons.h
     demo/pages/PageButtons.cpp
+    demo/pages/PageIcons.h
+    demo/pages/PageIcons.cpp
     demo/pages/PageMotion.h
     demo/pages/PageMotion.cpp
     demo/pages/PagePickers.h

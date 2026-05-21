@@ -101,6 +101,7 @@ FluentTextEdit::FluentTextEdit(QWidget *parent)
         viewport()->setMouseTracking(true);
         viewport()->setAutoFillBackground(false);
         viewport()->setAttribute(Qt::WA_StyledBackground, true);
+        viewport()->setAttribute(Qt::WA_TranslucentBackground, true);
         viewport()->installEventFilter(this);
     }
 
@@ -194,6 +195,8 @@ void FluentTextEdit::applyTheme()
     }
 
     QPalette pal = palette();
+    pal.setColor(QPalette::Base, QColor(Qt::transparent));
+    pal.setColor(QPalette::Window, QColor(Qt::transparent));
     // Keep caret accent like FluentLineEdit; text color is controlled via stylesheet.
     pal.setColor(QPalette::Text, colors.accent);
     pal.setColor(QPalette::Highlight, selectionBg);
@@ -204,6 +207,9 @@ void FluentTextEdit::applyTheme()
     pal.setColor(QPalette::PlaceholderText, placeholder);
 #endif
     setPalette(pal);
+    if (viewport()) {
+        viewport()->setPalette(pal);
+    }
 
     if (isVisible()) {
         update();
@@ -215,26 +221,6 @@ void FluentTextEdit::applyTheme()
 
 void FluentTextEdit::paintEvent(QPaintEvent *event)
 {
-    const auto &colors = ThemeManager::instance().colors();
-
-    QPainter painter(this);
-    if (!painter.isActive()) {
-        QTextEdit::paintEvent(event);
-        return;
-    }
-
-    // Ensure our surface is drawn behind QTextEdit's internals.
-    painter.setCompositionMode(QPainter::CompositionMode_SourceOver);
-
-    Style::paintControlSurface(
-        painter,
-        QRectF(rect()),
-        colors,
-        m_hoverLevel,
-        m_focusLevel,
-        isEnabled(),
-        false);
-
     // Workaround: keep viewport marked as "in paint" while QTextEdit paints it.
     struct ScopedViewportPaintFlag {
         QWidget *vp = nullptr;

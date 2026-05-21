@@ -1,6 +1,7 @@
 #include "Fluent/FluentProgressRing.h"
 #include "Fluent/FluentStyle.h"
 #include "Fluent/FluentTheme.h"
+#include "FluentPaintSupport.h"
 
 #include <QEvent>
 #include <QHideEvent>
@@ -139,6 +140,10 @@ void FluentProgressRing::syncSpinTimer()
 void FluentProgressRing::paintEvent(QPaintEvent *event)
 {
     Q_UNUSED(event)
+
+    if (!Detail::canBeginWidgetPainter(this)) {
+        return;
+    }
 
     const auto &colors = ThemeManager::instance().colors();
 

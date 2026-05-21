@@ -317,7 +317,8 @@ QWidget *createOverviewPage(FluentMainWindow *window, const std::function<void(i
         row->addWidget(text, 1);
         body->addLayout(row);
     }));
-    addJumpCard(DEMO_TEXT("动态页：FluentLottieWidget / 播放控制 / 主题联动 / tint", "Motion page: FluentLottieWidget / playback / theme linkage / tint"), 4);
+    addJumpCard(DEMO_TEXT("图标页：FluentIcon 内置图标矩阵 / 主题色 / 枚举复制", "Icons page: FluentIcon matrix / theme color / enum copy"), 4);
+    addJumpCard(DEMO_TEXT("动态页：FluentLottieWidget / 播放控制 / 主题联动 / tint", "Motion page: FluentLottieWidget / playback / theme linkage / tint"), 5);
 
     addGroupTitle(DEMO_TEXT("输入", "Inputs"));
     flow->addWidget(makeTile(QStringLiteral("LineEdit"), QString(), [&](QVBoxLayout *body) {
@@ -453,8 +454,8 @@ QWidget *createOverviewPage(FluentMainWindow *window, const std::function<void(i
         });
         body->addWidget(btn);
     }));
-    addJumpCard(DEMO_TEXT("选择器页：CalendarPicker / TimePicker / ColorPicker / ColorDialog", "Pickers page: CalendarPicker / TimePicker / ColorPicker / ColorDialog"), 5);
-    addJumpCard(DEMO_TEXT("角度控件页：FluentDial / FluentAngleSelector / 可见性变体", "Angle Controls page: FluentDial / FluentAngleSelector / visibility variants"), 6);
+    addJumpCard(DEMO_TEXT("选择器页：CalendarPicker / TimePicker / ColorPicker / ColorDialog", "Pickers page: CalendarPicker / TimePicker / ColorPicker / ColorDialog"), 6);
+    addJumpCard(DEMO_TEXT("角度控件页：FluentDial / FluentAngleSelector / 可见性变体", "Angle Controls page: FluentDial / FluentAngleSelector / visibility variants"), 7);
 
     addGroupTitle(DEMO_TEXT("数据视图", "Data Views"));
     flow->addWidget(makeTile(QStringLiteral("ListView"), QString(), [&](QVBoxLayout *body) {
@@ -506,7 +507,7 @@ QWidget *createOverviewPage(FluentMainWindow *window, const std::function<void(i
         view->setEditTriggers(QAbstractItemView::NoEditTriggers);
         body->addWidget(view);
     }));
-    addJumpCard(DEMO_TEXT("数据视图页：ListView / TableView / TreeView", "Data Views page: ListView / TableView / TreeView"), 7);
+    addJumpCard(DEMO_TEXT("数据视图页：ListView / TableView / TreeView", "Data Views page: ListView / TableView / TreeView"), 8);
 
     addGroupTitle(DEMO_TEXT("容器/布局", "Containers / Layout"));
     flow->addWidget(makeTile(QStringLiteral("Card"), DEMO_TEXT("FluentCard 作为内容容器", "FluentCard used as a content container"), [&](QVBoxLayout *body) {
@@ -640,7 +641,7 @@ QWidget *createOverviewPage(FluentMainWindow *window, const std::function<void(i
         body->addWidget(lab);
     }));
 
-    addJumpCard(DEMO_TEXT("容器/布局页：Card / GroupBox / TabWidget / ScrollArea / ScrollBar / AnnotatedScrollBar / Splitter / FlowLayout", "Containers page: Card / GroupBox / TabWidget / ScrollArea / ScrollBar / AnnotatedScrollBar / Splitter / FlowLayout"), 8);
+    addJumpCard(DEMO_TEXT("容器/布局页：Card / GroupBox / TabWidget / ScrollArea / ScrollBar / AnnotatedScrollBar / Splitter / FlowLayout", "Containers page: Card / GroupBox / TabWidget / ScrollArea / ScrollBar / AnnotatedScrollBar / Splitter / FlowLayout"), 9);
 
     addGroupTitle(DEMO_TEXT("窗口 / 对话框", "Windows / Dialogs"));
     flow->addWidget(makeTile(QStringLiteral("InfoBar"), DEMO_TEXT("页面内状态提示", "Inline status message"), [&](QVBoxLayout *body) {
@@ -755,7 +756,7 @@ QWidget *createOverviewPage(FluentMainWindow *window, const std::function<void(i
                                  lab->setWordWrap(true);
                                  body->addWidget(lab);
                              }));
-    addJumpCard(DEMO_TEXT("窗口/对话框页：Dialog / MessageBox / Menu / MenuBar / ToolBar / StatusBar / Toast", "Windows / Dialogs page: Dialog / MessageBox / Menu / MenuBar / ToolBar / StatusBar / Toast"), 9);
+    addJumpCard(DEMO_TEXT("窗口/对话框页：Dialog / MessageBox / Menu / MenuBar / ToolBar / StatusBar / Toast", "Windows / Dialogs page: Dialog / MessageBox / Menu / MenuBar / ToolBar / StatusBar / Toast"), 10);
 
     return overviewArea;
 }

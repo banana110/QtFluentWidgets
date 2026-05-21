@@ -1,5 +1,6 @@
 #include "Fluent/FluentNavigationView.h"
 #include "Fluent/FluentAnimatedIcon.h"
+#include "Fluent/FluentIcon.h"
 #include "Fluent/FluentMenu.h"
 #include "Fluent/FluentStyle.h"
 #include "Fluent/FluentTheme.h"
@@ -73,6 +74,11 @@ QString defaultGlyphFontFamily()
 bool hasAnimatedIconSource(const FluentNavigationItem &item)
 {
     return !item.animatedIconData.isEmpty() || !item.animatedIconSource.isEmpty();
+}
+
+bool hasStaticIcon(const FluentNavigationItem &item)
+{
+    return item.hasFluentIcon || !item.iconGlyph.isEmpty() || !item.icon.isNull();
 }
 
 QString animatedIconFingerprint(const FluentNavigationItem &item)
@@ -598,7 +604,7 @@ struct FluentNavigationView::Private
     int topItemWidth(const FluentNavigationItem &item, const QFontMetrics &fm) const
     {
         int width = 24;
-        if (hasAnimatedIconSource(item) || !item.iconGlyph.isEmpty() || !item.icon.isNull()) {
+        if (hasAnimatedIconSource(item) || hasStaticIcon(item)) {
             width += kIconSize + 8;
         }
 
@@ -1745,29 +1751,31 @@ void FluentNavigationView::paintEvent(QPaintEvent * /*event*/)
     p.setBrush(colors.surface);
     p.drawPath(navigationSurfacePath(QRectF(0, 0, W, H), 8.0, d->displayMode == Top));
 
+    auto iconOptions = [](const QColor &color) {
+        FluentIconOptions options;
+        options.color = color;
+        return options;
+    };
+    auto iconRectAround = [](const QPointF &center, qreal size) {
+        return QRectF(center.x() - size / 2.0, center.y() - size / 2.0, size, size);
+    };
     auto drawHamburger = [&](const QRectF &rect, const QColor &color) {
-        const QPointF center = rect.center();
-        const qreal barW = 16.0;
-        const qreal barH = 2.0;
-        const qreal gap = 5.0;
-        p.setPen(Qt::NoPen);
-        p.setBrush(color);
-        for (int i = -1; i <= 1; ++i) {
-            QRectF bar(center.x() - barW / 2.0, center.y() + i * gap - barH / 2.0, barW, barH);
-            p.drawRoundedRect(bar, 1.0, 1.0);
-        }
+        FluentIcon::paintIcon(&p, FluentIconType::Menu, iconRectAround(rect.center(), 20.0), iconOptions(color));
     };
 
     auto drawBack = [&](const QRectF &rect, bool enabled) {
-        Style::drawChevronLeft(p, rect.center(), enabled ? colors.text : colors.subText, 8.0, 1.7);
+        FluentIcon::paintIcon(&p,
+                              FluentIconType::Back,
+                              iconRectAround(rect.center(), 20.0),
+                              iconOptions(enabled ? colors.text : colors.subText),
+                              enabled ? QIcon::Normal : QIcon::Disabled);
     };
 
     auto drawChevron = [&](const QPointF &center, bool collapsed) {
-        if (collapsed) {
-            Style::drawChevronDown(p, center, colors.subText, 6.0, 1.4);
-        } else {
-            Style::drawChevronUp(p, center, colors.subText, 6.0, 1.4);
-        }
+        FluentIcon::paintIcon(&p,
+                              collapsed ? FluentIconType::ChevronDown : FluentIconType::ChevronUp,
+                              iconRectAround(center, 14.0),
+                              iconOptions(colors.subText));
     };
 
     auto drawItemIcon = [&](const QRectF &iconRect, const FluentNavigationItem &item) {
@@ -1775,7 +1783,12 @@ void FluentNavigationView::paintEvent(QPaintEvent * /*event*/)
             return;
         }
 
-        if (!item.iconGlyph.isEmpty()) {
+        if (item.hasFluentIcon) {
+            FluentIcon::paintIcon(&p,
+                                  item.fluentIcon,
+                                  iconRect,
+                                  iconOptions(colors.text));
+        } else if (!item.iconGlyph.isEmpty()) {
             QFont iconFont = font();
             iconFont.setFamily(item.iconFontFamily.isEmpty() ? defaultGlyphFontFamily() : item.iconFontFamily);
             iconFont.setPixelSize(kIconSize);
@@ -1843,7 +1856,7 @@ void FluentNavigationView::paintEvent(QPaintEvent * /*event*/)
             }
 
             qreal x = layout.rect.left() + 12.0;
-            if (hasAnimatedIconSource(*layout.item) || !layout.item->iconGlyph.isEmpty() || !layout.item->icon.isNull()) {
+            if (hasAnimatedIconSource(*layout.item) || hasStaticIcon(*layout.item)) {
                 QRectF iconRect(x, layout.rect.center().y() - kIconSize / 2.0, kIconSize, kIconSize);
                 drawItemIcon(iconRect, *layout.item);
                 x = iconRect.right() + 8.0;

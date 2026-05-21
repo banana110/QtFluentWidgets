@@ -1,6 +1,7 @@
 #include "Fluent/FluentCard.h"
 
 #include "Fluent/FluentAnimatedIcon.h"
+#include "Fluent/FluentIcon.h"
 #include "Fluent/FluentLabel.h"
 #include "Fluent/FluentStyle.h"
 #include "Fluent/FluentTheme.h"
@@ -22,20 +23,9 @@ static constexpr const char *kFlowDisableAnimationProperty = "fluentFlowDisableA
 
 static QIcon makeChevronIcon(bool collapsed, const QColor &color)
 {
-    constexpr int iconSize = 16;
-    QPixmap pm(iconSize, iconSize);
-    pm.fill(Qt::transparent);
-
-    QPainter p(&pm);
-    p.setRenderHint(QPainter::Antialiasing);
-    const QPointF center(iconSize / 2.0, iconSize / 2.0);
-    if (collapsed) {
-        Style::drawChevronRight(p, center, color);
-    } else {
-        Style::drawChevronDown(p, center, color);
-    }
-
-    return QIcon(pm);
+    FluentIconOptions options;
+    options.color = color;
+    return FluentIcon::icon(collapsed ? FluentIconType::ChevronRight : FluentIconType::ChevronDown, options);
 }
 
 } // namespace

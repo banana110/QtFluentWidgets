@@ -1,0 +1,32 @@
+<RCC>
+    <qresource prefix="/Fluent/icons">
+        <file alias="add.svg">add.svg</file>
+        <file alias="back.svg">back.svg</file>
+        <file alias="calendar.svg">calendar.svg</file>
+        <file alias="checkmark.svg">checkmark.svg</file>
+        <file alias="chevron-down.svg">chevron-down.svg</file>
+        <file alias="chevron-left.svg">chevron-left.svg</file>
+        <file alias="chevron-right.svg">chevron-right.svg</file>
+        <file alias="chevron-up.svg">chevron-up.svg</file>
+        <file alias="close.svg">close.svg</file>
+        <file alias="controls.svg">controls.svg</file>
+        <file alias="data.svg">data.svg</file>
+        <file alias="delete.svg">delete.svg</file>
+        <file alias="dialog.svg">dialog.svg</file>
+        <file alias="document.svg">document.svg</file>
+        <file alias="gauge.svg">gauge.svg</file>
+        <file alias="home.svg">home.svg</file>
+        <file alias="info.svg">info.svg</file>
+        <file alias="input.svg">input.svg</file>
+        <file alias="layout.svg">layout.svg</file>
+        <file alias="menu.svg">menu.svg</file>
+        <file alias="more.svg">more.svg</file>
+        <file alias="play.svg">play.svg</file>
+        <file alias="save.svg">save.svg</file>
+        <file alias="search.svg">search.svg</file>
+        <file alias="settings.svg">settings.svg</file>
+        <file alias="success.svg">success.svg</file>
+        <file alias="warning.svg">warning.svg</file>
+        <file alias="window.svg">window.svg</file>
+    </qresource>
+</RCC>

@@ -5,13 +5,14 @@
 
 #include <QApplication>
 #include <QTimer>
+#include <QtGlobal>
 
 namespace Fluent {
 
 ThemeColors Theme::light() {
   ThemeColors colors;
   // Islands Style - High Contrast Fluent Design (Light Mode)
-  colors.accent = QColor("#0067C0");       // Vivid Blue - more saturated
+  colors.accent = QColor("#0066B4");       // QFluentKit-like default blue
   colors.text = QColor("#1A1A1A");         // Almost black - highest contrast
   colors.subText = QColor("#5A5A5A");      // Medium gray
   colors.disabledText = QColor("#999999"); // Light gray
@@ -28,7 +29,7 @@ ThemeColors Theme::light() {
 ThemeColors Theme::dark() {
   ThemeColors colors;
   // Fluent Design Dark Mode
-  colors.accent = QColor("#60CDFF");  // Light blue - better visibility on dark
+  colors.accent = accentForMode(QColor("#0066B4"), true);
   colors.text = QColor("#FFFFFF");    // Pure white text
   colors.subText = QColor("#C0C0C0"); // Light gray
   colors.disabledText = QColor("#6D6D6D"); // Mid gray
@@ -42,8 +43,121 @@ ThemeColors Theme::dark() {
   return colors;
 }
 
+bool Theme::isDark(const ThemeColors &colors)
+{
+  return colors.background.lightnessF() < 0.5;
+}
+
+QColor Theme::contrastColor(const QColor &background)
+{
+  const qreal r = background.redF();
+  const qreal g = background.greenF();
+  const qreal b = background.blueF();
+  const qreal luminance = 0.2126 * r + 0.7152 * g + 0.0722 * b;
+  return luminance > 0.52 ? QColor("#000000") : QColor("#FFFFFF");
+}
+
+QColor Theme::accentForMode(const QColor &accent, bool dark)
+{
+  if (!accent.isValid()) {
+    return dark ? QColor("#29A2FF") : QColor("#0066B4");
+  }
+
+  if (!dark) {
+    return accent;
+  }
+
+  qreal h = 0.0;
+  qreal s = 0.0;
+  qreal v = 0.0;
+  qreal a = 1.0;
+#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
+  float hf = 0.0f;
+  float sf = 0.0f;
+  float vf = 0.0f;
+  float af = 1.0f;
+  accent.getHsvF(&hf, &sf, &vf, &af);
+  h = hf;
+  s = sf;
+  v = vf;
+  a = af;
+#else
+  accent.getHsvF(&h, &s, &v, &a);
+#endif
+
+  if (h < 0.0) {
+    return accent;
+  }
+
+  s *= 0.84;
+  v = 1.0;
+  return QColor::fromHsvF(h, qBound<qreal>(0.0, s, 1.0), qBound<qreal>(0.0, v, 1.0), a);
+}
+
+FluentAccentRamp Theme::accentRamp(const QColor &accent, bool dark)
+{
+  FluentAccentRamp ramp;
+  ramp.base = accent;
+  const QColor white("#FFFFFF");
+  const QColor black("#000000");
+
+  ramp.light1 = Style::mix(accent, white, dark ? 0.18 : 0.12);
+  ramp.light2 = Style::mix(accent, white, dark ? 0.34 : 0.24);
+  ramp.light3 = Style::mix(accent, white, dark ? 0.50 : 0.40);
+  ramp.dark1 = Style::mix(accent, black, dark ? 0.12 : 0.10);
+  ramp.dark2 = Style::mix(accent, black, dark ? 0.24 : 0.22);
+  ramp.dark3 = Style::mix(accent, black, dark ? 0.38 : 0.36);
+  return ramp;
+}
+
+FluentNeutralRamp Theme::neutralRamp(const ThemeColors &colors)
+{
+  const bool darkMode = isDark(colors);
+  const QColor black("#000000");
+  const QColor white("#FFFFFF");
+
+  FluentNeutralRamp ramp;
+  ramp.background = colors.background;
+  ramp.layer = darkMode ? Style::mix(colors.background, white, 0.055) : colors.surface;
+  ramp.layerAlt = darkMode ? Style::mix(colors.background, white, 0.08) : QColor("#FAFAFA");
+  ramp.card = colors.surface;
+  ramp.cardHover = darkMode ? Style::mix(colors.surface, white, 0.055) : Style::mix(colors.surface, black, 0.025);
+  ramp.stroke = colors.border;
+  ramp.strokeSubtle = darkMode ? Style::mix(colors.border, colors.surface, 0.42) : Style::mix(colors.border, colors.surface, 0.55);
+  ramp.strokeStrong = darkMode ? Style::mix(colors.border, white, 0.24) : Style::mix(colors.border, black, 0.18);
+  ramp.fillSecondary = colors.hover;
+  ramp.fillTertiary = colors.pressed;
+  return ramp;
+}
+
+FluentSemanticRamp Theme::semanticRamp(const ThemeColors &colors)
+{
+  const bool darkMode = isDark(colors);
+  FluentSemanticRamp ramp;
+  ramp.info = colors.accent;
+  ramp.success = darkMode ? QColor("#6CCB5F") : QColor("#107C10");
+  ramp.warning = darkMode ? QColor("#FFB900") : QColor("#F7630C");
+  ramp.error = colors.error;
+  return ramp;
+}
+
+FluentThemeTokens Theme::tokens(const ThemeColors &colors)
+{
+  const bool darkMode = isDark(colors);
+  FluentThemeTokens t;
+  t.legacyColors = colors;
+  t.accent = accentRamp(colors.accent, darkMode);
+  t.neutral = neutralRamp(colors);
+  t.semantic = semanticRamp(colors);
+  t.elevation.shadow = darkMode ? QColor(0, 0, 0, 180) : QColor(0, 0, 0, 80);
+  t.onAccent = contrastColor(colors.accent);
+  t.dark = darkMode;
+  return t;
+}
+
 QString Theme::baseStyleSheet(const ThemeColors &colors) {
-  const bool dark = colors.background.lightnessF() < 0.5;
+  const bool dark = isDark(colors);
+  const auto themeTokens = tokens(colors);
   const QColor sbHandle =
       dark ? QColor(255, 255, 255, 70) : QColor(0, 0, 0, 70);
   const QColor sbHandleHover =
@@ -61,7 +175,7 @@ QString Theme::baseStyleSheet(const ThemeColors &colors) {
              "  color: %1;"
              "  font-family: 'Segoe UI', 'Microsoft YaHei UI', 'Microsoft "
              "YaHei', sans-serif;"
-             "  font-size: 14px;"
+             "  font-size: %10px;"
              "}"
              "QWidget:window, QMainWindow, QDialog {"
              "  background: %2;"
@@ -151,15 +265,17 @@ QString Theme::baseStyleSheet(const ThemeColors &colors) {
       .arg(toolTipBackground.name())
       .arg(toolTipText.name())
                 .arg(toolTipBorder.name())
-                .arg(colors.accent.name());
+                .arg(colors.accent.name())
+                .arg(themeTokens.typography.body);
 }
 
 QString Theme::buttonStyle(const ThemeColors &colors, bool primary) {
+  const auto themeTokens = tokens(colors);
   const QString borderColor =
       primary ? colors.accent.name() : colors.border.name();
   const QString background =
       primary ? colors.accent.name() : colors.surface.name();
-  const QString textColor = primary ? QString("#FFFFFF") : colors.text.name();
+  const QString textColor = primary ? themeTokens.onAccent.name() : colors.text.name();
 
   return QString("QPushButton {"
                  "  background: %1;"
@@ -182,8 +298,8 @@ QString Theme::buttonStyle(const ThemeColors &colors, bool primary) {
       .arg(background)
       .arg(textColor)
       .arg(borderColor)
-      .arg(primary ? colors.accent.lighter(110).name() : colors.hover.name())
-      .arg(primary ? colors.accent.darker(110).name() : colors.pressed.name())
+      .arg(primary ? themeTokens.accent.dark1.name() : colors.hover.name())
+      .arg(primary ? themeTokens.accent.dark2.name() : colors.pressed.name())
       .arg(colors.hover.name())
       .arg(colors.disabledText.name())
       .arg(colors.border.name());
@@ -828,13 +944,19 @@ ThemeManager &ThemeManager::instance() {
   return instance;
 }
 
-ThemeManager::ThemeManager() : m_colors(Theme::light()) {
+ThemeManager::ThemeManager()
+    : m_colors(Theme::light())
+    , m_tokens(Theme::tokens(m_colors))
+    , m_baseAccent(m_colors.accent)
+{
   if (qApp) {
     QTimer::singleShot(0, qApp, []() { FluentToolTip::ensureInstalled(); });
   }
 }
 
 const ThemeColors &ThemeManager::colors() const { return m_colors; }
+
+const FluentThemeTokens &ThemeManager::tokens() const { return m_tokens; }
 
 bool ThemeManager::accentBorderEnabled() const { return m_accentBorderEnabled; }
 
@@ -861,6 +983,24 @@ void ThemeManager::setAccentBorderEnabled(bool enabled)
 }
 
 void ThemeManager::setColors(const ThemeColors &colors) {
+  setColorsInternal(colors, true);
+}
+
+void ThemeManager::setAccentColor(const QColor &accent)
+{
+  if (!accent.isValid()) {
+    return;
+  }
+
+  m_baseAccent = accent;
+  ThemeColors colors = m_colors;
+  const bool dark = m_mode == ThemeMode::Dark;
+  colors.accent = Theme::accentForMode(accent, dark);
+  colors.focus = colors.accent.lighter(135);
+  setColorsInternal(colors, false);
+}
+
+void ThemeManager::setColorsInternal(const ThemeColors &colors, bool updateBaseAccent) {
   if (m_colors.accent == colors.accent &&
       m_colors.text == colors.text &&
       m_colors.subText == colors.subText &&
@@ -875,7 +1015,12 @@ void ThemeManager::setColors(const ThemeColors &colors) {
     return;
   }
 
+  if (updateBaseAccent && m_colors.accent != colors.accent) {
+    m_baseAccent = colors.accent;
+  }
+
   m_colors = colors;
+  m_tokens = Theme::tokens(m_colors);
   scheduleThemeChanged();
 }
 
@@ -886,14 +1031,11 @@ void ThemeManager::setThemeMode(ThemeMode mode) {
     return;
   }
 
-  // Preserve current accent across theme mode switches (Fluent behavior).
-  const QColor accent = m_colors.accent;
-
   m_mode = mode;
   ThemeColors next = (mode == ThemeMode::Dark) ? Theme::dark() : Theme::light();
-  next.accent = accent;
-  next.focus = accent.lighter(135);
-  setColors(next);
+  next.accent = Theme::accentForMode(m_baseAccent, mode == ThemeMode::Dark);
+  next.focus = next.accent.lighter(135);
+  setColorsInternal(next, false);
 }
 
 void ThemeManager::setLightMode() { setThemeMode(ThemeMode::Light); }

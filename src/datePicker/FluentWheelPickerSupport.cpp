@@ -3,6 +3,7 @@
 #include "Fluent/FluentPopupSurface.h"
 #include "Fluent/FluentStyle.h"
 #include "Fluent/FluentTheme.h"
+#include "../FluentPaintSupport.h"
 
 #include <QApplication>
 #include <QCursor>
@@ -299,8 +300,8 @@ void FluentWheelPickerColumn::snapToCurrent(bool animated)
 void FluentWheelPickerColumn::paintEvent(QPaintEvent *event)
 {
     {
-        QPainter painter(viewport());
-        if (painter.isActive()) {
+        if (canBeginWidgetPainter(viewport())) {
+            QPainter painter(viewport());
             painter.setRenderHint(QPainter::Antialiasing, true);
 
             const auto &colors = ThemeManager::instance().colors();

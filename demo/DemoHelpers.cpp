@@ -326,10 +326,7 @@ FluentCard *makeCollapsedExample(const QString &title,
 
 void applyAccent(const QColor &accent)
 {
-    auto colors = ThemeManager::instance().colors();
-    colors.accent = accent;
-    colors.focus = accent.lighter(135);
-    ThemeManager::instance().setColors(colors);
+    ThemeManager::instance().setAccentColor(accent);
 }
 
 void applyBackground(const QColor &bg)

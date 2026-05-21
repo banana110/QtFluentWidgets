@@ -5,6 +5,7 @@
 #include "Fluent/FluentScrollBar.h"
 #include "Fluent/FluentStyle.h"
 #include "Fluent/FluentTheme.h"
+#include "FluentPaintSupport.h"
 
 #include <QAbstractItemView>
 #include <QHideEvent>
@@ -796,8 +797,8 @@ protected:
             const QRectF rect = paintAnim ? m_selRect : selectionRectForIndex(current);
             const qreal opacity = paintAnim ? qBound<qreal>(0.0, m_selOpacity, 1.0) : 1.0;
 
-            QPainter painter(viewport());
-            if (painter.isActive()) {
+            if (Detail::canBeginWidgetPainter(viewport())) {
+                QPainter painter(viewport());
                 painter.setRenderHint(QPainter::Antialiasing, true);
 
                 QColor fill = colors.accent;
