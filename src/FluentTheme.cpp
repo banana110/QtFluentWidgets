@@ -1,9 +1,11 @@
 #include "Fluent/FluentTheme.h"
 
+#include "Fluent/FluentDiagnostics.h"
 #include "Fluent/FluentStyle.h"
 #include "Fluent/FluentToolTip.h"
 
 #include <QApplication>
+#include <QDebug>
 #include <QTimer>
 #include <QtGlobal>
 
@@ -949,6 +951,9 @@ ThemeManager::ThemeManager()
     , m_tokens(Theme::tokens(m_colors))
     , m_baseAccent(m_colors.accent)
 {
+  if (Diagnostics::knownQtWarningSuppressionEnabled() || !Diagnostics::qtWarningOutputEnabled()) {
+    Diagnostics::installMessageHandler();
+  }
   if (qApp) {
     QTimer::singleShot(0, qApp, []() { FluentToolTip::ensureInstalled(); });
   }
@@ -960,16 +965,57 @@ const FluentThemeTokens &ThemeManager::tokens() const { return m_tokens; }
 
 bool ThemeManager::accentBorderEnabled() const { return m_accentBorderEnabled; }
 
-void ThemeManager::scheduleThemeChanged()
+namespace {
+
+QString themeModeName(ThemeManager::ThemeMode mode)
 {
+  return mode == ThemeManager::ThemeMode::Dark ? QStringLiteral("Dark") : QStringLiteral("Light");
+}
+
+} // namespace
+
+void ThemeManager::scheduleThemeChanged(const QString &reason)
+{
+  const QString nextReason = reason.isEmpty() ? QStringLiteral("themeChanged") : reason;
   if (m_themeChangedPending) {
+    if (!m_themeChangeReason.contains(nextReason)) {
+      m_themeChangeReason += QStringLiteral(", ");
+      m_themeChangeReason += nextReason;
+    }
+    qInfo().noquote() << QStringLiteral("[ThemeSwitch] #%1 coalesced %2 after %3 ms")
+                             .arg(m_themeChangeSequence)
+                             .arg(nextReason)
+                             .arg(m_themeChangeTimer.isValid() ? m_themeChangeTimer.elapsed() : 0);
     return;
   }
+
   m_themeChangedPending = true;
+  m_themeChangeReason = nextReason;
+  m_themeChangeTimer.restart();
+  const int sequence = ++m_themeChangeSequence;
+
+  qInfo().noquote() << QStringLiteral("[ThemeSwitch] #%1 scheduled: %2, mode=%3, accent=%4")
+                           .arg(sequence)
+                           .arg(m_themeChangeReason)
+                           .arg(themeModeName(m_mode))
+                           .arg(m_colors.accent.name());
+
   // Coalesce multiple changes and avoid blocking the current UI event.
-  QTimer::singleShot(0, this, [this]() {
+  QTimer::singleShot(0, this, [this, sequence]() {
+    const QString reason = m_themeChangeReason;
+    qInfo().noquote() << QStringLiteral("[ThemeSwitch] #%1 dispatch begin after %2 ms: %3")
+                             .arg(sequence)
+                             .arg(m_themeChangeTimer.isValid() ? m_themeChangeTimer.elapsed() : 0)
+                             .arg(reason);
+
+    QElapsedTimer dispatchTimer;
+    dispatchTimer.start();
     m_themeChangedPending = false;
     emit themeChanged();
+    qInfo().noquote() << QStringLiteral("[ThemeSwitch] #%1 dispatch done +%2 ms, total %3 ms")
+                             .arg(sequence)
+                             .arg(dispatchTimer.elapsed())
+                             .arg(m_themeChangeTimer.isValid() ? m_themeChangeTimer.elapsed() : dispatchTimer.elapsed());
   });
 }
 
@@ -979,11 +1025,11 @@ void ThemeManager::setAccentBorderEnabled(bool enabled)
     return;
   }
   m_accentBorderEnabled = enabled;
-  scheduleThemeChanged();
+  scheduleThemeChanged(QStringLiteral("setAccentBorderEnabled"));
 }
 
 void ThemeManager::setColors(const ThemeColors &colors) {
-  setColorsInternal(colors, true);
+  setColorsInternal(colors, true, QStringLiteral("setColors"));
 }
 
 void ThemeManager::setAccentColor(const QColor &accent)
@@ -997,10 +1043,10 @@ void ThemeManager::setAccentColor(const QColor &accent)
   const bool dark = m_mode == ThemeMode::Dark;
   colors.accent = Theme::accentForMode(accent, dark);
   colors.focus = colors.accent.lighter(135);
-  setColorsInternal(colors, false);
+  setColorsInternal(colors, false, QStringLiteral("setAccentColor"));
 }
 
-void ThemeManager::setColorsInternal(const ThemeColors &colors, bool updateBaseAccent) {
+void ThemeManager::setColorsInternal(const ThemeColors &colors, bool updateBaseAccent, const QString &reason) {
   if (m_colors.accent == colors.accent &&
       m_colors.text == colors.text &&
       m_colors.subText == colors.subText &&
@@ -1021,7 +1067,7 @@ void ThemeManager::setColorsInternal(const ThemeColors &colors, bool updateBaseA
 
   m_colors = colors;
   m_tokens = Theme::tokens(m_colors);
-  scheduleThemeChanged();
+  scheduleThemeChanged(reason.isEmpty() ? QStringLiteral("setColorsInternal") : reason);
 }
 
 ThemeManager::ThemeMode ThemeManager::themeMode() const { return m_mode; }
@@ -1035,7 +1081,9 @@ void ThemeManager::setThemeMode(ThemeMode mode) {
   ThemeColors next = (mode == ThemeMode::Dark) ? Theme::dark() : Theme::light();
   next.accent = Theme::accentForMode(m_baseAccent, mode == ThemeMode::Dark);
   next.focus = next.accent.lighter(135);
-  setColorsInternal(next, false);
+  setColorsInternal(next,
+                    false,
+                    QStringLiteral("setThemeMode(%1)").arg(themeModeName(mode)));
 }
 
 void ThemeManager::setLightMode() { setThemeMode(ThemeMode::Light); }

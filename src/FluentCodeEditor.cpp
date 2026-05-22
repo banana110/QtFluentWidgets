@@ -330,8 +330,7 @@ FluentCodeEditor::FluentCodeEditor(QWidget *parent)
     ensureHighlighter();
     updateExtraSelections();
 
-    // Defer theme application until shown (like other Fluent inputs)
-    connect(&ThemeManager::instance(), &ThemeManager::themeChanged, this, &FluentCodeEditor::applyTheme);
+    applyTheme();
 }
 
 void FluentCodeEditor::changeEvent(QEvent *event)

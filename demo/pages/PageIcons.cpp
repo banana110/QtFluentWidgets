@@ -43,7 +43,7 @@ public:
         , m_sample(sample)
     {
         setCursor(Qt::PointingHandCursor);
-        setFixedSize(154, 116);
+        setFixedSize(124, 108);
         setToolTip(QStringLiteral("FluentIconType::%1").arg(QString::fromLatin1(m_sample.enumName)));
     }
 
@@ -61,7 +61,7 @@ protected:
 
         QRectF frame = rect().adjusted(0.5, 0.5, -0.5, -0.5);
         QPainterPath panel;
-        panel.addRoundedRect(frame, tokens.radius.card, tokens.radius.card);
+        panel.addRoundedRect(frame, tokens.radius.control, tokens.radius.control);
         const QColor white("#FFFFFF");
         const QColor panelFill = tokens.dark
             ? (hover ? Style::mix(tokens.neutral.card, white, 0.0837)
@@ -80,44 +80,27 @@ protected:
         p.setPen(QPen(panelBorder, hover ? 1.2 : 1.0));
         p.drawPath(panel);
 
-        QRectF iconBack(14, 12, 42, 42);
-        QPainterPath iconPanel;
-        iconPanel.addRoundedRect(iconBack, tokens.radius.control, tokens.radius.control);
-        QColor iconPanelColor = tokens.dark
-            ? (hover ? Style::mix(tokens.neutral.card, colors.accent, 0.24)
-                     : QColor(255, 255, 255, 15))
-            : (hover ? tokens.accent.light3 : tokens.neutral.fillTertiary);
-        if (!tokens.dark) {
-            iconPanelColor.setAlpha(150);
-        }
-        p.fillPath(iconPanel, iconPanelColor);
-
+        QRectF iconBack((width() - 44) / 2.0, 14, 44, 44);
         QColor iconColor = hover ? colors.accent : colors.text;
         FluentIconOptions options;
         options.color = iconColor;
         options.autoTheme = false;
-        FluentIcon::paintIcon(&p, m_sample.type, iconBack.adjusted(9, 9, -9, -9), options);
+        FluentIcon::paintIcon(&p, m_sample.type, iconBack, options);
 
         p.setPen(colors.text);
         QFont titleFont = font();
         titleFont.setPointSize(10);
         titleFont.setWeight(QFont::DemiBold);
         p.setFont(titleFont);
-        p.drawText(QRectF(66, 14, width() - 78, 20), Qt::AlignLeft | Qt::AlignVCenter, m_sample.title);
+        p.drawText(QRectF(8, 66, width() - 16, 18), Qt::AlignHCenter | Qt::AlignVCenter, m_sample.title);
 
         p.setPen(colors.subText);
         QFont enumFont = font();
         enumFont.setPointSize(8);
         p.setFont(enumFont);
-        p.drawText(QRectF(66, 34, width() - 78, 20), Qt::AlignLeft | Qt::AlignVCenter, QString::fromLatin1(m_sample.enumName));
-
-        p.setPen(colors.subText);
-        QFont descFont = font();
-        descFont.setPointSize(8);
-        p.setFont(descFont);
-        p.drawText(QRectF(14, 68, width() - 28, 36),
-                   Qt::AlignLeft | Qt::AlignTop | Qt::TextWordWrap,
-                   m_sample.description);
+        p.drawText(QRectF(8, 84, width() - 16, 16),
+                   Qt::AlignHCenter | Qt::AlignVCenter,
+                   QString::fromLatin1(m_sample.enumName));
     }
 
 #if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
@@ -228,8 +211,8 @@ QWidget *createIconsPage()
         page->addWidget(s.card);
 
         auto *hint = new FluentLabel(DEMO_TEXT(
-            "点击任意图标可复制对应的 FluentIconType 枚举。当前图标使用 QPainter 原生绘制，颜色会跟随主题与控件状态，不依赖外部字体文件。",
-            "Click any icon to copy its FluentIconType enum. Icons are painted natively with QPainter, follow theme/control state colors, and do not depend on external icon fonts."));
+            "点击任意图标可复制对应的 FluentIconType 枚举。当前图标优先使用内置 SVG 资源渲染，颜色会跟随主题与控件状态；资源缺失时才回退到 QPainter 绘制。",
+            "Click any icon to copy its FluentIconType enum. Icons prefer bundled SVG resources, follow theme/control state colors, and fall back to QPainter only when a resource is missing."));
         hint->setWordWrap(true);
         hint->setStyleSheet(QStringLiteral("font-size: 12px; opacity: 0.88;"));
         s.body->addWidget(hint);
@@ -246,7 +229,7 @@ QWidget *createIconsPage()
         auto *flowHost = new QWidget(paletteCard);
         auto *flow = new FluentFlowLayout(flowHost, 0, 10, 10);
         flow->setUniformItemWidthEnabled(true);
-        flow->setMinimumItemWidth(154);
+        flow->setMinimumItemWidth(124);
         flow->setColumnHysteresis(12);
         flow->setAnimationEnabled(true);
         flow->setAnimationDuration(120);

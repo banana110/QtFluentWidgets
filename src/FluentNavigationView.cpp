@@ -54,7 +54,7 @@ struct TopItemLayout {
 
 constexpr int kRowHeight = 40;
 constexpr int kSeparatorHeight = 9;
-constexpr int kIconSize = 20;
+constexpr int kIconSize = 22;
 constexpr int kIndicatorWidth = 3;
 constexpr int kIndicatorHeight = 16;
 constexpr int kTopBarHeight = 48;
@@ -1760,13 +1760,13 @@ void FluentNavigationView::paintEvent(QPaintEvent * /*event*/)
         return QRectF(center.x() - size / 2.0, center.y() - size / 2.0, size, size);
     };
     auto drawHamburger = [&](const QRectF &rect, const QColor &color) {
-        FluentIcon::paintIcon(&p, FluentIconType::Menu, iconRectAround(rect.center(), 20.0), iconOptions(color));
+        FluentIcon::paintIcon(&p, FluentIconType::Menu, iconRectAround(rect.center(), 22.0), iconOptions(color));
     };
 
     auto drawBack = [&](const QRectF &rect, bool enabled) {
         FluentIcon::paintIcon(&p,
                               FluentIconType::Back,
-                              iconRectAround(rect.center(), 20.0),
+                              iconRectAround(rect.center(), 22.0),
                               iconOptions(enabled ? colors.text : colors.subText),
                               enabled ? QIcon::Normal : QIcon::Disabled);
     };
@@ -1774,7 +1774,7 @@ void FluentNavigationView::paintEvent(QPaintEvent * /*event*/)
     auto drawChevron = [&](const QPointF &center, bool collapsed) {
         FluentIcon::paintIcon(&p,
                               collapsed ? FluentIconType::ChevronDown : FluentIconType::ChevronUp,
-                              iconRectAround(center, 14.0),
+                              iconRectAround(center, 15.0),
                               iconOptions(colors.subText));
     };
 

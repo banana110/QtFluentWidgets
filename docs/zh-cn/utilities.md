@@ -4,6 +4,47 @@
 
 Demo 页面：多数工具类被窗口/菜单/弹窗内部使用；可在 Windows 与 Overview 页面观察效果。
 
+## FluentDiagnostics
+
+include：`Fluent/FluentDiagnostics.h`
+
+用途：为 Debug 调试阶段提供一个可选的 Qt warning 输出开关，避免已知高频 warning 把调试启动和主题切换拖慢。
+
+关键 API：
+
+- `Diagnostics::setKnownQtWarningSuppressionEnabled(true)`：只过滤库内已知的高频 Qt warning，例如无效字体尺寸、`QWidget::paintEngine` / `QPainter::begin` 这类噪声日志。
+- `Diagnostics::setQtWarningOutputEnabled(false)`：关闭所有 `QtWarningMsg` 输出。这个开关更激进，建议只在本地 Debug 性能验证时临时使用。
+- `Diagnostics::installMessageHandler()`：手动安装库提供的 message handler。上面两个 setter 会自动安装，一般不需要单独调用。
+
+最小示例：
+
+```cpp
+#include <Fluent/FluentDiagnostics.h>
+
+int main(int argc, char *argv[])
+{
+#ifdef QT_DEBUG
+    Fluent::Diagnostics::setKnownQtWarningSuppressionEnabled(true);
+    // 或者临时关闭所有 Qt warning：
+    // Fluent::Diagnostics::setQtWarningOutputEnabled(false);
+#endif
+
+    QApplication app(argc, argv);
+    ...
+    return app.exec();
+}
+```
+
+也可以通过环境变量启用：
+
+- `QTFLUENT_SUPPRESS_KNOWN_WARNINGS=1`：过滤已知高频 warning。
+- `QTFLUENT_DISABLE_QT_WARNINGS=1`：关闭所有 Qt warning 输出。
+- `QTFLUENT_SUPPRESS_KNOWN_PAINT_WARNINGS=1`：兼容旧名称，只过滤已知绘制 warning。
+
+注意：这只是调试体验开关，不应该替代真实问题修复。Release 性能仍应通过减少启动期控件创建、避免大表格 `setCellWidget` 和减少全局 stylesheet 刷新来保证。
+
+---
+
 ## FluentAccentBorderTrace
 
 include：`Fluent/FluentAccentBorderTrace.h`

@@ -72,6 +72,25 @@ static bool isWeekendColumn(int column, Qt::DayOfWeek firstDayOfWeek)
     const int dayOfWeek = displayedDayOfWeek(column, firstDayOfWeek);
     return dayOfWeek == int(Qt::Saturday) || dayOfWeek == int(Qt::Sunday);
 }
+
+static QFont adjustedFontSize(QFont font, qreal pointDelta)
+{
+    const qreal pointSize = font.pointSizeF();
+    if (pointSize > 0.0) {
+        font.setPointSizeF(qMax<qreal>(1.0, pointSize + pointDelta));
+        return font;
+    }
+
+    const int pixelSize = font.pixelSize();
+    if (pixelSize > 0) {
+        const int pixelDelta = qRound(pointDelta);
+        font.setPixelSize(qMax(1, pixelSize + pixelDelta));
+        return font;
+    }
+
+    font.setPointSizeF(qMax<qreal>(1.0, 10.0 + pointDelta));
+    return font;
+}
 } // namespace
 // ── Constructor ──────────────────────────────────────────────────────────
 FluentCalendarPopup::FluentCalendarPopup(QWidget *anchor)
@@ -241,7 +260,7 @@ QRect FluentCalendarPopup::monthPillRect() const
     const QRect h = headerRect();
     const QRect y = yearPillRect();
     const QLocale calendarLocale = locale();
-    QFont f = font(); f.setPointSizeF(f.pointSizeF() + 0.5); QFontMetrics fm(f);
+    QFont f = adjustedFontSize(font(), 0.5); QFontMetrics fm(f);
     const int w = qBound(68, fm.horizontalAdvance(headerMonthText(calendarLocale, m_pageMonth)) + 22, 160);
     return pillRect(h, y.right() + 20, w);
 }
@@ -249,7 +268,7 @@ QRect FluentCalendarPopup::yearPillRect() const
 {
     const QRect h = headerRect();
     const QLocale calendarLocale = locale();
-    QFont f = font(); f.setPointSizeF(f.pointSizeF() + 0.5); QFontMetrics fm(f);
+    QFont f = adjustedFontSize(font(), 0.5); QFontMetrics fm(f);
     const int w = qBound(74, fm.horizontalAdvance(headerYearText(calendarLocale, m_pageYear)) + 22, 130);
     return pillRect(h, h.x(), w);
 }
@@ -269,7 +288,7 @@ QRect FluentCalendarPopup::todayButtonRect() const
 {
     const QRect h = headerRect();
     const QRect prev = navPrevRect();
-    QFont f = font(); f.setPointSizeF(f.pointSizeF() - 0.2); QFontMetrics fm(f);
+    QFont f = adjustedFontSize(font(), -0.2); QFontMetrics fm(f);
     const QString text = m_todayText;
     int w = qBound(44, fm.horizontalAdvance(text) + 20, 80);
     const int maxRight = prev.left() - 8;
@@ -480,7 +499,7 @@ void FluentCalendarPopup::paintRangePanelHeader(QPainter &p, int panelX,
     const QLocale calendarLocale = locale();
     const QRect content(panelX + kPadding, kPadding, kRangePanelW - 2*kPadding, height() - 2*kPadding);
     const QRect h(content.x(), content.y(), content.width(), kHeaderH);
-    QFont f = font(); f.setPointSizeF(f.pointSizeF() + 0.5); QFontMetrics fm(f);
+    QFont f = adjustedFontSize(font(), 0.5); QFontMetrics fm(f);
     const QString yearText = headerYearText(calendarLocale, pageYear);
     const QString monthText = headerMonthText(calendarLocale, pageMonth);
     const int yearW  = qBound(74,  fm.horizontalAdvance(yearText) + 22, 130);
@@ -544,7 +563,7 @@ void FluentCalendarPopup::paintRangePanelDays(QPainter &p, int panelX,
         }
     }
     // Day name row
-    QFont sf = font(); sf.setPointSizeF(sf.pointSizeF() - 0.5); p.setFont(sf);
+    QFont sf = adjustedFontSize(font(), -0.5); p.setFont(sf);
     for (int i = 0; i < 7; ++i) {
         const QRect r(dayNames.x()+i*cw, dayNames.y(), cw, dayNames.height());
         const int dayOfWeek = displayedDayOfWeek(i, firstDayOfWeek);
@@ -689,7 +708,7 @@ void FluentCalendarPopup::paintDays(QPainter &p)
             }
         }
     }
-    QFont sf=font(); sf.setPointSizeF(sf.pointSizeF()-0.5); p.setFont(sf);
+    QFont sf=adjustedFontSize(font(), -0.5); p.setFont(sf);
     for (int i=0;i<7;++i) {
         const QRect r(dayNames.x()+i*cw, dayNames.y(), cw, dayNames.height());
         const int dayOfWeek = displayedDayOfWeek(i, firstDayOfWeek);
@@ -724,7 +743,7 @@ void FluentCalendarPopup::paintMonths(QPainter &p)
     const QLocale calendarLocale = locale();
     const QRect g=gridRect(); const int cw=g.width()/3, ch=g.height()/4;
     const QDate today=QDate::currentDate();
-    QFont f=font(); f.setPointSizeF(f.pointSizeF()+0.2); p.setFont(f);
+    QFont f=adjustedFontSize(font(), 0.2); p.setFont(f);
     for (int i=0;i<12;++i) {
         const int row=i/3, col=i%3;
         const QRect rc(g.x()+col*cw, g.y()+row*ch, cw, ch);
@@ -744,7 +763,7 @@ void FluentCalendarPopup::paintYears(QPainter &p)
     const auto &c=ThemeManager::instance().colors();
     const QRect g=gridRect(); const int cw=g.width()/4, ch=g.height()/4;
     const int ty=QDate::currentDate().year();
-    QFont f=font(); f.setPointSizeF(f.pointSizeF()+0.2); p.setFont(f);
+    QFont f=adjustedFontSize(font(), 0.2); p.setFont(f);
     for (int i=0;i<16;++i) {
         const int row=i/4, col=i%4;
         const QRect rc(g.x()+col*cw, g.y()+row*ch, cw, ch);

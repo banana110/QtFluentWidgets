@@ -1,7 +1,11 @@
 <RCC>
     <qresource prefix="/Fluent/icons">
         <file alias="add.svg">add.svg</file>
+        <file alias="arrow-down.svg">arrow-down.svg</file>
+        <file alias="arrow-up.svg">arrow-up.svg</file>
         <file alias="back.svg">back.svg</file>
+        <file alias="bell.svg">bell.svg</file>
+        <file alias="bookmark.svg">bookmark.svg</file>
         <file alias="calendar.svg">calendar.svg</file>
         <file alias="checkmark.svg">checkmark.svg</file>
         <file alias="chevron-down.svg">chevron-down.svg</file>
@@ -10,23 +14,43 @@
         <file alias="chevron-up.svg">chevron-up.svg</file>
         <file alias="close.svg">close.svg</file>
         <file alias="controls.svg">controls.svg</file>
+        <file alias="copy.svg">copy.svg</file>
         <file alias="data.svg">data.svg</file>
         <file alias="delete.svg">delete.svg</file>
         <file alias="dialog.svg">dialog.svg</file>
         <file alias="document.svg">document.svg</file>
+        <file alias="download.svg">download.svg</file>
+        <file alias="edit.svg">edit.svg</file>
+        <file alias="eye.svg">eye.svg</file>
+        <file alias="filter.svg">filter.svg</file>
+        <file alias="folder.svg">folder.svg</file>
         <file alias="gauge.svg">gauge.svg</file>
+        <file alias="heart.svg">heart.svg</file>
         <file alias="home.svg">home.svg</file>
+        <file alias="icons.svg">icons.svg</file>
         <file alias="info.svg">info.svg</file>
         <file alias="input.svg">input.svg</file>
         <file alias="layout.svg">layout.svg</file>
+        <file alias="link.svg">link.svg</file>
+        <file alias="lock.svg">lock.svg</file>
+        <file alias="mail.svg">mail.svg</file>
         <file alias="menu.svg">menu.svg</file>
         <file alias="more.svg">more.svg</file>
+        <file alias="person.svg">person.svg</file>
+        <file alias="pin.svg">pin.svg</file>
         <file alias="play.svg">play.svg</file>
+        <file alias="refresh.svg">refresh.svg</file>
         <file alias="save.svg">save.svg</file>
         <file alias="search.svg">search.svg</file>
         <file alias="settings.svg">settings.svg</file>
+        <file alias="share.svg">share.svg</file>
+        <file alias="sort.svg">sort.svg</file>
+        <file alias="star.svg">star.svg</file>
         <file alias="success.svg">success.svg</file>
+        <file alias="upload.svg">upload.svg</file>
         <file alias="warning.svg">warning.svg</file>
         <file alias="window.svg">window.svg</file>
+        <file alias="zoom-in.svg">zoom-in.svg</file>
+        <file alias="zoom-out.svg">zoom-out.svg</file>
     </qresource>
 </RCC>

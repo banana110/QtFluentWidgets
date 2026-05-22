@@ -67,6 +67,7 @@ add_library(QtFluentWidgets
     include/Fluent/FluentFlyout.h
     include/Fluent/FluentInfoBar.h
     include/Fluent/FluentIcon.h
+    include/Fluent/FluentDiagnostics.h
     include/Fluent/FluentLottieWidget.h
     include/Fluent/FluentTheme.h
     include/Fluent/FluentToolTip.h

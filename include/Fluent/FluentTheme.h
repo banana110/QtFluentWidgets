@@ -2,6 +2,7 @@
 
 #include <QObject>
 #include <QColor>
+#include <QElapsedTimer>
 #include <QString>
 
 namespace Fluent {
@@ -170,8 +171,8 @@ signals:
 private:
     ThemeManager();
 
-    void scheduleThemeChanged();
-    void setColorsInternal(const ThemeColors &colors, bool updateBaseAccent);
+    void scheduleThemeChanged(const QString &reason = QString());
+    void setColorsInternal(const ThemeColors &colors, bool updateBaseAccent, const QString &reason = QString());
 
     ThemeColors m_colors;
     FluentThemeTokens m_tokens;
@@ -180,6 +181,9 @@ private:
 
     bool m_accentBorderEnabled = true;
     bool m_themeChangedPending = false;
+    QElapsedTimer m_themeChangeTimer;
+    QString m_themeChangeReason;
+    int m_themeChangeSequence = 0;
 };
 
 } // namespace Fluent

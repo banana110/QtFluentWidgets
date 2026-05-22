@@ -4,6 +4,47 @@ This page covers lower-level helpers that are public but mostly used internally 
 
 Demo: you can observe their effects on the Windows and Overview pages (menus/dialogs/toasts use them internally).
 
+## FluentDiagnostics
+
+include: `Fluent/FluentDiagnostics.h`
+
+Purpose: optional Qt warning output controls for Debug builds, useful when known noisy warnings dominate startup or theme-switch profiling.
+
+Key APIs:
+
+- `Diagnostics::setKnownQtWarningSuppressionEnabled(true)`: filters known high-frequency Qt warnings, such as invalid font sizes and `QWidget::paintEngine` / `QPainter::begin` noise.
+- `Diagnostics::setQtWarningOutputEnabled(false)`: suppresses every `QtWarningMsg`. This is intentionally broad; use it only for local Debug performance checks.
+- `Diagnostics::installMessageHandler()`: installs the library message handler manually. The setters above install it automatically, so most apps do not need to call this directly.
+
+Minimal example:
+
+```cpp
+#include <Fluent/FluentDiagnostics.h>
+
+int main(int argc, char *argv[])
+{
+#ifdef QT_DEBUG
+    Fluent::Diagnostics::setKnownQtWarningSuppressionEnabled(true);
+    // Or temporarily suppress every Qt warning:
+    // Fluent::Diagnostics::setQtWarningOutputEnabled(false);
+#endif
+
+    QApplication app(argc, argv);
+    ...
+    return app.exec();
+}
+```
+
+Environment variables are also supported:
+
+- `QTFLUENT_SUPPRESS_KNOWN_WARNINGS=1`: filters known noisy warnings.
+- `QTFLUENT_DISABLE_QT_WARNINGS=1`: suppresses every Qt warning.
+- `QTFLUENT_SUPPRESS_KNOWN_PAINT_WARNINGS=1`: compatibility alias for older paint-warning filtering.
+
+Note: this is a diagnostics convenience, not a substitute for fixing real issues. Release performance should still come from avoiding eager page construction, large `setCellWidget` tables, and global stylesheet churn.
+
+---
+
 ## FluentAccentBorderTrace
 
 include: `Fluent/FluentAccentBorderTrace.h`

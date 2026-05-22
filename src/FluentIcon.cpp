@@ -8,6 +8,7 @@
 #include <QPainter>
 #include <QPainterPath>
 #include <QPixmap>
+#include <QRegularExpression>
 #include <QSvgRenderer>
 #include <QtGlobal>
 
@@ -43,8 +44,36 @@ QByteArray tintedSvgData(FluentIconType type, const QColor &color)
 
     QColor opaque = color;
     opaque.setAlpha(255);
-    data.replace("#000000", opaque.name(QColor::HexRgb).toUtf8());
-    return data;
+    QString svg = QString::fromUtf8(data);
+    const QString replacement = opaque.name(QColor::HexRgb);
+    const auto caseInsensitive = QRegularExpression::CaseInsensitiveOption;
+    svg.replace(QRegularExpression(QStringLiteral("#000000\\b"), caseInsensitive), replacement);
+    svg.replace(QRegularExpression(QStringLiteral("#000\\b"), caseInsensitive), replacement);
+    svg.replace(QRegularExpression(QStringLiteral("\\bblack\\b"), caseInsensitive), replacement);
+    svg.replace(QRegularExpression(QStringLiteral("rgb\\s*\\(\\s*0\\s*,\\s*0\\s*,\\s*0\\s*\\)"), caseInsensitive),
+                replacement);
+    return svg.toUtf8();
+}
+
+bool paintSvgIcon(QPainter *painter, FluentIconType type, const QRectF &rect, const QColor &color, qreal opacity)
+{
+    const QByteArray data = tintedSvgData(type, color);
+    if (data.isEmpty()) {
+        return false;
+    }
+
+    QSvgRenderer renderer(data);
+    if (!renderer.isValid()) {
+        return false;
+    }
+
+    painter->save();
+    painter->setRenderHint(QPainter::Antialiasing, true);
+    painter->setRenderHint(QPainter::SmoothPixmapTransform, true);
+    painter->setOpacity(opacity);
+    renderer.render(painter, rect);
+    painter->restore();
+    return true;
 }
 
 class NativeIconPainter final
@@ -907,25 +936,11 @@ void FluentIcon::paintIcon(QPainter *painter,
         return;
     }
 
-    if (paintNativeIcon(painter, type, rect, color, alpha)) {
+    if (paintSvgIcon(painter, type, rect, color, alpha)) {
         return;
     }
 
-    const QByteArray data = tintedSvgData(type, color);
-    if (data.isEmpty()) {
-        return;
-    }
-
-    QSvgRenderer renderer(data);
-    if (!renderer.isValid()) {
-        return;
-    }
-
-    painter->save();
-    painter->setRenderHint(QPainter::Antialiasing, true);
-    painter->setOpacity(alpha);
-    renderer.render(painter, rect);
-    painter->restore();
+    paintNativeIcon(painter, type, rect, color, alpha);
 }
 
 QColor FluentIcon::resolveColor(const FluentIconOptions &options, QIcon::Mode mode)

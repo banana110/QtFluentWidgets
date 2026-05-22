@@ -12,6 +12,8 @@
 #include <QAbstractButton>
 #include <QActionEvent>
 #include <QApplication>
+#include <QDebug>
+#include <QElapsedTimer>
 #include <QEvent>
 #include <QHBoxLayout>
 #include <QLabel>
@@ -50,6 +52,18 @@ static QString rgbaString(const QColor &c)
         .arg(c.green())
         .arg(c.blue())
         .arg(c.alpha());
+}
+
+static QString applicationStyleSignature(const ThemeColors &colors)
+{
+    // QApplication::setStyleSheet() repolishes the whole widget tree. Fluent
+    // controls already repaint/apply local styles for accent, background,
+    // surface, border and text changes, so the app-level sheet should only be
+    // refreshed when the explicit structural theme family changes.
+    const auto mode = ThemeManager::instance().themeMode();
+    return QStringLiteral("%1|%2")
+        .arg(mode == ThemeManager::ThemeMode::Dark ? QStringLiteral("dark") : QStringLiteral("light"))
+        .arg(ThemeManager::instance().tokens().typography.body);
 }
 
 // ---------------------------------------------------------------------------
@@ -1250,6 +1264,22 @@ bool FluentMainWindow::nativeEvent(const QByteArray &eventType, void *message, l
 
 void FluentMainWindow::applyThemeToApplication()
 {
+    QElapsedTimer timer;
+    timer.start();
+    qint64 last = 0;
+    auto mark = [&](const QString &step) {
+        const qint64 now = timer.elapsed();
+        qInfo().noquote() << QStringLiteral("[ThemeSwitch] FluentMainWindow::applyThemeToApplication %1 +%2 ms, total %3 ms")
+                                 .arg(step)
+                                 .arg(now - last)
+                                 .arg(now);
+        last = now;
+    };
+
+    qInfo().noquote() << QStringLiteral("[ThemeSwitch] FluentMainWindow::applyThemeToApplication begin visible=%1, windowTitle=\"%2\"")
+                             .arg(isVisible() ? QStringLiteral("true") : QStringLiteral("false"))
+                             .arg(windowTitle());
+
     // Keep border + trace animation in sync with theme.
     if (isVisible()) {
         m_border.onThemeChanged();
@@ -1257,23 +1287,49 @@ void FluentMainWindow::applyThemeToApplication()
         m_border.syncFromTheme();
     }
     syncBorderVisualState();
+    mark(QStringLiteral("border state"));
 
     if (auto *app = qobject_cast<QApplication *>(QCoreApplication::instance())) {
         const auto &colors = ThemeManager::instance().colors();
-        const QString next = Theme::baseStyleSheet(colors);
-        if (app->styleSheet() != next) {
-            app->setStyleSheet(next);
+        static QString s_lastApplicationStyleSignature;
+        const QString styleSignature = applicationStyleSignature(colors);
+        if (s_lastApplicationStyleSignature == styleSignature) {
+            qInfo().noquote() << QStringLiteral("[ThemeSwitch] QApplication::setStyleSheet skipped, base signature unchanged");
+            mark(QStringLiteral("base stylesheet skipped"));
+        } else {
+            const QString next = Theme::baseStyleSheet(colors);
+            mark(QStringLiteral("base stylesheet generated"));
+            if (app->styleSheet() != next) {
+                QElapsedTimer styleTimer;
+                styleTimer.start();
+                app->setStyleSheet(next);
+                s_lastApplicationStyleSignature = styleSignature;
+                qInfo().noquote() << QStringLiteral("[ThemeSwitch] QApplication::setStyleSheet +%1 ms")
+                                         .arg(styleTimer.elapsed());
+            } else {
+                s_lastApplicationStyleSignature = styleSignature;
+                qInfo().noquote() << QStringLiteral("[ThemeSwitch] QApplication::setStyleSheet skipped, unchanged");
+            }
         }
     }
+    mark(QStringLiteral("application stylesheet"));
 
     updateTitleBarContent();
+    mark(QStringLiteral("title bar content"));
+
     updateWindowControlIcons();
+    mark(QStringLiteral("window control icons"));
 
     updateFrameHost();
+    mark(QStringLiteral("frame host"));
 
 #ifdef Q_OS_WIN
     applyWindowsDwmAttributes();
+    mark(QStringLiteral("DWM attributes"));
 #endif
+
+    qInfo().noquote() << QStringLiteral("[ThemeSwitch] FluentMainWindow::applyThemeToApplication done at %1 ms")
+                             .arg(timer.elapsed());
 }
 
 void FluentMainWindow::ensureTitleBar()
