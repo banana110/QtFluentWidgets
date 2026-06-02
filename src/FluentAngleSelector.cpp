@@ -47,12 +47,12 @@ FluentAngleSelector::FluentAngleSelector(QWidget *parent)
 
 int FluentAngleSelector::value() const
 {
-    return m_spin ? m_spin->value() : m_minimum;
+    return m_value;
 }
 
 void FluentAngleSelector::setValue(int value)
 {
-    setValueInternal(value, false);
+    setValueInternal(value, true);
 }
 
 void FluentAngleSelector::setRange(int minimum, int maximum)
@@ -64,11 +64,13 @@ void FluentAngleSelector::setRange(int minimum, int maximum)
     m_maximum = maximum;
 
     if (m_spin) {
+        const bool blocked = m_spin->blockSignals(true);
         m_spin->setRange(m_minimum, m_maximum);
         m_spin->setWrapping(m_wrapping && (m_maximum > m_minimum));
+        m_spin->blockSignals(blocked);
     }
 
-    setValueInternal(value(), false);
+    setValueInternal(m_value, false);
 }
 
 void FluentAngleSelector::setWrapping(bool wrapping)
@@ -104,7 +106,7 @@ void FluentAngleSelector::setSuffix(const QString &suffix)
 
 bool FluentAngleSelector::dialVisible() const
 {
-    return m_dial && m_dial->isVisible();
+    return m_dial && !m_dial->isHidden();
 }
 
 void FluentAngleSelector::setDialVisible(bool visible)
@@ -115,7 +117,7 @@ void FluentAngleSelector::setDialVisible(bool visible)
 
 bool FluentAngleSelector::labelVisible() const
 {
-    return m_label && m_label->isVisible();
+    return m_label && !m_label->isHidden();
 }
 
 void FluentAngleSelector::setLabelVisible(bool visible)
@@ -126,7 +128,7 @@ void FluentAngleSelector::setLabelVisible(bool visible)
 
 bool FluentAngleSelector::spinBoxVisible() const
 {
-    return m_spin && m_spin->isVisible();
+    return m_spin && !m_spin->isHidden();
 }
 
 void FluentAngleSelector::setSpinBoxVisible(bool visible)
@@ -153,9 +155,13 @@ int FluentAngleSelector::normalizeToRange(int value) const
 void FluentAngleSelector::setValueInternal(int value, bool emitSignal)
 {
     const int normalized = normalizeToRange(value);
-    const int current = this->value();
-    if (current == normalized)
+    const bool changed = (m_value != normalized);
+    const bool spinSynced = !m_spin || m_spin->value() == normalized;
+    const bool dialSynced = !m_dial || m_dial->value() == normalized;
+    if (!changed && spinSynced && dialSynced)
         return;
+
+    m_value = normalized;
 
     if (m_spin) {
         const bool blocked = m_spin->blockSignals(true);
@@ -168,7 +174,7 @@ void FluentAngleSelector::setValueInternal(int value, bool emitSignal)
         m_dial->blockSignals(blocked);
     }
 
-    if (emitSignal)
+    if (emitSignal && changed)
         emit valueChanged(normalized);
 }
 

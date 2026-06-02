@@ -2,24 +2,30 @@
 
 #include "../DemoHelpers.h"
 
+#include <QAction>
 #include <QDialog>
+#include <QGridLayout>
 #include <QHBoxLayout>
+#include <QSize>
 #include <QVBoxLayout>
 
 #include "Fluent/FluentButton.h"
 #include "Fluent/FluentCard.h"
 #include "Fluent/FluentDialog.h"
 #include "Fluent/FluentFlyout.h"
+#include "Fluent/FluentIcon.h"
 #include "Fluent/FluentInfoBar.h"
 #include "Fluent/FluentLabel.h"
 #include "Fluent/FluentMainWindow.h"
 #include "Fluent/FluentMenu.h"
 #include "Fluent/FluentMessageBox.h"
 #include "Fluent/FluentScrollArea.h"
+#include "Fluent/FluentStatusBar.h"
 #include "Fluent/FluentToast.h"
 #include "Fluent/FluentTextEdit.h"
 #include "Fluent/FluentTeachingTip.h"
 #include "Fluent/FluentToggleSwitch.h"
+#include "Fluent/FluentToolBar.h"
 #include "Fluent/FluentWidget.h"
 
 #include <QCursor>
@@ -35,14 +41,181 @@ QWidget *createWindowsPage(FluentMainWindow *window)
                                    DEMO_TEXT("FluentDialog 可选 resize；FluentMessageBox 四种类型", "FluentDialog with optional resize; FluentMessageBox in four variants"));
         page->addWidget(s.card);
 
+        // Feedback state matrix
+        {
+            const QString code = QStringLiteral(
+                "auto *info = new FluentInfoBar(FluentInfoBar::Severity::Info,\n"
+                "                               QStringLiteral(\"Sync\"),\n"
+                "                               QStringLiteral(\"Ready\"));\n"
+                "info->setCompact(true);\n"
+                "info->setClosable(false);\n");
+
+            page->addWidget(Demo::makeCollapsedExample(
+                QStringLiteral("Feedback State Matrix"),
+                DEMO_TEXT("InfoBar 的 severity / compact / disabled 状态对比", "InfoBar severity, compact, and disabled states"),
+                QString(),
+                code,
+                [=](QVBoxLayout *body) {
+                    auto makeCaption = [](const QString &text, bool strong = false) {
+                        auto *label = new FluentLabel(text);
+                        label->setWordWrap(true);
+                        label->setStyleSheet(strong
+                                                 ? QStringLiteral("font-size: 12px; font-weight: 600; opacity: 0.9;")
+                                                 : QStringLiteral("font-size: 12px; opacity: 0.78;"));
+                        return label;
+                    };
+
+                    auto *info = new FluentInfoBar(FluentInfoBar::Severity::Info,
+                                                   DEMO_TEXT("同步", "Sync"),
+                                                   DEMO_TEXT("就绪", "Ready"));
+                    info->setCompact(true);
+                    info->setClosable(false);
+
+                    auto *success = new FluentInfoBar(FluentInfoBar::Severity::Success,
+                                                      DEMO_TEXT("已保存", "Saved"),
+                                                      DEMO_TEXT("完成", "Done"));
+                    success->setCompact(true);
+                    success->setClosable(false);
+
+                    auto *disabledWarn = new FluentInfoBar(FluentInfoBar::Severity::Warning,
+                                                           DEMO_TEXT("只读", "Read only"),
+                                                           DEMO_TEXT("禁用", "Disabled"));
+                    disabledWarn->setCompact(true);
+                    disabledWarn->setClosable(false);
+                    disabledWarn->setEnabled(false);
+
+                    auto addStateRow = [body, makeCaption](const QString &label, FluentInfoBar *bar) {
+                        auto *row = new QHBoxLayout();
+                        row->setContentsMargins(0, 0, 0, 0);
+                        row->setSpacing(14);
+                        auto *caption = makeCaption(label, true);
+                        caption->setFixedWidth(150);
+                        row->addWidget(caption, 0, Qt::AlignVCenter);
+                        row->addWidget(bar, 1);
+                        body->addLayout(row);
+                    };
+
+                    addStateRow(QStringLiteral("Info"), info);
+                    addStateRow(QStringLiteral("Success"), success);
+                    addStateRow(DEMO_TEXT("Warning / Disabled", "Warning / Disabled"), disabledWarn);
+                },
+                false,
+                130));
+        }
+
+        // Popup entry state matrix
+        {
+            const QString code = QStringLiteral(
+                "auto *menuButton = new FluentButton(QStringLiteral(\"Menu\"));\n"
+                "auto *tip = new FluentTeachingTip(parent);\n"
+                "tip->setTarget(anchorButton);\n"
+                "tip->open();\n"
+                "FluentToast::showToast(parent, QStringLiteral(\"Toast\"), QStringLiteral(\"Saved\"));\n");
+
+            page->addWidget(Demo::makeCollapsedExample(
+                QStringLiteral("Popup Entry Matrix"),
+                DEMO_TEXT("Menu / Flyout / TeachingTip / Toast 的入口语义", "Entry semantics for Menu, Flyout, TeachingTip, and Toast"),
+                QString(),
+                code,
+                [=](QVBoxLayout *body) {
+                    auto *grid = new QGridLayout();
+                    grid->setContentsMargins(0, 0, 0, 0);
+                    grid->setHorizontalSpacing(14);
+                    grid->setVerticalSpacing(10);
+
+                    auto makeCaption = [](const QString &text, bool strong = false) {
+                        auto *label = new FluentLabel(text);
+                        label->setWordWrap(true);
+                        label->setStyleSheet(strong
+                                                 ? QStringLiteral("font-size: 12px; font-weight: 600; opacity: 0.9;")
+                                                 : QStringLiteral("font-size: 12px; opacity: 0.78;"));
+                        return label;
+                    };
+
+                    grid->addWidget(makeCaption(DEMO_TEXT("入口", "Entry"), true), 0, 0);
+                    grid->addWidget(makeCaption(QStringLiteral("Menu"), true), 0, 1);
+                    grid->addWidget(makeCaption(QStringLiteral("Flyout"), true), 0, 2);
+                    grid->addWidget(makeCaption(QStringLiteral("TeachingTip"), true), 0, 3);
+                    grid->addWidget(makeCaption(QStringLiteral("Toast"), true), 0, 4);
+
+                    auto *popupButton = new FluentButton(DEMO_TEXT("打开菜单", "Open menu"));
+                    auto *flyoutButton = new FluentButton(DEMO_TEXT("打开 Flyout", "Open Flyout"));
+                    auto *tipButton = new FluentButton(DEMO_TEXT("打开 Tip", "Open Tip"));
+                    tipButton->setPrimary(true);
+                    auto *toastButton = new FluentButton(DEMO_TEXT("发送 Toast", "Send toast"));
+
+                    QObject::connect(popupButton, &QPushButton::clicked, window, [=]() {
+                        auto *menu = new FluentMenu(window);
+                        menu->addAction(DEMO_TEXT("复制", "Copy"));
+                        menu->addAction(DEMO_TEXT("移动", "Move"));
+                        QObject::connect(menu, &QMenu::aboutToHide, menu, &QObject::deleteLater);
+                        menu->popup(popupButton->mapToGlobal(QPoint(0, popupButton->height() + 4)));
+                    });
+                    QObject::connect(flyoutButton, &QPushButton::clicked, window, [=]() {
+                        auto *flyout = new FluentFlyout(window);
+                        auto *panel = new FluentWidget();
+                        panel->setBackgroundRole(FluentWidget::BackgroundRole::Transparent);
+                        auto *layout = new QVBoxLayout(panel);
+                        layout->setContentsMargins(4, 4, 4, 4);
+                        layout->setSpacing(8);
+                        layout->addWidget(new FluentLabel(DEMO_TEXT("上下文设置", "Context settings")));
+                        layout->addWidget(new FluentToggleSwitch(DEMO_TEXT("显示预览", "Show preview")));
+                        auto *close = new FluentButton(DEMO_TEXT("应用", "Apply"));
+                        close->setPrimary(true);
+                        QObject::connect(close, &QPushButton::clicked, flyout, &QWidget::hide);
+                        layout->addWidget(close, 0, Qt::AlignLeft);
+                        flyout->setContentWidget(panel);
+                        flyout->showFor(flyoutButton);
+                    });
+                    QObject::connect(tipButton, &QPushButton::clicked, window, [=]() {
+                        auto *tip = new FluentTeachingTip(window);
+                        tip->setTitle(DEMO_TEXT("教学提示", "Teaching tip"));
+                        tip->setSubtitle(DEMO_TEXT("用于解释目标控件并给出下一步。", "Explain a target control and offer the next step."));
+                        tip->setActionText(DEMO_TEXT("知道了", "Got it"));
+                        tip->setTarget(tipButton);
+                        tip->open();
+                    });
+                    QObject::connect(toastButton, &QPushButton::clicked, window, [window]() {
+                        FluentToast::showToast(window,
+                                               QStringLiteral("Toast"),
+                                               DEMO_TEXT("轻提示不会打断当前任务。", "A toast does not interrupt the current task."),
+                                               FluentToast::Position::BottomRight,
+                                               1800);
+                    });
+
+                    grid->addWidget(makeCaption(DEMO_TEXT("触发控件", "Trigger")), 1, 0, Qt::AlignVCenter);
+                    grid->addWidget(popupButton, 1, 1);
+                    grid->addWidget(flyoutButton, 1, 2);
+                    grid->addWidget(tipButton, 1, 3);
+                    grid->addWidget(toastButton, 1, 4);
+
+                    grid->addWidget(makeCaption(DEMO_TEXT("适合短命令", "Short commands")), 2, 1);
+                    grid->addWidget(makeCaption(DEMO_TEXT("上下文小面板", "Context panel")), 2, 2);
+                    grid->addWidget(makeCaption(DEMO_TEXT("解释目标控件", "Explain target")), 2, 3);
+                    grid->addWidget(makeCaption(DEMO_TEXT("非阻塞通知", "Non-blocking notice")), 2, 4);
+
+                    grid->setColumnStretch(1, 1);
+                    grid->setColumnStretch(2, 1);
+                    grid->setColumnStretch(3, 1);
+                    grid->setColumnStretch(4, 1);
+                    body->addLayout(grid);
+                },
+                false,
+                160));
+        }
+
         // InfoBar
         {
             QString code;
 #define WINDOWS_INFOBAR(X) \
     X(auto *info = new FluentInfoBar(FluentInfoBar::Severity::Info, DEMO_TEXT("同步完成", "Sync complete"), DEMO_TEXT("所有控件样式已跟随当前主题刷新。", "All controls have refreshed with the current theme."));) \
     X(info->setActionText(DEMO_TEXT("查看", "View"));) \
+    X(auto *success = new FluentInfoBar(FluentInfoBar::Severity::Success, DEMO_TEXT("已保存", "Saved"), DEMO_TEXT("紧凑模式适合单行状态。", "Compact mode suits one-line status."));) \
+    X(success->setCompact(true);) \
+    X(success->setClosable(false);) \
     X(auto *warn = new FluentInfoBar(FluentInfoBar::Severity::Warning, DEMO_TEXT("注意", "Heads up"), DEMO_TEXT("这是一个可关闭的信息提示条。", "This is a closable inline information bar."));) \
     X(body->addWidget(info);) \
+    X(body->addWidget(success);) \
     X(body->addWidget(warn);)
 
 #define X(line) code += QStringLiteral(#line "\n");
@@ -55,10 +228,12 @@ QWidget *createWindowsPage(FluentMainWindow *window)
                 DEMO_TEXT("要点：\n"
                           "-setSeverity() 切换语义色\n"
                           "-setActionText() 增加轻量操作按钮\n"
+                          "-setCompact(true) 切换单行紧凑模式\n"
                           "-closed()/actionTriggered() 处理关闭与操作",
                           "Highlights:\n"
                           "-Use setSeverity() to switch semantic colors\n"
                           "-Use setActionText() to add a lightweight action button\n"
+                          "-Use setCompact(true) for a single-line compact mode\n"
                           "-Handle closed() / actionTriggered() for dismissal and action"),
                 code,
                 [=](QVBoxLayout *body) {
@@ -67,7 +242,7 @@ QWidget *createWindowsPage(FluentMainWindow *window)
 #undef X
                 },
                 false,
-                210));
+                240));
 
 #undef WINDOWS_INFOBAR
         }
@@ -379,6 +554,70 @@ QWidget *createWindowsPage(FluentMainWindow *window)
                 200));
 
 #undef WINDOWS_TOAST
+        }
+
+        // Window chrome controls
+        {
+            QString code;
+#define WINDOWS_CHROME_CONTROLS(X) \
+    X(auto *shell = new FluentWidget();) \
+    X(shell->setBackgroundRole(FluentWidget::BackgroundRole::Surface);) \
+    X(shell->setMinimumWidth(520);) \
+    X(auto *shellLayout = new QVBoxLayout(shell);) \
+    X(shellLayout->setContentsMargins(12, 12, 12, 12);) \
+    X(shellLayout->setSpacing(10);) \
+    X(auto *title = new FluentLabel(DEMO_TEXT("文档工作区", "Document workspace"));) \
+    X(title->setStyleSheet(QStringLiteral("font-size: 13px; font-weight: 650;"));) \
+    X(auto *toolbar = new FluentToolBar(DEMO_TEXT("文档命令", "Document commands"), shell);) \
+    X(toolbar->setIconSize(QSize(18, 18));) \
+    X(auto *newAction = new QAction(FluentIcon::icon(FluentIconType::Add), DEMO_TEXT("新建", "New"), toolbar);) \
+    X(auto *saveAction = new QAction(FluentIcon::icon(FluentIconType::Save), DEMO_TEXT("保存", "Save"), toolbar);) \
+    X(auto *pinAction = new QAction(FluentIcon::icon(FluentIconType::Pin), DEMO_TEXT("固定", "Pin"), toolbar);) \
+    X(pinAction->setCheckable(true);) \
+    X(pinAction->setChecked(true);) \
+    X(auto *exportAction = new QAction(FluentIcon::icon(FluentIconType::Download), DEMO_TEXT("导出", "Export"), toolbar);) \
+    X(exportAction->setEnabled(false);) \
+    X(toolbar->addAction(newAction);) \
+    X(toolbar->addAction(saveAction);) \
+    X(toolbar->addAction(pinAction);) \
+    X(toolbar->addSeparator();) \
+    X(toolbar->addAction(exportAction);) \
+    X(auto *status = new FluentStatusBar(shell);) \
+    X(status->showMessage(DEMO_TEXT("就绪 - QAction 状态会同步到 FluentToolButton", "Ready - QAction state syncs to FluentToolButton"));) \
+    X(auto *syncLabel = new FluentLabel(DEMO_TEXT("主题同步", "Theme synced"), status);) \
+    X(syncLabel->setStyleSheet(QStringLiteral("font-size: 12px; opacity: 0.78;"));) \
+    X(status->addPermanentWidget(syncLabel);) \
+    X(shellLayout->addWidget(title);) \
+    X(shellLayout->addWidget(toolbar);) \
+    X(shellLayout->addWidget(status);) \
+    X(body->addWidget(shell);)
+
+#define X(line) code += QStringLiteral(#line "\n");
+            WINDOWS_CHROME_CONTROLS(X)
+#undef X
+
+            page->addWidget(Demo::makeCollapsedExample(
+                QStringLiteral("FluentToolBar / FluentStatusBar"),
+                DEMO_TEXT("窗口 chrome 控件：QAction 包装、禁用/勾选状态与状态栏信息",
+                          "Window chrome controls: QAction wrapping, disabled/checked states, and status text"),
+                DEMO_TEXT("要点：\n"
+                          "-FluentToolBar 继承 QToolBar，但会把普通 QAction 包装成 FluentToolButton\n"
+                          "-QAction 的 text/icon/enabled/checked 会继续驱动按钮状态\n"
+                          "-FluentStatusBar 使用同一主题 token，并默认关闭原生 size grip",
+                          "Highlights:\n"
+                          "-FluentToolBar inherits QToolBar and wraps plain QAction entries as FluentToolButton\n"
+                          "-QAction text/icon/enabled/checked continue to drive button state\n"
+                          "-FluentStatusBar uses the same theme tokens and disables the native size grip by default"),
+                code,
+                [=](QVBoxLayout *body) {
+#define X(line) line
+                    WINDOWS_CHROME_CONTROLS(X)
+#undef X
+                },
+                false,
+                280));
+
+#undef WINDOWS_CHROME_CONTROLS
         }
 
         page->addWidget(Demo::makeCollapsedCard(

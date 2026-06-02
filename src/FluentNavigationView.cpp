@@ -63,7 +63,7 @@ constexpr int kDefaultExpandedWidth = 280;
 constexpr int kDefaultCompactWidth = 48;
 constexpr int kDepthIndent = 28;
 constexpr int kItemPaddingX = 14;
-constexpr int kControlButtonSize = 28;
+constexpr int kControlButtonSize = kRowHeight - 4;
 constexpr int kControlButtonGap = 8;
 constexpr int kTopItemGap = 4;
 
@@ -130,6 +130,67 @@ QPainterPath navigationSurfacePath(const QRectF &rect, qreal radius, bool roundA
     path.lineTo(rect.right(), rect.top());
     path.closeSubpath();
     return path;
+}
+
+QColor navigationDisabledFill(const FluentThemeTokens &tokens)
+{
+    return Style::mix(tokens.neutral.card, tokens.neutral.background, tokens.dark ? 0.48 : 0.35);
+}
+
+QColor navigationPaneFill(const FluentThemeTokens &tokens, bool enabled)
+{
+    if (!enabled) {
+        return navigationDisabledFill(tokens);
+    }
+    return tokens.neutral.card;
+}
+
+QColor navigationSubtleButtonFill(const FluentThemeTokens &tokens, bool enabled)
+{
+    if (!enabled) {
+        return navigationDisabledFill(tokens);
+    }
+    return Style::mix(tokens.neutral.card, tokens.neutral.cardHover, tokens.dark ? 0.72 : 0.64);
+}
+
+QColor navigationHoverFill(const FluentThemeTokens &tokens, qreal level)
+{
+    return Style::mix(tokens.neutral.card,
+                      tokens.neutral.cardHover,
+                      qBound<qreal>(0.0, level, 1.0) * (tokens.dark ? 0.48 : 0.38));
+}
+
+QColor navigationSelectionFill(const FluentThemeTokens &tokens,
+                               const ThemeColors &colors,
+                               qreal opacity,
+                               bool enabled)
+{
+    if (!enabled) {
+        const QColor disabledBase = navigationDisabledFill(tokens);
+        QColor fill = Style::mix(disabledBase, colors.disabledText, tokens.dark ? 0.16 : 0.10);
+        fill.setAlphaF(qBound<qreal>(0.0, opacity, 1.0));
+        return fill;
+    }
+    return Style::mix(tokens.neutral.card,
+                      tokens.accent.base,
+                      qBound<qreal>(0.0, opacity, 1.0) * (tokens.dark ? 0.16 : 0.10));
+}
+
+QColor navigationSelectionHoverFill(const FluentThemeTokens &tokens, qreal level)
+{
+    QColor fill = tokens.accent.base;
+    fill.setAlphaF(qBound<qreal>(0.0, level, 1.0) * (tokens.dark ? 0.10 : 0.06));
+    return fill;
+}
+
+QColor navigationIndicatorFill(const FluentThemeTokens &tokens,
+                               const ThemeColors &colors,
+                               qreal opacity,
+                               bool enabled)
+{
+    QColor indicator = enabled ? tokens.accent.base : colors.disabledText;
+    indicator.setAlphaF(qBound<qreal>(0.0, opacity, 1.0));
+    return indicator;
 }
 
 } // namespace
@@ -534,7 +595,8 @@ struct FluentNavigationView::Private
             return QRectF();
         }
 
-        return QRectF(rowRect.left() + 8.0,
+        const qreal x = rowRect.left() + kItemPaddingX + kIconSize / 2.0 - kControlButtonSize / 2.0;
+        return QRectF(x,
                       rowRect.center().y() - kControlButtonSize / 2.0,
                       kControlButtonSize,
                       kControlButtonSize);
@@ -542,7 +604,7 @@ struct FluentNavigationView::Private
 
     QRectF controlHamburgerRect(const QRectF &rowRect) const
     {
-        qreal x = rowRect.left() + 8.0;
+        qreal x = rowRect.left() + kItemPaddingX + kIconSize / 2.0 - kControlButtonSize / 2.0;
         if (backButtonVisible) {
             x += kControlButtonSize + kControlButtonGap;
         }
@@ -806,6 +868,36 @@ struct FluentNavigationView::Private
         return QRectF();
     }
 
+    bool selectionBelongsToFooter(const QString &key) const
+    {
+        if (key.isEmpty()) {
+            return false;
+        }
+
+        auto rowIsFooter = [this](const QString &visibleKey, bool &found) {
+            for (const auto &row : rows) {
+                if (row.key() == visibleKey) {
+                    found = true;
+                    return row.isFooter;
+                }
+            }
+            found = false;
+            return false;
+        };
+
+        bool found = false;
+        const bool direct = rowIsFooter(key, found);
+        if (found) {
+            return direct;
+        }
+
+        const QString visibleKey = visibleKeyForSelection(key);
+        if (visibleKey.isEmpty() || visibleKey == key) {
+            return false;
+        }
+        return rowIsFooter(visibleKey, found);
+    }
+
     bool ensureKeyVisible(const QString &key)
     {
         if (key.isEmpty()) {
@@ -927,11 +1019,6 @@ struct FluentNavigationView::Private
         menu->setAttribute(Qt::WA_DeleteOnClose, true);
         itemFlyout = menu;
         itemFlyoutParentKey = item->key;
-
-        QObject::connect(menu, &QObject::destroyed, owner, [this]() {
-            itemFlyout = nullptr;
-            itemFlyoutParentKey.clear();
-        });
 
         populateFlyoutChildren(owner, menu, item->children);
 
@@ -1261,9 +1348,33 @@ FluentNavigationView::FluentNavigationView(QWidget *parent)
     });
 
     connect(&ThemeManager::instance(), &ThemeManager::themeChanged, this, [this]() {
+        const bool widthRunning = d->widthAnim
+            && d->widthAnim->state() == QAbstractAnimation::Running;
+        const bool hoverRunning = d->hoverAnim
+            && d->hoverAnim->state() == QAbstractAnimation::Running;
+        const bool selectionRunning = d->selAnim
+            && d->selAnim->state() == QAbstractAnimation::Running;
+        const QVariant widthEnd = d->widthAnim ? d->widthAnim->endValue() : QVariant();
+        const QVariant hoverEnd = d->hoverAnim ? d->hoverAnim->endValue() : QVariant();
+
         FluentMotion::configure(d->widthAnim, FluentMotionRole::Navigation);
         FluentMotion::configure(d->hoverAnim, FluentMotionRole::Hover);
         FluentMotion::configure(d->selAnim, FluentMotionRole::Selection);
+        if (widthRunning && d->widthAnim->duration() <= 0) {
+            d->widthAnim->stop();
+            d->currentWidth = widthEnd.toInt();
+            updateModeGeometry();
+        }
+        if (hoverRunning && d->hoverAnim->duration() <= 0) {
+            d->hoverAnim->stop();
+            d->hoverLevel = qBound<qreal>(0.0, hoverEnd.toReal(), 1.0);
+        }
+        if (selectionRunning && d->selAnim->duration() <= 0) {
+            d->selAnim->stop();
+            d->selRect = d->selTargetRect;
+            d->selStartRect = d->selRect;
+            d->selOpacity = 1.0;
+        }
         update();
     });
 
@@ -1278,6 +1389,7 @@ void FluentNavigationView::setItems(const std::vector<FluentNavigationItem> &ite
     d->items = items;
     d->ensureKeyVisible(d->selectedKey);
     d->rebuildRows();
+    d->scrollKeyIntoView(d->selectedKey, height());
     d->selRect = d->selectionRectForKey(d->selectedKey, width(), height());
     d->selStartRect = d->selRect;
     d->selTargetRect = d->selRect;
@@ -1293,7 +1405,9 @@ std::vector<FluentNavigationItem> FluentNavigationView::items() const
 void FluentNavigationView::addItem(const FluentNavigationItem &item)
 {
     d->items.push_back(item);
+    d->ensureKeyVisible(d->selectedKey);
     d->rebuildRows();
+    d->scrollKeyIntoView(d->selectedKey, height());
     d->selRect = d->selectionRectForKey(d->selectedKey, width(), height());
     d->selStartRect = d->selRect;
     d->selTargetRect = d->selRect;
@@ -1317,6 +1431,7 @@ void FluentNavigationView::setFooterItems(const std::vector<FluentNavigationItem
 {
     d->footerItems = items;
     d->rebuildRows();
+    d->scrollKeyIntoView(d->selectedKey, height());
     d->selRect = d->selectionRectForKey(d->selectedKey, width(), height());
     d->selStartRect = d->selRect;
     d->selTargetRect = d->selRect;
@@ -1333,6 +1448,7 @@ void FluentNavigationView::addFooterItem(const FluentNavigationItem &item)
 {
     d->footerItems.push_back(item);
     d->rebuildRows();
+    d->scrollKeyIntoView(d->selectedKey, height());
     d->selRect = d->selectionRectForKey(d->selectedKey, width(), height());
     d->selStartRect = d->selRect;
     d->selTargetRect = d->selRect;
@@ -1344,6 +1460,7 @@ void FluentNavigationView::clearFooterItems()
 {
     d->footerItems.clear();
     d->rebuildRows();
+    d->scrollKeyIntoView(d->selectedKey, height());
     d->selRect = d->selectionRectForKey(d->selectedKey, width(), height());
     d->selStartRect = d->selRect;
     d->selTargetRect = d->selRect;
@@ -1372,6 +1489,7 @@ void FluentNavigationView::setSelectedKey(const QString &key)
     const bool animRunning = d->selAnim->state() == QAbstractAnimation::Running;
     d->selStartRect = animRunning ? d->selRect : oldRect;
     d->selTargetRect = newRect;
+    FluentMotion::configure(d->selAnim, FluentMotionRole::Selection);
     d->selAnim->stop();
     if (d->selAnim->duration() <= 0) {
         d->selRect = d->selTargetRect;
@@ -1405,6 +1523,7 @@ void FluentNavigationView::setPaneDisplayMode(PaneDisplayMode mode)
     d->displayMode = mode;
     d->ensureKeyVisible(d->selectedKey);
     d->rebuildRows();
+    d->scrollKeyIntoView(d->selectedKey, height());
 
     if (mode == Top) {
         d->widthAnim->stop();
@@ -1416,6 +1535,7 @@ void FluentNavigationView::setPaneDisplayMode(PaneDisplayMode mode)
         updateModeGeometry();
     } else {
         const int target = (mode == Left) ? d->expandedWidth : d->compactWidth;
+        FluentMotion::configure(d->widthAnim, FluentMotionRole::Navigation);
         d->widthAnim->stop();
         if (d->widthAnim->duration() <= 0) {
             d->currentWidth = target;
@@ -1624,6 +1744,7 @@ void FluentNavigationView::setFooterVisible(bool visible)
 
     d->footerVisible = visible;
     d->rebuildRows();
+    d->scrollKeyIntoView(d->selectedKey, height());
     d->selRect = d->selectionRectForKey(d->selectedKey, width(), height());
     d->selStartRect = d->selRect;
     d->selTargetRect = d->selRect;
@@ -1745,14 +1866,18 @@ void FluentNavigationView::updateModeGeometry()
 void FluentNavigationView::paintEvent(QPaintEvent * /*event*/)
 {
     const auto &colors = ThemeManager::instance().colors();
+    const auto tokens = ThemeManager::instance().tokens();
+    const bool widgetEnabled = isEnabled();
+    const QColor primaryText = widgetEnabled ? colors.text : colors.disabledText;
+    const QColor secondaryText = widgetEnabled ? colors.subText : colors.disabledText;
     const int W = width();
     const int H = height();
     // Keep scroll offset in valid range across all the things that can change
     // the content height (rebuildRows, expand/collapse, resize, etc.).
     d->clampScrollOffset(H);
     const qreal labelOpacity = d->labelOpacity();
-    d->syncAnimatedIcons(this, W, H, colors.text);
-    d->syncChromeAnimations(this, W, H, colors.text);
+    d->syncAnimatedIcons(this, W, H, primaryText);
+    d->syncChromeAnimations(this, W, H, primaryText);
 
     QPainter p(this);
     if (!p.isActive()) {
@@ -1762,7 +1887,7 @@ void FluentNavigationView::paintEvent(QPaintEvent * /*event*/)
     p.setRenderHint(QPainter::Antialiasing, true);
 
     p.setPen(Qt::NoPen);
-    p.setBrush(colors.surface);
+    p.setBrush(navigationPaneFill(tokens, widgetEnabled));
     p.drawPath(navigationSurfacePath(QRectF(0, 0, W, H), 8.0, d->displayMode == Top));
 
     auto iconOptions = [](const QColor &color) {
@@ -1778,18 +1903,18 @@ void FluentNavigationView::paintEvent(QPaintEvent * /*event*/)
     };
 
     auto drawBack = [&](const QRectF &rect, bool enabled) {
+        const bool active = widgetEnabled && enabled;
         FluentIcon::paintIcon(&p,
                               FluentIconType::Back,
                               iconRectAround(rect.center(), 22.0),
-                              iconOptions(enabled ? colors.text : colors.subText),
-                              enabled ? QIcon::Normal : QIcon::Disabled);
+                              iconOptions(active ? colors.text : colors.disabledText));
     };
 
     auto drawChevron = [&](const QPointF &center, bool collapsed) {
         FluentIcon::paintIcon(&p,
                               collapsed ? FluentIconType::ChevronDown : FluentIconType::ChevronUp,
                               iconRectAround(center, 15.0),
-                              iconOptions(colors.subText));
+                              iconOptions(secondaryText));
     };
 
     auto drawItemIcon = [&](const QRectF &iconRect, const FluentNavigationItem &item) {
@@ -1801,7 +1926,7 @@ void FluentNavigationView::paintEvent(QPaintEvent * /*event*/)
             FluentIcon::paintIcon(&p,
                                   item.fluentIcon,
                                   iconRect,
-                                  iconOptions(colors.text));
+                                  iconOptions(primaryText));
         } else if (!item.iconGlyph.isEmpty()) {
             QFont iconFont = font();
             iconFont.setFamily(item.iconFontFamily.isEmpty() ? defaultGlyphFontFamily() : item.iconFontFamily);
@@ -1810,7 +1935,7 @@ void FluentNavigationView::paintEvent(QPaintEvent * /*event*/)
 
             p.save();
             p.setFont(iconFont);
-            p.setPen(colors.text);
+            p.setPen(primaryText);
             p.drawText(iconRect, Qt::AlignCenter, item.iconGlyph);
             p.restore();
         } else if (!item.icon.isNull()) {
@@ -1818,7 +1943,9 @@ void FluentNavigationView::paintEvent(QPaintEvent * /*event*/)
                             QRect(static_cast<int>(iconRect.left()),
                                   static_cast<int>(iconRect.top()),
                                   static_cast<int>(iconRect.width()),
-                                  static_cast<int>(iconRect.height())));
+                                  static_cast<int>(iconRect.height())),
+                            Qt::AlignCenter,
+                            widgetEnabled ? QIcon::Normal : QIcon::Disabled);
         }
     };
 
@@ -1828,8 +1955,7 @@ void FluentNavigationView::paintEvent(QPaintEvent * /*event*/)
 
         if (d->backButtonVisible) {
             const QRectF backRect = d->topBackButtonRect();
-            QColor buttonFill = colors.hover;
-            buttonFill.setAlpha(38);
+            const QColor buttonFill = navigationSubtleButtonFill(tokens, widgetEnabled);
             p.setBrush(buttonFill);
             p.drawRoundedRect(backRect, 4.0, 4.0);
             if (!d->chromeAnimationLoaded(d->backButtonAnimation, d->hasBackButtonAnimation)) {
@@ -1837,7 +1963,7 @@ void FluentNavigationView::paintEvent(QPaintEvent * /*event*/)
             }
         }
 
-        p.setPen(QPen(colors.border, 1.0));
+        p.setPen(QPen(tokens.neutral.strokeSubtle, 1.0));
         p.drawLine(QPointF(12.0, H - 0.5), QPointF(W - 12.0, H - 0.5));
 
         for (int i = 0; i < static_cast<int>(layouts.size()); ++i) {
@@ -1846,27 +1972,29 @@ void FluentNavigationView::paintEvent(QPaintEvent * /*event*/)
                 continue;
             }
 
-            const bool hovered = i == d->hoverRowIndex && d->hoverLevel > 0.0;
+            const bool hovered = widgetEnabled && i == d->hoverRowIndex && d->hoverLevel > 0.0;
             const bool selected = layout.key() == selectedVisibleKey;
 
-            if (hovered) {
-                QColor hover = colors.hover;
-                hover.setAlphaF(0.35 * d->hoverLevel);
+            if (hovered && !selected) {
                 p.setPen(Qt::NoPen);
-                p.setBrush(hover);
+                p.setBrush(navigationHoverFill(tokens, d->hoverLevel));
                 p.drawRoundedRect(layout.rect, 5.0, 5.0);
             }
 
             if (selected) {
-                QColor fill = colors.accent;
-                fill.setAlpha(24);
                 p.setPen(Qt::NoPen);
-                p.setBrush(fill);
+                p.setBrush(navigationSelectionFill(tokens, colors, 0.94, widgetEnabled));
                 p.drawRoundedRect(layout.rect, 5.0, 5.0);
 
                 QRectF lineRect(layout.rect.left() + 10.0, layout.rect.bottom() - 3.0, layout.rect.width() - 20.0, 3.0);
-                p.setBrush(colors.accent);
+                p.setBrush(navigationIndicatorFill(tokens, colors, 1.0, widgetEnabled));
                 p.drawRoundedRect(lineRect, 1.5, 1.5);
+            }
+
+            if (hovered && selected) {
+                p.setPen(Qt::NoPen);
+                p.setBrush(navigationSelectionHoverFill(tokens, d->hoverLevel));
+                p.drawRoundedRect(layout.rect, 5.0, 5.0);
             }
 
             qreal x = layout.rect.left() + 12.0;
@@ -1889,7 +2017,7 @@ void FluentNavigationView::paintEvent(QPaintEvent * /*event*/)
                 const QString text = fm.elidedText(layout.item->text, Qt::ElideRight, textWidth);
 
                 p.save();
-                p.setPen(colors.text);
+                p.setPen(primaryText);
                 p.setFont(textFont);
                 p.drawText(QRectF(x, layout.rect.top(), textWidth, layout.rect.height()),
                            Qt::AlignVCenter | Qt::AlignLeft | Qt::TextSingleLine,
@@ -1914,19 +2042,19 @@ void FluentNavigationView::paintEvent(QPaintEvent * /*event*/)
     const QRectF selectionRect = selectionAnimating ? d->selRect : d->selectionRectForKey(d->selectedKey, W, H);
     const qreal selectionOpacity = selectionAnimating ? qBound<qreal>(0.0, d->selOpacity, 1.0) : (selectionRect.isValid() ? 1.0 : 0.0);
     if (selectionRect.isValid() && selectionOpacity > 0.0) {
-        // Clip selection drawing to the area below the header so a scrolled
-        // selection rectangle doesn't bleed out of its viewport.
+        // Clip scrollable selection drawing to the scrollable viewport so a
+        // manually scrolled selected row cannot bleed over pinned footer rows.
         p.save();
-        p.setClipRect(QRectF(0, scrollTop, W, H - scrollTop));
-        QColor fill = colors.accent;
-        fill.setAlpha(qBound(0, static_cast<int>(std::lround(30.0 * selectionOpacity)), 30));
+        const bool selectionInFooter = d->selectionBelongsToFooter(d->selectedKey);
+        const QRectF selectionClip = selectionInFooter
+            ? QRectF(0, scrollBottom, W, qMax(0, H - scrollBottom))
+            : QRectF(0, scrollTop, W, qMax(0, scrollBottom - scrollTop));
+        p.setClipRect(selectionClip);
         p.setPen(Qt::NoPen);
-        p.setBrush(fill);
+        p.setBrush(navigationSelectionFill(tokens, colors, selectionOpacity, widgetEnabled));
         p.drawRoundedRect(selectionRect, 4.0, 4.0);
 
-        QColor indicator = colors.accent;
-        indicator.setAlpha(qBound(0, static_cast<int>(std::lround(255.0 * selectionOpacity)), 255));
-        p.setBrush(indicator);
+        p.setBrush(navigationIndicatorFill(tokens, colors, selectionOpacity, widgetEnabled));
         QRectF indicatorRect(selectionRect.left(), selectionRect.center().y() - kIndicatorHeight / 2.0, kIndicatorWidth, kIndicatorHeight);
         p.drawRoundedRect(indicatorRect, 1.5, 1.5);
         p.restore();
@@ -1936,7 +2064,7 @@ void FluentNavigationView::paintEvent(QPaintEvent * /*event*/)
         const auto &row = d->rows[static_cast<size_t>(index)];
 
         if (row.kind == FlatRow::Separator) {
-            p.setPen(QPen(colors.border, 1.0));
+            p.setPen(QPen(tokens.neutral.strokeSubtle, 1.0));
             p.drawLine(QPointF(rect.left() + 12.0, rect.center().y()), QPointF(rect.right() - 12.0, rect.center().y()));
             return;
         }
@@ -1944,8 +2072,7 @@ void FluentNavigationView::paintEvent(QPaintEvent * /*event*/)
         if (row.kind == FlatRow::Control) {
             const QRectF backRect = d->controlBackRect(rect);
             const QRectF hamburgerRect = d->controlHamburgerRect(rect);
-            QColor buttonFill = colors.hover;
-            buttonFill.setAlpha(34);
+            const QColor buttonFill = navigationSubtleButtonFill(tokens, widgetEnabled);
 
             if (d->backButtonVisible) {
                 p.setPen(Qt::NoPen);
@@ -1960,7 +2087,7 @@ void FluentNavigationView::paintEvent(QPaintEvent * /*event*/)
             p.setBrush(buttonFill);
             p.drawRoundedRect(hamburgerRect, 4.0, 4.0);
             if (!d->chromeAnimationLoaded(d->paneToggleAnimation, d->hasPaneToggleAnimation)) {
-                drawHamburger(hamburgerRect, colors.text);
+                drawHamburger(hamburgerRect, primaryText);
             }
 
             if (labelOpacity > 0.0 && !d->paneTitle.isEmpty()) {
@@ -1975,7 +2102,7 @@ void FluentNavigationView::paintEvent(QPaintEvent * /*event*/)
 
                     p.save();
                     p.setOpacity(labelOpacity);
-                    p.setPen(colors.text);
+                    p.setPen(primaryText);
                     p.setFont(titleFont);
                     p.drawText(QRectF(textLeft, rect.top(), textRight - textLeft, rect.height()),
                                Qt::AlignVCenter | Qt::AlignLeft | Qt::TextSingleLine,
@@ -1991,11 +2118,16 @@ void FluentNavigationView::paintEvent(QPaintEvent * /*event*/)
             return;
         }
 
-        if (index == d->hoverRowIndex && d->hoverLevel > 0.0) {
-            QColor hover = colors.hover;
-            hover.setAlphaF(0.3 * d->hoverLevel);
+        const bool hovered = widgetEnabled && index == d->hoverRowIndex && d->hoverLevel > 0.0;
+        const QString selectedRowKey = d->displayMode == FluentNavigationView::LeftCompact
+            ? d->visibleKeyForSelection(d->selectedKey)
+            : d->selectedKey;
+        const bool selected = row.key() == selectedRowKey;
+
+        if (hovered) {
             p.setPen(Qt::NoPen);
-            p.setBrush(hover);
+            p.setBrush(selected ? navigationSelectionHoverFill(tokens, d->hoverLevel)
+                                : navigationHoverFill(tokens, d->hoverLevel));
             p.drawRoundedRect(rect.adjusted(4.0, 2.0, -4.0, -2.0), 4.0, 4.0);
         }
 
@@ -2016,7 +2148,7 @@ void FluentNavigationView::paintEvent(QPaintEvent * /*event*/)
                 const QString text = fm.elidedText(row.item->text, Qt::ElideRight, textWidth);
                 p.save();
                 p.setOpacity(labelOpacity);
-                p.setPen(colors.text);
+                p.setPen(primaryText);
                 p.setFont(textFont);
                 p.drawText(QRectF(textX, rect.top(), textWidth, rect.height()),
                            Qt::AlignVCenter | Qt::AlignLeft | Qt::TextSingleLine,
@@ -2070,16 +2202,16 @@ void FluentNavigationView::paintEvent(QPaintEvent * /*event*/)
     const QRectF thumbRect = d->scrollBarThumbRect(W, H);
     if (!thumbRect.isEmpty()) {
         const QRectF trackRect = d->scrollBarTrackRect(W, H);
-        QColor trackColor = colors.subText;
-        trackColor.setAlpha((d->scrollHover || d->scrollDragging) ? 40 : 0);
+        QColor trackColor = secondaryText;
+        trackColor.setAlpha((widgetEnabled && (d->scrollHover || d->scrollDragging)) ? 40 : 0);
         if (trackColor.alpha() > 0) {
             p.setPen(Qt::NoPen);
             p.setBrush(trackColor);
             p.drawRoundedRect(trackRect, trackRect.width() / 2.0, trackRect.width() / 2.0);
         }
 
-        QColor thumbColor = colors.subText;
-        thumbColor.setAlpha((d->scrollHover || d->scrollDragging) ? 220 : 150);
+        QColor thumbColor = secondaryText;
+        thumbColor.setAlpha(widgetEnabled ? ((d->scrollHover || d->scrollDragging) ? 220 : 150) : 95);
         p.setPen(Qt::NoPen);
         p.setBrush(thumbColor);
         p.drawRoundedRect(thumbRect, thumbRect.width() / 2.0, thumbRect.width() / 2.0);
@@ -2284,6 +2416,7 @@ void FluentNavigationView::mouseMoveEvent(QMouseEvent *event)
             // Suppress row hover while the cursor sits over the scrollbar.
             if (d->hoverRowIndex != -1) {
                 d->hoverRowIndex = -1;
+                FluentMotion::configure(d->hoverAnim, FluentMotionRole::Hover);
                 d->hoverAnim->stop();
                 if (d->hoverAnim->duration() <= 0) {
                     d->hoverLevel = 0.0;
@@ -2302,6 +2435,7 @@ void FluentNavigationView::mouseMoveEvent(QMouseEvent *event)
     const int hit = (d->displayMode == Top) ? d->topHitTest(event->pos(), width()) : d->hitTest(event->pos(), height());
     if (hit != d->hoverRowIndex) {
         d->hoverRowIndex = hit;
+        FluentMotion::configure(d->hoverAnim, FluentMotionRole::Hover);
         d->hoverAnim->stop();
         if (d->hoverAnim->duration() <= 0) {
             d->hoverLevel = hit >= 0 ? 1.0 : 0.0;
@@ -2360,6 +2494,7 @@ void FluentNavigationView::wheelEvent(QWheelEvent *event)
 void FluentNavigationView::leaveEvent(QEvent *event)
 {
     d->hoverRowIndex = -1;
+    FluentMotion::configure(d->hoverAnim, FluentMotionRole::Hover);
     d->hoverAnim->stop();
     if (d->hoverAnim->duration() <= 0) {
         d->hoverLevel = 0.0;

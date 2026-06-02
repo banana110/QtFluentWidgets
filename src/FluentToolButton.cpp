@@ -2,23 +2,15 @@
 #include "Fluent/FluentMotion.h"
 #include "Fluent/FluentStyle.h"
 #include "Fluent/FluentTheme.h"
+#include "FluentButtonVisuals_p.h"
 
+#include <QAbstractAnimation>
 #include <QEvent>
 #include <QPainter>
 #include <QStyleOptionToolButton>
 #include <QVariantAnimation>
 
 namespace Fluent {
-
-namespace {
-
-QColor transparentVersion(QColor color)
-{
-    color.setAlpha(0);
-    return color;
-}
-
-} // namespace
 
 FluentToolButton::FluentToolButton(QWidget *parent)
     : QToolButton(parent)
@@ -107,8 +99,21 @@ void FluentToolButton::changeEvent(QEvent *event)
 
 void FluentToolButton::applyTheme()
 {
+    const bool hoverRunning = m_hoverAnim && m_hoverAnim->state() == QAbstractAnimation::Running;
+    const bool pressRunning = m_pressAnim && m_pressAnim->state() == QAbstractAnimation::Running;
+    const QVariant hoverEnd = m_hoverAnim ? m_hoverAnim->endValue() : QVariant();
+    const QVariant pressEnd = m_pressAnim ? m_pressAnim->endValue() : QVariant();
+
     FluentMotion::configure(m_hoverAnim, FluentMotionRole::Hover);
     FluentMotion::configure(m_pressAnim, FluentMotionRole::Press);
+    if (hoverRunning && m_hoverAnim->duration() <= 0) {
+        m_hoverAnim->stop();
+        m_hoverLevel = qBound<qreal>(0.0, hoverEnd.toReal(), 1.0);
+    }
+    if (pressRunning && m_pressAnim->duration() <= 0) {
+        m_pressAnim->stop();
+        m_pressLevel = qBound<qreal>(0.0, pressEnd.toReal(), 1.0);
+    }
     update();
 }
 
@@ -116,6 +121,7 @@ void FluentToolButton::paintEvent(QPaintEvent *event)
 {
     Q_UNUSED(event)
     const auto &colors = ThemeManager::instance().colors();
+    const auto &tokens = ThemeManager::instance().tokens();
 
     const auto m = Style::metrics();
 
@@ -139,21 +145,24 @@ void FluentToolButton::paintEvent(QPaintEvent *event)
 
         QColor fill = Qt::transparent;
         if (isClose && !neutralClose) {
-            // Win11-like close hover: vivid red hover, darker pressed.
-            QColor danger = colors.error.isValid() ? colors.error : QColor("#E81123");
-            QColor dangerPressed = danger.darker(125);
+            // Win11-like close hover: vivid red hover with a theme-derived pressed shade.
+            QColor danger = tokens.semantic.error.isValid() ? tokens.semantic.error : QColor("#E81123");
+            const QColor dangerPressedTarget = tokens.dark ? tokens.neutral.background : colors.text;
+            QColor dangerPressed = Style::mix(danger, dangerPressedTarget, tokens.dark ? 0.16 : 0.20);
             danger.setAlphaF(0.92);
             dangerPressed.setAlphaF(0.97);
+            fill = ButtonVisuals::transparentVersion(danger);
             fill = Style::mix(fill, danger, hover);
             fill = Style::mix(fill, dangerPressed, press);
         } else {
-            // Subtle hover/press like caption buttons (lighter than normal controls)
-            QColor h = colors.hover;
-            h.setAlphaF(0.58);
-            QColor pr = colors.pressed;
-            pr.setAlphaF(0.78);
-            fill = Style::mix(fill, h, hover);
-            fill = Style::mix(fill, pr, press);
+            // Subtle hover/press like caption buttons, derived from neutral tokens.
+            QColor hoverFill = tokens.neutral.cardHover;
+            hoverFill.setAlphaF(tokens.dark ? 0.62 : 0.56);
+            QColor pressedFill = tokens.neutral.fillTertiary;
+            pressedFill.setAlphaF(tokens.dark ? 0.78 : 0.72);
+            fill = ButtonVisuals::transparentVersion(hoverFill);
+            fill = Style::mix(fill, hoverFill, hover);
+            fill = Style::mix(fill, pressedFill, press);
         }
 
         painter.setPen(Qt::NoPen);
@@ -162,7 +171,7 @@ void FluentToolButton::paintEvent(QPaintEvent *event)
 
         QColor glyphColor = Style::withAlpha(colors.text, 235);
         if (isClose && !neutralClose && (hover > 0.01 || press > 0.01)) {
-            glyphColor = QColor(255, 255, 255, 245);
+            glyphColor = Style::withAlpha(Theme::contrastColor(tokens.semantic.error), 245);
         }
 
         const qreal strokeW = 1.6;
@@ -206,48 +215,18 @@ void FluentToolButton::paintEvent(QPaintEvent *event)
         return;
     }
 
-    const auto tokens = Theme::tokens(colors);
     const bool subtleCommandButton = property("fluentCommandBarButton").toBool();
 
-    QColor commandHover = colors.hover;
-    commandHover.setAlphaF(tokens.dark ? 0.95 : 0.90);
-    QColor commandPressed = colors.pressed;
-    commandPressed.setAlphaF(tokens.dark ? 0.98 : 0.94);
-
-    QColor base = subtleCommandButton ? transparentVersion(commandHover) : colors.surface;
-    QColor hover = subtleCommandButton
-        ? commandHover
-        : Style::mix(colors.surface, colors.hover, 0.88);
-    QColor pressed = subtleCommandButton
-        ? commandPressed
-        : Style::mix(colors.surface, colors.pressed, 0.92);
     const bool checked = isCheckable() && isChecked();
-    if (checked) {
-        // Fluent-like toggle toolbutton: subtle accent tint + accent border.
-        const QColor accentTint = Style::mix(colors.surface, colors.accent, 0.16);
-        base = accentTint;
-        hover = Style::mix(accentTint, colors.accent, 0.10);
-        pressed = Style::mix(accentTint, colors.accent, 0.18);
-    }
-    QColor fill = Style::mix(base, hover, m_hoverLevel);
-    fill = Style::mix(fill, pressed, m_pressLevel);
-    QColor border = checked
-        ? Style::mix(colors.border, colors.accent, 0.92)
-        : (subtleCommandButton ? QColor(0, 0, 0, 0) : colors.border);
+    const ButtonVisuals::StateColors state =
+        ButtonVisuals::resolve(colors, tokens, false, checked, isEnabled(), subtleCommandButton, 0.16);
+    const QColor fill = ButtonVisuals::fillForState(state, m_hoverLevel, m_pressLevel);
 
-    if (!isEnabled()) {
-        fill = subtleCommandButton ? QColor(0, 0, 0, 0) : Style::mix(colors.surface, colors.hover, 0.45);
-        border = subtleCommandButton ? QColor(0, 0, 0, 0) : Style::mix(colors.border, colors.disabledText, 0.25);
-    }
-
-    if (fill.alpha() > 0 || border.alpha() > 0) {
-        painter.setPen(border.alpha() > 0 ? QPen(border, 1) : Qt::NoPen);
-        painter.setBrush(fill);
-        painter.drawRoundedRect(QRectF(rect).adjusted(0.5, 0.5, -0.5, -0.5), m.radius, m.radius);
-    }
+    ButtonVisuals::paintRoundedControl(
+        painter, QRectF(rect).adjusted(0.5, 0.5, -0.5, -0.5), m.radius, fill, state.border, state.bottomBorder);
 
     if (hasFocus() && isEnabled()) {
-        QColor focus = colors.focus;
+        QColor focus = tokens.accent.base;
         focus.setAlpha(230);
         painter.setPen(QPen(focus, 2.0));
         painter.setBrush(Qt::NoBrush);
@@ -260,7 +239,7 @@ void FluentToolButton::paintEvent(QPaintEvent *event)
     opt.state &= ~QStyle::State_Sunken;
     opt.state &= ~QStyle::State_On;
     const QColor labelColor = isEnabled()
-        ? (checked ? Theme::contrastColor(fill) : colors.text)
+        ? ButtonVisuals::textForState(state.text, m_pressLevel, true)
         : colors.disabledText;
     opt.palette.setColor(QPalette::ButtonText, labelColor);
     opt.palette.setColor(QPalette::Text, labelColor);
@@ -302,6 +281,7 @@ void FluentToolButton::mouseReleaseEvent(QMouseEvent *event)
 
 void FluentToolButton::startHoverAnimation(qreal endValue)
 {
+    FluentMotion::configure(m_hoverAnim, FluentMotionRole::Hover);
     m_hoverAnim->stop();
     if (m_hoverAnim->duration() <= 0) {
         setHoverLevel(endValue);
@@ -314,6 +294,7 @@ void FluentToolButton::startHoverAnimation(qreal endValue)
 
 void FluentToolButton::startPressAnimation(qreal endValue)
 {
+    FluentMotion::configure(m_pressAnim, FluentMotionRole::Press);
     m_pressAnim->stop();
     if (m_pressAnim->duration() <= 0) {
         setPressLevel(endValue);

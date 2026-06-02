@@ -3,8 +3,10 @@
 #include "Fluent/FluentMotion.h"
 #include "Fluent/FluentStyle.h"
 #include "Fluent/FluentTheme.h"
+#include "FluentInputVisuals_p.h"
 #include "datePicker/FluentWheelPickerSupport.h"
 
+#include <QAbstractAnimation>
 #include <QEvent>
 #include <QFocusEvent>
 #include <QKeyEvent>
@@ -20,7 +22,7 @@ namespace {
 
 QLocale defaultPickerLocale()
 {
-    return QLocale();
+    return QLocale(QLocale::Chinese, QLocale::China);
 }
 
 QVector<FluentDatePicker::DatePart> orderedDateParts(FluentDatePicker::DateParts parts)
@@ -375,20 +377,19 @@ void FluentDatePicker::paintEvent(QPaintEvent *event)
     }
     painter.setRenderHint(QPainter::Antialiasing, true);
 
+    const bool enabled = isEnabled();
     Style::paintControlSurface(painter,
                                QRectF(rect()),
                                colors,
                                m_hoverLevel,
-                               m_focusLevel,
-                               isEnabled(),
+                               0.0,
+                               enabled,
                                isPopupVisible());
+    InputVisuals::paintFocusRing(painter, QRectF(rect()).adjusted(0.5, 0.5, -0.5, -0.5), colors, enabled ? m_focusLevel : 0.0);
 
     const QRect arrowRect(width() - metrics.iconAreaWidth, 0, metrics.iconAreaWidth, height());
-    QColor divider = colors.border;
-    divider.setAlpha(80);
-    painter.setPen(QPen(divider, 1));
-    painter.drawLine(QPointF(arrowRect.left() + 0.5, arrowRect.top() + 8),
-                     QPointF(arrowRect.left() + 0.5, arrowRect.bottom() - 8));
+    const QColor divider = InputVisuals::inputDividerStroke(colors, enabled);
+    InputVisuals::paintTrailingDivider(painter, arrowRect, colors, enabled);
 
     const QVector<DatePart> parts = orderedParts();
     const QRect contentRect = rect().adjusted(8, 4, -metrics.iconAreaWidth - 6, -4);
@@ -408,8 +409,8 @@ void FluentDatePicker::paintEvent(QPaintEvent *event)
                                       : qMax(38, int(contentRect.width() * (fieldWeight(part) / totalWeight)));
         const QRect fieldRect(x, contentRect.top(), qMin(widthForField, remainingWidth), contentRect.height());
 
-        QColor textColor = isEnabled() ? (hasDate() ? colors.text : colors.subText) : colors.disabledText;
-        if (!hasDate()) {
+        QColor textColor = enabled ? (hasDate() ? colors.text : colors.subText) : colors.disabledText;
+        if (enabled && !hasDate()) {
             textColor.setAlpha(210);
         }
 
@@ -425,7 +426,7 @@ void FluentDatePicker::paintEvent(QPaintEvent *event)
         }
     }
 
-    const QColor iconColor = isEnabled() ? colors.subText : colors.disabledText;
+    const QColor iconColor = enabled ? colors.subText : colors.disabledText;
     Style::drawChevronDown(painter, arrowRect.center(), iconColor, 8.0, 1.6);
 }
 
@@ -499,8 +500,21 @@ QSize FluentDatePicker::sizeHint() const
 
 void FluentDatePicker::applyTheme()
 {
+    const bool hoverRunning = m_hoverAnim && m_hoverAnim->state() == QAbstractAnimation::Running;
+    const bool focusRunning = m_focusAnim && m_focusAnim->state() == QAbstractAnimation::Running;
+    const QVariant hoverEnd = m_hoverAnim ? m_hoverAnim->endValue() : QVariant();
+    const QVariant focusEnd = m_focusAnim ? m_focusAnim->endValue() : QVariant();
+
     FluentMotion::configure(m_hoverAnim, FluentMotionRole::Hover);
     FluentMotion::configure(m_focusAnim, FluentMotionRole::Focus);
+    if (hoverRunning && m_hoverAnim->duration() <= 0) {
+        m_hoverAnim->stop();
+        m_hoverLevel = qBound<qreal>(0.0, hoverEnd.toReal(), 1.0);
+    }
+    if (focusRunning && m_focusAnim->duration() <= 0) {
+        m_focusAnim->stop();
+        m_focusLevel = qBound<qreal>(0.0, focusEnd.toReal(), 1.0);
+    }
 
     if (m_popup) {
         m_popup->update();
@@ -510,7 +524,13 @@ void FluentDatePicker::applyTheme()
 
 void FluentDatePicker::startHoverAnimation(qreal endValue)
 {
+    FluentMotion::configure(m_hoverAnim, FluentMotionRole::Hover);
     m_hoverAnim->stop();
+    if (m_hoverAnim->duration() <= 0) {
+        m_hoverLevel = qBound<qreal>(0.0, endValue, 1.0);
+        update();
+        return;
+    }
     m_hoverAnim->setStartValue(m_hoverLevel);
     m_hoverAnim->setEndValue(endValue);
     m_hoverAnim->start();
@@ -518,7 +538,13 @@ void FluentDatePicker::startHoverAnimation(qreal endValue)
 
 void FluentDatePicker::startFocusAnimation(qreal endValue)
 {
+    FluentMotion::configure(m_focusAnim, FluentMotionRole::Focus);
     m_focusAnim->stop();
+    if (m_focusAnim->duration() <= 0) {
+        m_focusLevel = qBound<qreal>(0.0, endValue, 1.0);
+        update();
+        return;
+    }
     m_focusAnim->setStartValue(m_focusLevel);
     m_focusAnim->setEndValue(endValue);
     m_focusAnim->start();

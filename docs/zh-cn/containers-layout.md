@@ -124,7 +124,7 @@ flow->addWidget(title);
 
 启用 `setAnimationEnabled(true)` 后，布局会对每个子 widget 的 `geometry` 做 `QPropertyAnimation`：
 
-- 动画参数：默认使用 `FluentMotionRole::Layout`（当前 140ms，`OutCubic`）；显式调用 `setAnimationDuration()` / `setAnimationEasing()` 后会覆盖 token。
+- 动画参数：默认使用 `FluentMotionRole::Layout` 的当前配置；显式调用 `setAnimationDuration()` / `setAnimationEasing()` 后会覆盖 token。
 - Reduced motion：关闭全局动效或把 `Layout` duration 设为 0 时，几何变化会直接落位，不再创建/播放 `geometry` 动画。
 - 持久化动画对象：按 widget 缓存 `QPropertyAnimation`，减少 resize 时频繁 new/delete。
 - 节流：当动画正在运行且目标频繁变化时，使用 `animationThrottle`（默认 50ms）限制“重启动画”的频率：
@@ -134,7 +134,7 @@ flow->addWidget(title);
 ### resize 期间是否动画
 
 - `animateWhileResizing=true`：每次 `setGeometry()` 都会直接动画到新布局。
-- `animateWhileResizing=false`：为交互更顺滑，会“先立即应用布局（关闭父控件更新以减少闪烁）”，并把最后一次目标几何缓存起来；当 resize 停止一段时间（默认 debounce 90ms）后，才播放一次动画到最终位置。
+- `animateWhileResizing=false`：为交互更顺滑，会“先立即应用布局（关闭父控件更新以减少闪烁）”，并把最后一次目标几何做 debounce 缓存；由于子项已经即时落到最终几何，debounce 结束时不会再创建冗余的 per-step `geometry` 动画。
 
 ### 避免与子控件高度动画打架
 
@@ -169,10 +169,10 @@ sp->addWidget(new QWidget());
 - 默认：`setChildrenCollapsible(false)`，并把 handle 宽度设为 8px（更好抓取）。
 - `createHandle()` 返回自定义 `QSplitterHandle`：
 	- `setMouseTracking(true)` 并设置对应 cursor（水平分割为 `SplitHCursor`，垂直为 `SplitVCursor`）。
-	- hover 动效：`QVariantAnimation`（120ms，`OutCubic`）驱动 `hoverLevel`。
+	- hover 动效：`QVariantAnimation` 使用 `FluentMotionRole::Hover` 驱动 `hoverLevel`；关闭全局动效或把 Hover 时长设为 0 时直接完成。
 	- 绘制：
-		- 永久在线（separator line）：颜色为 `colors.border`，alpha 从约 110 → 165 随 hoverLevel 增强，并上下/左右留 6px inset。
-		- hover 时额外绘制一个小 pill（使用 `colors.hover` 的半透明填充）+ 中心三点 grip（使用 `colors.subText`），偏 Win11 风格。
+		- 永久在线（separator line）：颜色来自 `tokens.neutral.strokeSubtle`，alpha 从约 110 → 165 随 hoverLevel 增强，并上下/左右留 6px inset。
+		- hover 时额外绘制一个小 pill（使用 `tokens.neutral.cardHover` 的半透明填充）+ 中心三点 grip（使用 `tokens.neutral.strokeStrong`），偏 Win11 风格。
 - splitter 本身背景保持透明（styleSheet: `QSplitter { background: transparent; }`），视觉由 handle 自己承担。
 
 关键 API：
@@ -239,7 +239,7 @@ area->setContentLayout(layout);
 
 - 厚度固定为 10px（竖向固定宽度/横向固定高度）。
 - 自绘 thumb（圆角 pill），并刻意避免 `WA_TranslucentBackground`（一些平台/后端下子控件半透明可能出现黑条）。
-- 颜色：thumb 的 base/hover/pressed 颜色会根据主题背景亮度自动选择“白系”或“黑系”并带不同 alpha。
+- 颜色：thumb 的 base/hover/pressed 颜色从当前 `FluentThemeTokens::neutral` 派生，再叠加不同透明度，避免暗色或自定义主题下出现固定黑/白残留。
 - Overlay 模式：
 	- `revealLevel` 控制 thumb 淡入淡出（低于约 0.01 时直接不画）。
 	- 通过 `eventFilter` 监听 viewport 的 Enter/MouseMove/Wheel 等交互来触发 reveal，并在 Leave 后用 700ms 定时器自动隐藏。
@@ -273,8 +273,9 @@ Demo：Inputs（展示滚动条）/ Overview（也用于多个页面的滚动容
 
 - 该控件本身不驱动内容布局，只监听已绑定滚动条的 `value` / `range` 变化并自绘右侧标签。
 - 在 sources 模式下，可视标签按 group 聚合；tooltip 和 `currentSourceChanged(...)` 则优先反映当前 source 的 `text`。
-- 当前区间按“当前可视区域 `[value, value + pageStep)` 与哪个区间重叠最多”来判断，因此页尾区间也能稳定激活，不会因为 viewport 较高而丢失最后一段。
+- 当前区间在顶部/底部会优先固定到第一段/最后一段；中间滚动时按“当前可视区域 `[value, value + pageStep)` 与哪个区间重叠最多”来判断，因此页尾区间也能稳定激活，不会因为 viewport 较高而丢失最后一段。
 - 点击标签会跳到对应分段；点击轨道会按位置跳转到相应滚动值；thumb 也支持直接拖拽。
+- rail、thumb、connector、hover label 与 active label 都从当前 theme token 派生：thumb/active 使用 accent ramp，rail/connector 使用 neutral stroke，hover label 使用 neutral cardHover。
 - 默认会在滚动时通过 `FluentToolTip::showText(...)` 在控件右侧显示当前区间文字。
 - 典型搭配方式：把 `FluentScrollArea` 的竖向滚动条隐藏，只保留 `FluentAnnotatedScrollBar` 作为外部导航条。
 
@@ -326,10 +327,11 @@ Demo：Containers / Overview。
 - `FluentTabWidget` 内部会把 `QTabBar` 替换成自定义的 `FluentTabBar`：
 	- `setDocumentMode(true)`、`setDrawBase(false)`、`setExpanding(false)`、右侧省略（`ElideRight`）、启用滚动按钮（`setUsesScrollButtons(true)`）。
 	- hover/press 由 tabbar 自己处理（mouse tracking + 记录 `hoverIndex/pressedIndex`），并自绘 hover/press 反馈。
-	- 选中指示器是一个 `QVariantAnimation`（约 240ms，`InOutCubic`）驱动的 `indicatorRect` 插值：
+	- 选中指示器是一个使用 `FluentMotionRole::Selection` 的 `QVariantAnimation`，驱动 `indicatorRect` 插值：
 		- 横向 Tab 默认是 `TabDisplayMode::Underline`：底部 3px accent underline（两侧 inset），选中项不再绘制浅色圆角背景。
 		- 横向 Tab 也可以切换到 `TabDisplayMode::Document`：选中项绘制类似 Windows 资源管理器的顶部标签形态，适合“标签页 / 文档页”一类界面。这个模式不使用 Qt 原生 close button，而是在 tab 内部自绘与窗口关闭按钮一致的关闭 glyph，避免原生灰/红色小方块破坏观感。
 		- 纵向（West/East）导航：左/右侧 3px accent 指示条（跟随选中项平滑移动），并在选中项上绘制轻量背景块（更接近 Win11 Settings）。
+	- tab hover/press、选中背景、禁用态填充与 indicator 均从 `FluentThemeTokens` 派生（`neutral.card`、`cardHover`、`fillTertiary`、`strokeSubtle` 和 `accent.base`），Document 与纵向 tab 不再回退到旧 hover/accent 颜色；禁用态 indicator 使用 `disabledText`，不保留启用态 accent。
 
 - frame overlay：控件会创建一个透明的 `FluentTabFrameOverlay` 盖在最上层（`WA_TransparentForMouseEvents`），用来：
 	- 画圆角边框（1px）
@@ -381,7 +383,7 @@ documentTabs->setCornerWidget(addTabButton, Qt::TopRightCorner);
 
 - 纯绘制型容器：使用 `FluentSurfaceSpec` 绘制 Card 表面、圆角与边框，不再依赖控件级 styleSheet。
 - 默认 `setContentsMargins(14, 38, 14, 14)`（为标题与可选 check 指示留出顶部空间）。
-- 标题由控件自绘，文本颜色跟随 Theme；`setCheckable(true)` 时保留 `QGroupBox` 的选中语义并绘制 checkbox indicator。
+- 标题由控件自绘，文本颜色跟随 Theme；`setCheckable(true)` 时保留 `QGroupBox` 的选中语义，enabled checked 使用 `accent.base` / `onAccent` 自绘 checkbox indicator，disabled checked 保持 neutral disabled surface 并用 `disabledText` 绘制勾选标记，不再让平台原生 indicator 混入旧色。
 - 主题联动：
 	- `ThemeManager::themeChanged` 与 `EnabledChange` 时触发 repaint。
 	- 表面颜色、边框和禁用态均来自 Theme token，与 `FluentCard` / `FluentCommandBar` 的视觉层级保持一致。
@@ -403,8 +405,8 @@ Demo：Containers / Overview。
 - 设置 `WA_StyledBackground`，但 `setAutoFillBackground(false)`，背景完全由 `paintEvent()` 自绘。
 - `BackgroundRole`：
 	- `Transparent`：`paintEvent()` 直接 return，不画任何像素（用于作为透明 host）。
-	- `Surface`：填充 `colors.surface`。
-	- `WindowBackground`：填充 `colors.background`。
+	- `Surface`：填充 `tokens.neutral.card`。
+	- `WindowBackground`：填充 `tokens.neutral.background`。
 - 主题变化/EnabledChange 会触发 `update()`，但不直接改 styleSheet（这是一个“纯绘制型”容器）。
 
 关键 API：

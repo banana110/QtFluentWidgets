@@ -109,12 +109,14 @@ Use the incremental APIs when the menu is composed dynamically:
 - In `Left`, body clicks and chevron clicks are separated: the body selects or invokes, while the chevron only expands or collapses the parent.
 - Only one group stays expanded at a time.
 - Selecting a child via `setSelectedKey()` auto-expands the parent in `Left`; in `Top`, the parent item stays highlighted.
+- In `Left` and `LeftCompact`, `setSelectedKey()` scrolls the target row into the main viewport. During manual scrolling, the selection indicator is clipped to the scrollable area so it cannot paint over pinned footer rows.
 - For parents with children and `selectsOnInvoked = false`:
     - In `Left`, clicking the body only expands or collapses the group.
     - In `LeftCompact` and `Top`, clicking the body only opens the flyout and does not change `selectedKey`.
 - For leaf items with `selectsOnInvoked = false`, clicking still emits `itemInvoked`, but the current selection stays unchanged.
 - The back button only emits `backRequested()`; it does not mutate `selectedKey` by itself. Application code should keep its own back stack and call `setSelectedKey(previousKey)` when the signal arrives. The Containers demo shows a minimal back-stack implementation.
 - Motion uses `FluentMotionRole::Navigation` / `Hover` / `Selection`: pane width, row hover, and the selection indicator resync with global motion tokens. When global animations are disabled, width and selection changes snap to their target states.
+- Visual chrome uses `FluentThemeTokens`: the pane surface comes from `neutral.card`, hover rows from `neutral.cardHover`, separators from `neutral.strokeSubtle`, and the selected background plus Left/Top indicators from token-derived `accent.base`; disabled panes and selected rows resolve to neutral disabled fill, while indicators and icons/text use `disabledText` instead of retaining the enabled accent; custom hover/border colors or bright accents no longer fall back to legacy paths.
 
 ## Header, auto-collapse, and signals
 

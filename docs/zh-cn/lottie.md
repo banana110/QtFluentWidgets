@@ -16,6 +16,8 @@ Demo 页面：
 - Buttons / 按钮：`demo/pages/PageButtons.cpp`
 - Overview / 总览：`demo/pages/PageOverview.cpp`
 
+Motion 页顶部提供 Motion Role Matrix，可横向检查 Hover、Focus、Popup、Selection、Navigation、Page、Toast、WheelSnap 的 configured/effective duration 与 reduced-motion 结果。
+
 ---
 
 ## 依赖与构建
@@ -96,9 +98,9 @@ git submodule update --init --recursive
 
 fallback 与 tint：
 
-- `setFallbackIcon(const QIcon&)` / `fallbackIcon()`：加载失败或未加载时绘制的图标。
+- `setFallbackIcon(const QIcon&)` / `fallbackIcon()`：加载失败或未加载时绘制的图标；如果 `tintColor` 有效，fallback 图标也会按 alpha 重染，便于 AnimatedButton / NavigationView 的失败回退继续跟随主题前景色。
 - `setFallbackIconSize(const QSize&)` / `fallbackIconSize()`：fallback 图标尺寸。
-- `setTintColor(const QColor&)` / `resetTintColor()` / `tintColor()`：把渲染帧按 alpha 重染为单色。
+- `setTintColor(const QColor&)` / `resetTintColor()` / `tintColor()`：把渲染帧和 fallback 图标按 alpha 重染为单色。
 - `tintColorChanged(const QColor&)`：tint 变化信号。
 
 ---
@@ -169,6 +171,19 @@ QObject::connect(speed, &QSlider::valueChanged, animation, [animation](int value
 ```
 
 `setSpeed()` 会改变 timer 的推进频率，不会修改当前帧、循环设置或 marker。对于 `playSegment()` / `playMarker()`，速度同样生效；如果希望某个片段在固定时长内播放完成，可以按 `speed = 片段帧数 / fps / 目标秒数` 计算。
+
+---
+
+## Reduced motion
+
+`FluentLottieWidget` 会跟随 `ThemeManager::setAnimationsEnabled(false)`：
+
+- 全局动效关闭时，`play()` 不会启动 timer。
+- `playSegment(start, end)` 会直接跳到 `end` 帧，并发出 `finished()`。
+- 如果片段播放过程中关闭 reduced motion，控件会停止播放并落到片段结束帧。
+- 普通循环动画在 reduced motion 打开时会停在当前帧。
+
+因此 `FluentAnimatedIcon` 的状态过渡、`FluentAnimatedButton` 内部动态图标过渡都会直接落到目标 marker 帧，而不是继续播放中间帧。
 
 ---
 

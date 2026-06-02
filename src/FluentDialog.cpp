@@ -103,6 +103,8 @@ FluentDialog::FluentDialog(QWidget *parent)
     : QDialog(parent)
     , m_border(this)
 {
+    m_resizeBorderWidth = Style::windowMetrics().resizeBorder;
+
     setModal(true);
     setWindowFlags(windowFlags() & ~Qt::WindowContextHelpButtonHint);
     setSizeGripEnabled(false);
@@ -202,17 +204,24 @@ bool FluentDialog::fluentResizeEnabled() const
 
 void FluentDialog::setFluentResizeBorderWidth(int px)
 {
+    m_resizeBorderWidth = qMax(1, px);
+    m_resizeBorderWidthExplicit = true;
     if (!m_resizeHelper) {
         updateResizeHelperState();
     }
     if (m_resizeHelper) {
-        m_resizeHelper->setBorderWidth(px);
+        m_resizeHelper->setBorderWidth(m_resizeBorderWidth);
     }
 }
 
 int FluentDialog::fluentResizeBorderWidth() const
 {
-    return m_resizeHelper ? m_resizeHelper->borderWidth() : Style::windowMetrics().resizeBorder;
+    return effectiveResizeBorderWidth();
+}
+
+int FluentDialog::effectiveResizeBorderWidth() const
+{
+    return qMax(1, m_resizeBorderWidthExplicit ? m_resizeBorderWidth : Style::windowMetrics().resizeBorder);
 }
 
 void FluentDialog::changeEvent(QEvent *event)
@@ -309,8 +318,8 @@ void FluentDialog::updateResizeHelperState()
     if (m_resizeEnabled) {
         if (!m_resizeHelper) {
             m_resizeHelper = new FluentResizeHelper(this);
-            m_resizeHelper->setBorderWidth(Style::windowMetrics().resizeBorder);
         }
+        m_resizeHelper->setBorderWidth(effectiveResizeBorderWidth());
         m_resizeHelper->setEnabled(true);
     } else {
         if (m_resizeHelper) {
@@ -573,13 +582,14 @@ void FluentDialog::updateTitleBarContent()
     m_titleLabel->setText(titleText);
 
     // Keep title bar subtle; dialog panel already has its own border.
+    const auto &tokens = ThemeManager::instance().tokens();
     const QString bottomRule = anyButtonsVisible
-        ? QStringLiteral("border-bottom: 1px solid palette(mid);")
+        ? QStringLiteral("border-bottom: 1px solid %1;").arg(tokens.neutral.strokeSubtle.name(QColor::HexArgb))
         : QStringLiteral("border-bottom: none;");
     const QString next = QString(
         "#FluentDialogTitleBarHost { background: transparent; %1 border-top: none; }"
-        "#FluentDialogTitle { color: palette(window-text); font-weight: 600; }"
-    ).arg(bottomRule);
+        "#FluentDialogTitle { color: %2; font-weight: 600; }"
+    ).arg(bottomRule, colors.text.name(QColor::HexArgb));
     if (m_titleBarHost->styleSheet() != next) {
         m_titleBarHost->setStyleSheet(next);
     }

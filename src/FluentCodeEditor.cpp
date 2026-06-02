@@ -7,6 +7,7 @@
 #include "Fluent/FluentTheme.h"
 #include "Fluent/FluentToolTip.h"
 
+#include <QAbstractAnimation>
 #include <QAction>
 #include <QEvent>
 #include <QFileInfo>
@@ -29,6 +30,39 @@
 #include <QVariantAnimation>
 
 namespace Fluent {
+
+namespace {
+
+QColor codeEditorSurfaceFill(const FluentThemeTokens &tokens, bool enabled, qreal hoverLevel)
+{
+    if (!enabled) {
+        return Style::mix(tokens.neutral.card, tokens.neutral.background, tokens.dark ? 0.48 : 0.35);
+    }
+    return Style::mix(tokens.neutral.card,
+                      tokens.neutral.cardHover,
+                      qBound<qreal>(0.0, hoverLevel, 1.0) * (tokens.dark ? 0.76 : 0.68));
+}
+
+QColor codeEditorGutterFill(const FluentThemeTokens &tokens)
+{
+    return Style::mix(tokens.neutral.card, tokens.neutral.cardHover, tokens.dark ? 0.82 : 0.74);
+}
+
+QColor codeEditorLineFill(const FluentThemeTokens &tokens, qreal opacity)
+{
+    QColor fill = tokens.neutral.cardHover;
+    fill.setAlphaF(qBound<qreal>(0.0, opacity, 1.0));
+    return fill;
+}
+
+QColor codeEditorSelectionFill(const FluentThemeTokens &tokens, qreal opacity)
+{
+    QColor fill = tokens.accent.base;
+    fill.setAlphaF(qBound<qreal>(0.0, opacity, 1.0));
+    return fill;
+}
+
+} // namespace
 
 class FluentCodeEditorBorderOverlay final : public QWidget
 {
@@ -56,10 +90,13 @@ protected:
             return;
         }
 
-        const auto &colors = ThemeManager::instance().colors();
+        const auto &tokens = ThemeManager::instance().tokens();
+        const auto &colors = tokens.legacyColors;
         const auto m = Style::metrics();
 
-        const QColor stroke = m_owner->isEnabled() ? colors.border : Style::mix(colors.border, colors.disabledText, 0.35);
+        const QColor stroke = m_owner->isEnabled()
+            ? tokens.neutral.strokeSubtle
+            : Style::mix(tokens.neutral.strokeSubtle, colors.disabledText, tokens.dark ? 0.28 : 0.18);
 
         p.setRenderHint(QPainter::Antialiasing, true);
         const QRectF r = QRectF(rect());
@@ -79,7 +116,7 @@ protected:
         p.drawPath(Style::roundedRectPath(rr, m.radius));
 
         if (m_owner->isEnabled() && m_owner->m_focusLevel > 0.0) {
-            QColor focus = colors.focus;
+            QColor focus = tokens.accent.base;
             focus.setAlphaF(0.9 * qBound<qreal>(0.0, m_owner->m_focusLevel, 1.0));
             p.setPen(QPen(focus, 2.0));
             p.drawPath(Style::roundedRectPath(rr.adjusted(1.0, 1.0, -1.0, -1.0), m.radius - 1));
@@ -282,11 +319,6 @@ FluentCodeEditor::FluentCodeEditor(QWidget *parent)
 
     connect(&ThemeManager::instance(), &ThemeManager::themeChanged, this, [this] {
         applyTheme();
-        // Highlighter captures theme colors at construction time.
-        if (m_highlighter) {
-            delete m_highlighter;
-            m_highlighter = nullptr;
-        }
         ensureHighlighter();
         updateExtraSelections();
         viewport()->update();
@@ -317,6 +349,7 @@ FluentCodeEditor::FluentCodeEditor(QWidget *parent)
         }
         if (m_inPreedit) {
             // User is still composing (IME). Wait until composition finishes.
+            m_autoFormatDeferredByPreedit = true;
             m_autoFormatTimer->start();
             return;
         }
@@ -341,17 +374,63 @@ void FluentCodeEditor::changeEvent(QEvent *event)
     }
 }
 
+qreal FluentCodeEditor::hoverLevel() const
+{
+    return m_hoverLevel;
+}
+
+void FluentCodeEditor::setHoverLevel(qreal value)
+{
+    m_hoverLevel = qBound<qreal>(0.0, value, 1.0);
+    update();
+    if (m_lineNumberArea) {
+        m_lineNumberArea->update();
+    }
+    if (m_borderOverlay) {
+        m_borderOverlay->update();
+    }
+}
+
+qreal FluentCodeEditor::focusLevel() const
+{
+    return m_focusLevel;
+}
+
+void FluentCodeEditor::setFocusLevel(qreal value)
+{
+    m_focusLevel = qBound<qreal>(0.0, value, 1.0);
+    update();
+    if (m_lineNumberArea) {
+        m_lineNumberArea->update();
+    }
+    if (m_borderOverlay) {
+        m_borderOverlay->update();
+    }
+}
+
 void FluentCodeEditor::applyTheme()
 {
+    const bool hoverRunning = m_hoverAnim && m_hoverAnim->state() == QAbstractAnimation::Running;
+    const bool focusRunning = m_focusAnim && m_focusAnim->state() == QAbstractAnimation::Running;
+    const QVariant hoverEnd = m_hoverAnim ? m_hoverAnim->endValue() : QVariant();
+    const QVariant focusEnd = m_focusAnim ? m_focusAnim->endValue() : QVariant();
+
     FluentMotion::configure(m_hoverAnim, FluentMotionRole::Hover);
     FluentMotion::configure(m_focusAnim, FluentMotionRole::Focus);
+    if (hoverRunning && m_hoverAnim->duration() <= 0) {
+        m_hoverAnim->stop();
+        m_hoverLevel = qBound<qreal>(0.0, hoverEnd.toReal(), 1.0);
+    }
+    if (focusRunning && m_focusAnim->duration() <= 0) {
+        m_focusAnim->stop();
+        m_focusLevel = qBound<qreal>(0.0, focusEnd.toReal(), 1.0);
+    }
 
-    const auto &colors = ThemeManager::instance().colors();
-    const bool dark = ThemeManager::instance().themeMode() == ThemeManager::ThemeMode::Dark;
+    const auto &tokens = ThemeManager::instance().tokens();
+    const auto &colors = tokens.legacyColors;
     const QColor textColor = isEnabled() ? colors.text : colors.disabledText;
 
-    QColor selectionBg = colors.accent;
-    selectionBg.setAlphaF(dark ? 0.35 : 0.22);
+    const QColor selectionBg = codeEditorSelectionFill(tokens, tokens.dark ? 0.35 : 0.22);
 
     // Let paintEvent draw the Fluent surface/border; keep viewport transparent.
     const QString next = QStringLiteral(
@@ -408,6 +487,16 @@ void FluentCodeEditor::paintEvent(QPaintEvent *event)
         }
     } scopedViewportPaint(viewport());
 
+    if (viewport()) {
+        QPainter surfacePainter(viewport());
+        if (surfacePainter.isActive()) {
+            const auto &tokens = ThemeManager::instance().tokens();
+            surfacePainter.setCompositionMode(QPainter::CompositionMode_SourceOver);
+            surfacePainter.fillRect(event ? event->rect() : viewport()->rect(),
+                                    codeEditorSurfaceFill(tokens, isEnabled(), m_hoverLevel));
+        }
+    }
+
     QPlainTextEdit::paintEvent(event);
 }
 
@@ -418,11 +507,17 @@ bool FluentCodeEditor::viewportEvent(QEvent *event)
 
 void FluentCodeEditor::inputMethodEvent(QInputMethodEvent *event)
 {
+    const bool wasInPreedit = m_inPreedit;
     if (event) {
         // While IME preedit is active, avoid auto-formatting; it feels disruptive.
         m_inPreedit = !event->preeditString().isEmpty();
     }
     QPlainTextEdit::inputMethodEvent(event);
+
+    if (wasInPreedit && !m_inPreedit && m_autoFormatDeferredByPreedit) {
+        m_autoFormatDeferredByPreedit = false;
+        scheduleAutoFormat();
+    }
 }
 
 void FluentCodeEditor::showEvent(QShowEvent *event)
@@ -452,11 +547,15 @@ void FluentCodeEditor::showEvent(QShowEvent *event)
 void FluentCodeEditor::startHoverAnimation(qreal to)
 {
     if (!m_hoverAnim) {
-        m_hoverLevel = qBound<qreal>(0.0, to, 1.0);
-        update();
+        setHoverLevel(to);
         return;
     }
+    FluentMotion::configure(m_hoverAnim, FluentMotionRole::Hover);
     m_hoverAnim->stop();
+    if (m_hoverAnim->duration() <= 0) {
+        setHoverLevel(to);
+        return;
+    }
     m_hoverAnim->setStartValue(m_hoverLevel);
     m_hoverAnim->setEndValue(qBound<qreal>(0.0, to, 1.0));
     m_hoverAnim->start();
@@ -465,11 +564,15 @@ void FluentCodeEditor::startHoverAnimation(qreal to)
 void FluentCodeEditor::startFocusAnimation(qreal to)
 {
     if (!m_focusAnim) {
-        m_focusLevel = qBound<qreal>(0.0, to, 1.0);
-        update();
+        setFocusLevel(to);
         return;
     }
+    FluentMotion::configure(m_focusAnim, FluentMotionRole::Focus);
     m_focusAnim->stop();
+    if (m_focusAnim->duration() <= 0) {
+        setFocusLevel(to);
+        return;
+    }
     m_focusAnim->setStartValue(m_focusLevel);
     m_focusAnim->setEndValue(qBound<qreal>(0.0, to, 1.0));
     m_focusAnim->start();
@@ -648,6 +751,7 @@ void FluentCodeEditor::setAutoFormatEnabled(bool enabled)
     m_autoFormatEnabled = enabled;
     if (!enabled) {
         m_autoFormatTimer->stop();
+        m_autoFormatDeferredByPreedit = false;
     }
 }
 
@@ -705,6 +809,7 @@ void FluentCodeEditor::scheduleAutoFormat()
         return;
     }
     if (m_inPreedit) {
+        m_autoFormatDeferredByPreedit = true;
         return;
     }
     m_autoFormatTimer->start();
@@ -766,7 +871,14 @@ int FluentCodeEditor::lineNumberAreaWidth() const
 void FluentCodeEditor::updateLineNumberAreaWidth()
 {
     const auto m = Style::metrics();
-    setViewportMargins(lineNumberAreaWidth() + m.paddingX, m.paddingY, m.paddingX, m.paddingY);
+    const int gutterWidth = lineNumberAreaWidth();
+    setViewportMargins(gutterWidth + m.paddingX, m.paddingY, m.paddingX, m.paddingY);
+
+    if (m_lineNumberArea) {
+        const QRect cr = contentsRect();
+        m_lineNumberArea->setGeometry(QRect(cr.left(), cr.top(), gutterWidth, cr.height()));
+        m_lineNumberArea->update();
+    }
 }
 
 void FluentCodeEditor::updateLineNumberArea(const QRect &rect, int dy)
@@ -807,11 +919,10 @@ void FluentCodeEditor::lineNumberAreaPaintEvent(QPaintEvent *event)
     QPainter painter(m_lineNumberArea);
     painter.setRenderHint(QPainter::Antialiasing, false);
 
-    const auto colors = ThemeManager::instance().colors();
+    const auto tokens = ThemeManager::instance().tokens();
+    const auto colors = tokens.legacyColors;
     const auto m = Style::metrics();
-    // Add a subtle gutter tint on top of the surface to read more like an IDE.
-    QColor gutter = Style::mix(colors.surface, colors.hover, 0.22);
-    gutter.setAlpha(140);
+    const QColor gutter = codeEditorGutterFill(tokens);
 
     const QRectF gutterRect = QRectF(m_lineNumberArea->rect());
     const qreal radius = qMax<qreal>(0.0, qMin<qreal>(m.radius, gutterRect.height() * 0.5));
@@ -833,11 +944,8 @@ void FluentCodeEditor::lineNumberAreaPaintEvent(QPaintEvent *event)
     painter.save();
     painter.setClipPath(gutterPath);
 
-    const bool dark = ThemeManager::instance().themeMode() == ThemeManager::ThemeMode::Dark;
-    QColor selectionBg = colors.accent;
-    selectionBg.setAlphaF(dark ? 0.28 : 0.18);
-    QColor currentLineBg = colors.hover;
-    currentLineBg.setAlphaF(dark ? 0.22 : 0.18);
+    const QColor selectionBg = codeEditorSelectionFill(tokens, tokens.dark ? 0.28 : 0.18);
+    const QColor currentLineBg = codeEditorLineFill(tokens, tokens.dark ? 0.24 : 0.18);
 
     QTextBlock block = firstVisibleBlock();
     int blockNumber = block.blockNumber();
@@ -889,7 +997,7 @@ void FluentCodeEditor::lineNumberAreaPaintEvent(QPaintEvent *event)
             const QString number = QString::number(blockNumber + 1);
 
             if (blockNumber == currentLine) {
-                painter.setPen(colors.accent);
+                painter.setPen(tokens.accent.base);
                 QFont f = baseFont;
                 f.setWeight(QFont::DemiBold);
                 painter.setFont(f);
@@ -918,7 +1026,7 @@ void FluentCodeEditor::lineNumberAreaPaintEvent(QPaintEvent *event)
     painter.restore();
 
     // subtle divider line
-    painter.setPen(colors.border);
+    painter.setPen(tokens.neutral.strokeSubtle);
     painter.drawLine(m_lineNumberArea->width() - 1, event->rect().top(), m_lineNumberArea->width() - 1, event->rect().bottom());
 }
 
@@ -967,14 +1075,12 @@ int FluentCodeEditor::findMatchingBracket(int position, QChar bracket) const
 void FluentCodeEditor::updateExtraSelections()
 {
     QList<QTextEdit::ExtraSelection> selections;
-    const auto colors = ThemeManager::instance().colors();
+    const auto tokens = ThemeManager::instance().tokens();
 
     if (m_currentLineHighlightEnabled && !isReadOnly()) {
         QTextEdit::ExtraSelection sel;
         sel.format.setProperty(QTextFormat::FullWidthSelection, true);
-        QColor bg = colors.hover;
-        bg.setAlpha(qMin(70, bg.alpha() == 255 ? 70 : bg.alpha()));
-        sel.format.setBackground(bg);
+        sel.format.setBackground(codeEditorLineFill(tokens, tokens.dark ? 0.22 : 0.18));
         sel.cursor = textCursor();
         sel.cursor.clearSelection();
         selections.append(sel);
@@ -1018,11 +1124,11 @@ void FluentCodeEditor::updateExtraSelections()
                 selections.append(s);
             };
 
-            addMark(bracketPos, colors.accent);
             if (matchPos >= 0) {
-                addMark(matchPos, colors.accent);
+                addMark(bracketPos, tokens.accent.base);
+                addMark(matchPos, tokens.accent.base);
             } else {
-                addMark(bracketPos, colors.error);
+                addMark(bracketPos, tokens.semantic.error);
             }
         }
     }

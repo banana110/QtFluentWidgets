@@ -11,7 +11,9 @@
 #include <QHBoxLayout>
 #include <QMap>
 #include <QPair>
+#include <QScrollBar>
 #include <QStringList>
+#include <QTimer>
 #include <QVBoxLayout>
 
 #include <QFrame>
@@ -25,6 +27,7 @@
 #include "Fluent/FluentProgressBar.h"
 #include "Fluent/FluentRadioButton.h"
 #include "Fluent/FluentScrollArea.h"
+#include "Fluent/FluentStyle.h"
 #include "Fluent/FluentTabWidget.h"
 #include "Fluent/FluentTextEdit.h"
 #include "Fluent/FluentToolButton.h"
@@ -76,11 +79,37 @@ private:
     FluentLabel *m_label = nullptr;
 };
 
+QFrame *makeNavigationPreviewBlock(int minHeight, qreal mixAmount, qreal alpha, bool accentTint = false)
+{
+    auto *frame = new QFrame();
+    frame->setMinimumHeight(minHeight);
+    frame->setAttribute(Qt::WA_StyledBackground, true);
+
+    auto applyTheme = [frame, mixAmount, alpha, accentTint]() {
+        const auto &tokens = ThemeManager::instance().tokens();
+        QColor fill = accentTint
+            ? Style::mix(tokens.neutral.card, tokens.accent.base, tokens.dark ? mixAmount + 0.04 : mixAmount)
+            : Style::mix(tokens.neutral.card, tokens.neutral.cardHover, mixAmount);
+        fill.setAlphaF(alpha);
+        frame->setStyleSheet(QStringLiteral("background-color: %1; border-radius: %2px;")
+                                 .arg(fill.name(QColor::HexArgb))
+                                 .arg(tokens.radius.overlay));
+    };
+
+    applyTheme();
+    QObject::connect(&ThemeManager::instance(), &ThemeManager::themeChanged, frame, applyTheme);
+    return frame;
+}
+
 FluentCard *makeAnnotatedSectionCard(const QString &group, const QString &title, const QString &summary)
 {
     auto *card = new FluentCard();
     card->setFixedHeight(108);
     card->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
+    card->setProperty("_demoAnnotatedGroup", group);
+    card->setProperty("_demoAnnotatedText", title);
+    card->setProperty("sourceGroup", group);
+    card->setProperty("sourceText", title);
 
     auto *layout = new QVBoxLayout(card);
     layout->setContentsMargins(14, 14, 14, 14);
@@ -104,31 +133,6 @@ FluentCard *makeAnnotatedSectionCard(const QString &group, const QString &title,
     return card;
 }
 
-QVector<FluentAnnotatedScrollBarSource> makeAnnotatedSources(const QVector<QPair<QString, QString>> &items,
-                                                             int sectionHeight,
-                                                             int sectionSpacing,
-                                                             int startOffset)
-{
-    QVector<FluentAnnotatedScrollBarSource> sources;
-    sources.reserve(items.size());
-
-    const int normalizedHeight = qMax(1, sectionHeight);
-    const int normalizedSpacing = qMax(0, sectionSpacing);
-    int cursor = qMax(0, startOffset);
-
-    for (const auto &item : items) {
-        FluentAnnotatedScrollBarSource source;
-        source.group = item.first;
-        source.text = item.second;
-        source.start = cursor;
-        source.end = cursor + normalizedHeight - 1;
-        sources.push_back(source);
-        cursor += normalizedHeight + normalizedSpacing;
-    }
-
-    return sources;
-}
-
 } // namespace
 
 QWidget *createContainersPage(FluentMainWindow *window)
@@ -138,6 +142,127 @@ QWidget *createContainersPage(FluentMainWindow *window)
                                    QStringLiteral("Card / GroupBox / TabWidget / ScrollArea / ScrollBar / AnnotatedScrollBar / Splitter / FlowLayout"));
 
         page->addWidget(s.card);
+
+        // Navigation and tab state matrix
+        {
+            const QString code = QStringLiteral(
+                "auto *nav = new FluentNavigationView();\n"
+                "nav->setPaneDisplayMode(FluentNavigationView::Left);\n"
+                "nav->setSelectedKey(QStringLiteral(\"documents\"));\n"
+                "auto *tabs = new FluentTabWidget();\n"
+                "tabs->setTabDisplayMode(FluentTabWidget::TabDisplayMode::Document);\n");
+
+            page->addWidget(Demo::makeCollapsedExample(
+                QStringLiteral("Navigation / Tab State Matrix"),
+                DEMO_TEXT("导航与页签的 Left / Compact / Top / Document 状态对比", "Compare Left / Compact / Top navigation and document-style tabs"),
+                DEMO_TEXT("要点：\n"
+                          "-NavigationView 的 Left、LeftCompact、Top 应共享同一 selection/hover 语言\n"
+                          "-Footer 和 Settings 类入口在 compact/top 模式下也要保持清楚\n"
+                          "-TabWidget 的 Underline 与 Document 模式应能明显区分，但仍来自同一 surface/token 体系",
+                          "Highlights:\n"
+                          "-NavigationView Left, LeftCompact, and Top modes should share one selection/hover language\n"
+                          "-Footer and settings-style entries should remain clear in compact/top modes\n"
+                          "-TabWidget underline and document modes should be distinct while sharing one surface/token system"),
+                code,
+                [=](QVBoxLayout *body) {
+                    auto makeCaption = [](const QString &text, bool strong = false) {
+                        auto *label = new FluentLabel(text);
+                        label->setWordWrap(true);
+                        label->setStyleSheet(strong
+                                                 ? QStringLiteral("font-size: 12px; font-weight: 600; opacity: 0.9;")
+                                                 : QStringLiteral("font-size: 12px; opacity: 0.78;"));
+                        return label;
+                    };
+
+                    auto makeItems = []() {
+                        std::vector<FluentNavigationItem> items;
+                        FluentNavigationItem home;
+                        home.key = QStringLiteral("home");
+                        home.text = QStringLiteral("Home");
+                        home.hasFluentIcon = true;
+                        home.fluentIcon = FluentIconType::Home;
+                        items.push_back(home);
+
+                        FluentNavigationItem documents;
+                        documents.key = QStringLiteral("documents");
+                        documents.text = QStringLiteral("Documents");
+                        documents.hasFluentIcon = true;
+                        documents.fluentIcon = FluentIconType::Document;
+                        items.push_back(documents);
+
+                        FluentNavigationItem data;
+                        data.key = QStringLiteral("data");
+                        data.text = QStringLiteral("Data");
+                        data.hasFluentIcon = true;
+                        data.fluentIcon = FluentIconType::Data;
+                        items.push_back(data);
+                        return items;
+                    };
+
+                    auto makeFooter = []() {
+                        FluentNavigationItem settings;
+                        settings.key = QStringLiteral("settings");
+                        settings.text = QStringLiteral("Settings");
+                        settings.hasFluentIcon = true;
+                        settings.fluentIcon = FluentIconType::Settings;
+                        return std::vector<FluentNavigationItem>{settings};
+                    };
+
+                    auto makeNav = [&](FluentNavigationView::PaneDisplayMode mode, QSize size) {
+                        auto *nav = new FluentNavigationView();
+                        nav->setPaneTitle(QStringLiteral("QtFluent"));
+                        nav->setExpandedWidth(212);
+                        nav->setCompactWidth(52);
+                        nav->setItems(makeItems());
+                        nav->setFooterItems(makeFooter());
+                        nav->setPaneDisplayMode(mode);
+                        nav->setSelectedKey(mode == FluentNavigationView::Top
+                                                ? QStringLiteral("home")
+                                                : QStringLiteral("documents"));
+                        nav->setFixedSize(size);
+                        return nav;
+                    };
+
+                    auto makeTabs = [](FluentTabWidget::TabDisplayMode mode, bool enabled = true) {
+                        auto *tabs = new FluentTabWidget();
+                        tabs->setTabDisplayMode(mode);
+                        tabs->setFixedSize(250, 118);
+                        tabs->addTab(new FluentLabel(QStringLiteral("Overview")), QStringLiteral("Overview"));
+                        tabs->addTab(new FluentLabel(QStringLiteral("Details")), QStringLiteral("Details"));
+                        tabs->addTab(new FluentLabel(QStringLiteral("Settings")), QStringLiteral("Settings"));
+                        tabs->setCurrentIndex(mode == FluentTabWidget::TabDisplayMode::Document ? 1 : 0);
+                        tabs->setEnabled(enabled);
+                        return tabs;
+                    };
+
+                    auto *grid = new QGridLayout();
+                    grid->setContentsMargins(0, 0, 0, 0);
+                    grid->setHorizontalSpacing(14);
+                    grid->setVerticalSpacing(10);
+
+                    grid->addWidget(makeCaption(DEMO_TEXT("控件", "Control"), true), 0, 0);
+                    grid->addWidget(makeCaption(QStringLiteral("Left / Underline"), true), 0, 1);
+                    grid->addWidget(makeCaption(QStringLiteral("Compact / Document"), true), 0, 2);
+                    grid->addWidget(makeCaption(QStringLiteral("Top / Disabled"), true), 0, 3);
+
+                    grid->addWidget(makeCaption(QStringLiteral("FluentNavigationView")), 1, 0);
+                    grid->addWidget(makeNav(FluentNavigationView::Left, QSize(212, 188)), 1, 1);
+                    grid->addWidget(makeNav(FluentNavigationView::LeftCompact, QSize(72, 188)), 1, 2);
+                    grid->addWidget(makeNav(FluentNavigationView::Top, QSize(292, 118)), 1, 3);
+
+                    grid->addWidget(makeCaption(QStringLiteral("FluentTabWidget")), 2, 0);
+                    grid->addWidget(makeTabs(FluentTabWidget::TabDisplayMode::Underline), 2, 1);
+                    grid->addWidget(makeTabs(FluentTabWidget::TabDisplayMode::Document), 2, 2);
+                    grid->addWidget(makeTabs(FluentTabWidget::TabDisplayMode::Underline, false), 2, 3);
+
+                    grid->setColumnStretch(1, 1);
+                    grid->setColumnStretch(2, 1);
+                    grid->setColumnStretch(3, 1);
+                    body->addLayout(grid);
+                },
+                false,
+                170));
+        }
 
         // FluentCard
         {
@@ -327,7 +452,7 @@ nav->setExpandedWidth(220);
 nav->setCompactWidth(48);
 nav->setPaneDisplayMode(Fluent::FluentNavigationView::Left);
 nav->setPaneTitle(QStringLiteral("Pane Title"));
-nav->setBackButtonVisible(true);
+nav->setBackButtonVisible(false);
 
 auto applyIcon = [](NI &item, Fluent::FluentIconType type) {
     item.hasFluentIcon = true;
@@ -532,7 +657,7 @@ QObject::connect(nav, &Fluent::FluentNavigationView::selectedKeyChanged,
                     nav->setCompactWidth(48);
                     nav->setPaneDisplayMode(FluentNavigationView::Left);
                     nav->setPaneTitle(QStringLiteral("Pane Title"));
-                    nav->setBackButtonVisible(true);
+                    nav->setBackButtonVisible(false);
                     nav->setBackButtonEnabled(true);
                     nav->loadPaneToggleAnimation(Demo::demoLottieResourcePath(QStringLiteral("menu.json")));
                     nav->loadBackButtonAnimation(Demo::demoLottieResourcePath(QStringLiteral("left-arrow.json")));
@@ -569,22 +694,15 @@ QObject::connect(nav, &Fluent::FluentNavigationView::selectedKeyChanged,
                     detailEvent->setWordWrap(true);
                     detailEvent->setStyleSheet("font-size: 12px; opacity: 0.82;");
 
-                    auto makeBlock = [](const QString &style, int minHeight) {
-                        auto *frame = new QFrame();
-                        frame->setMinimumHeight(minHeight);
-                        frame->setStyleSheet(style);
-                        return frame;
-                    };
-
                     auto *blocks = new QWidget(detailCard);
                     auto *blocksLayout = new QGridLayout(blocks);
                     blocksLayout->setContentsMargins(0, 0, 0, 0);
                     blocksLayout->setSpacing(10);
-                    blocksLayout->addWidget(makeBlock(QStringLiteral("background: rgba(77, 110, 128, 0.68); border-radius: 8px;"), 160), 0, 0, 2, 1);
-                    blocksLayout->addWidget(makeBlock(QStringLiteral("background: rgba(240, 240, 240, 0.72); border-radius: 8px;"), 74), 0, 1);
-                    blocksLayout->addWidget(makeBlock(QStringLiteral("background: rgba(248, 248, 248, 0.82); border-radius: 8px;"), 74), 0, 2);
-                    blocksLayout->addWidget(makeBlock(QStringLiteral("background: rgba(246, 246, 246, 0.78); border-radius: 8px;"), 74), 1, 1);
-                    blocksLayout->addWidget(makeBlock(QStringLiteral("background: rgba(234, 234, 234, 0.78); border-radius: 8px;"), 74), 1, 2);
+                    blocksLayout->addWidget(makeNavigationPreviewBlock(160, 0.16, 0.72, true), 0, 0, 2, 1);
+                    blocksLayout->addWidget(makeNavigationPreviewBlock(74, 0.20, 0.74), 0, 1);
+                    blocksLayout->addWidget(makeNavigationPreviewBlock(74, 0.36, 0.80), 0, 2);
+                    blocksLayout->addWidget(makeNavigationPreviewBlock(74, 0.28, 0.78), 1, 1);
+                    blocksLayout->addWidget(makeNavigationPreviewBlock(74, 0.48, 0.84), 1, 2);
                     blocksLayout->setColumnStretch(1, 1);
                     blocksLayout->setColumnStretch(2, 1);
 
@@ -615,7 +733,7 @@ QObject::connect(nav, &Fluent::FluentNavigationView::selectedKeyChanged,
                     leftRadio->setChecked(true);
 
                     auto *backVisibleToggle = new FluentToggleSwitch(QStringLiteral("Back button visible"));
-                    backVisibleToggle->setChecked(true);
+                    backVisibleToggle->setChecked(false);
                     auto *backEnabledToggle = new FluentToggleSwitch(QStringLiteral("Back button enabled"));
                     backEnabledToggle->setChecked(true);
                     auto *footerVisibleToggle = new FluentToggleSwitch(QStringLiteral("Footer visible"));
@@ -1051,36 +1169,52 @@ QObject::connect(nav, &Fluent::FluentNavigationView::selectedKeyChanged,
             const QString code = QStringLiteral(R"CPP(#include "Fluent/FluentAnnotatedScrollBar.h"
 #include "Fluent/FluentScrollArea.h"
 
+#include <QScrollBar>
+#include <QTimer>
+#include <QVBoxLayout>
+
 auto *area = new Fluent::FluentScrollArea();
 area->setWidgetResizable(true);
 area->setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
 
+auto *content = new QWidget();
+auto *contentLayout = new QVBoxLayout(content);
+area->setWidget(content);
+
 auto *annotated = new Fluent::FluentAnnotatedScrollBar();
 annotated->setScrollArea(area);
-annotated->setSources({
-    {QStringLiteral("概览"), QStringLiteral("欢迎页"), 12, 119},
-    {QStringLiteral("概览"), QStringLiteral("快速操作"), 130, 237},
-    {QStringLiteral("项目"), QStringLiteral("项目列表"), 248, 355},
-    {QStringLiteral("同步"), QStringLiteral("队列状态"), 366, 473}
-});
 
-annotated->addSource({QStringLiteral("同步"), QStringLiteral("同步历史"), 484, 591});
-annotated->setCurrentGroup(QStringLiteral("项目"));
+auto syncSources = [=]() {
+    contentLayout->activate();
+    QVector<Fluent::FluentAnnotatedScrollBarSource> sources;
+    for (int i = 0; i < contentLayout->count(); ++i) {
+        QWidget *section = contentLayout->itemAt(i)->widget();
+        if (!section || section->isHidden()) {
+            continue;
+        }
 
-QObject::connect(annotated, &Fluent::FluentAnnotatedScrollBar::currentSourceChanged,
-                 annotated, [](int, const QString &group, const QString &text) {
-    qDebug() << group << text;
+        const QRect rect = section->geometry();
+        sources.append({section->property("sourceGroup").toString(),
+                        section->property("sourceText").toString(),
+                        rect.top(),
+                        rect.bottom()});
+    }
+    annotated->setSources(sources);
+};
+
+QObject::connect(area->verticalScrollBar(), &QScrollBar::rangeChanged, annotated, [=](int, int) {
+    QTimer::singleShot(0, annotated, syncSources);
 });
+QTimer::singleShot(0, annotated, syncSources);
 )CPP");
 
             page->addWidget(Demo::makeCollapsedExample(
                 QStringLiteral("FluentAnnotatedScrollBar"),
-                QStringLiteral("带区间标注的滚动条，滚动时在右侧显示当前范围"),
+                QStringLiteral("从内容段自动生成 source 的标注滚动条"),
                 QStringLiteral("要点：\n"
-                               "-setScrollArea(...) 直接绑定现有滚动区域\n"
-                               "-setSources(...) / addSource(...) 自动按 group 合并成分组，不必手动整理 ranges\n"
-                               "-可通过 setCurrentGroup(...) / setCurrentSourceIndex(...) 从外部定位当前段\n"
-                               "-滚动、点击标签、拖拽 thumb 都会触发 currentSourceChanged 回调"),
+                               "-遍历内容卡片 geometry 生成 sources，不手写 start/end\n"
+                               "-内容增删后延迟同步，group 会自动合并\n"
+                               "-滚动、点击标签、拖拽 thumb 都会触发 currentSourceChanged"),
                 code,
                 [=](QVBoxLayout *body) {
                     auto *shell = new FluentWidget();
@@ -1127,29 +1261,133 @@ QObject::connect(annotated, &Fluent::FluentAnnotatedScrollBar::currentSourceChan
                         contentLayout->addWidget(makeAnnotatedSectionCard(items.at(i).first, items.at(i).second, summaries.at(i)));
                     }
 
-                    auto *status = new FluentLabel(DEMO_TEXT("当前 source：概览 / 欢迎页", "Current source: Overview / Welcome page"));
+                    auto *status = new FluentLabel(DEMO_TEXT("sources：等待内容同步", "Sources: waiting for content sync"));
                     status->setStyleSheet("font-size: 12px; opacity: 0.82;");
 
                     auto *annotated = new FluentAnnotatedScrollBar();
                     annotated->setFixedWidth(116);
                     annotated->setToolTipDuration(1100);
                     annotated->setScrollArea(area);
-                    annotated->setSources(makeAnnotatedSources(items, 108, 10, 12));
 
-                    QObject::connect(annotated, &FluentAnnotatedScrollBar::currentSourceChanged, status,
-                                     [status](int, const QString &group, const QString &text) {
-                        if (group.isEmpty() && text.isEmpty()) {
-                            status->setText(DEMO_TEXT("当前 source：<none>", "Current source: <none>"));
+                    const auto updateStatus = [status, annotated]() {
+                        const int count = annotated->sources().size();
+                        const FluentAnnotatedScrollBarSource source = annotated->currentSource();
+                        if (count <= 0) {
+                            status->setText(DEMO_TEXT("sources：等待内容同步", "Sources: waiting for content sync"));
                             return;
                         }
-                        status->setText(DEMO_TEXT("当前 source：%1 / %2", "Current source: %1 / %2").arg(group, text));
+
+                        if (source.group.isEmpty() && source.text.isEmpty()) {
+                            status->setText(DEMO_TEXT("sources：%1 段（来自内容卡片）", "Sources: %1 sections (from content cards)").arg(count));
+                            return;
+                        }
+
+                        status->setText(DEMO_TEXT("当前 source：%1 / %2（%3 段自动同步）",
+                                                  "Current source: %1 / %2 (%3 auto-synced)")
+                                            .arg(source.group, source.text)
+                                            .arg(count));
+                    };
+
+                    const auto syncSources = [=]() {
+                        if (!contentLayout || !annotated) {
+                            return;
+                        }
+
+                        contentLayout->activate();
+
+                        QVector<FluentAnnotatedScrollBarSource> sources;
+                        const QMargins margins = contentLayout->contentsMargins();
+                        int fallbackTop = margins.top();
+                        for (int i = 0; i < contentLayout->count(); ++i) {
+                            QWidget *section = contentLayout->itemAt(i) ? contentLayout->itemAt(i)->widget() : nullptr;
+                            if (!section || section->isHidden()) {
+                                continue;
+                            }
+
+                            const QRect geometry = section->geometry();
+                            const int hintHeight = qMax(1, section->sizeHint().height());
+                            const bool hasGeometry = geometry.width() > 0 && geometry.height() > 0;
+                            const int sourceStart = hasGeometry ? qMax(0, section->mapTo(content, QPoint(0, 0)).y())
+                                                                : qMax(0, fallbackTop);
+                            const int sectionHeight = hasGeometry ? qMax(1, section->height()) : hintHeight;
+
+                            FluentAnnotatedScrollBarSource source;
+                            source.group = section->property("sourceGroup").toString();
+                            source.text = section->property("sourceText").toString();
+                            source.start = sourceStart;
+                            source.end = source.start + sectionHeight - 1;
+                            sources.append(source);
+
+                            fallbackTop = source.start + sectionHeight + contentLayout->spacing();
+                        }
+
+                        annotated->setSources(sources);
+                        annotated->setVisible(sources.size() > 1);
+                        updateStatus();
+                    };
+
+                    const auto scheduleSync = [area, syncSources]() {
+                        for (int delay : {0, 16, 48}) {
+                            QTimer::singleShot(delay, area, syncSources);
+                        }
+                    };
+
+                    QObject::connect(area->verticalScrollBar(), &QScrollBar::rangeChanged, area, [scheduleSync](int, int) {
+                        scheduleSync();
                     });
-                    annotated->setCurrentGroup(DEMO_TEXT("项目", "Projects"));
+                    QObject::connect(annotated, &FluentAnnotatedScrollBar::currentSourceChanged, status,
+                                     [updateStatus](int, const QString &, const QString &) {
+                        updateStatus();
+                    });
+                    QObject::connect(annotated, &FluentAnnotatedScrollBar::sourcesChanged, status, updateStatus);
+
+                    auto *controls = new QWidget();
+                    auto *controlsLayout = new QHBoxLayout(controls);
+                    controlsLayout->setContentsMargins(0, 0, 0, 0);
+                    controlsLayout->setSpacing(8);
+                    auto *addSectionButton = new FluentButton(DEMO_TEXT("追加内容段", "Add section"));
+                    auto *removeSectionButton = new FluentButton(DEMO_TEXT("移除新增段", "Remove added"));
+                    controlsLayout->addWidget(addSectionButton);
+                    controlsLayout->addWidget(removeSectionButton);
+                    controlsLayout->addStretch(1);
+
+                    auto dynamicSourceCount = std::make_shared<int>(0);
+                    QObject::connect(addSectionButton, &QAbstractButton::clicked, area, [=]() {
+                        const int n = ++(*dynamicSourceCount);
+                        const QString group = (n % 2 == 0) ? DEMO_TEXT("动态", "Dynamic") : DEMO_TEXT("同步", "Sync");
+                        const QString title = DEMO_TEXT("新增段 %1", "New section %1").arg(n);
+                        contentLayout->addWidget(makeAnnotatedSectionCard(
+                            group,
+                            title,
+                            DEMO_TEXT("运行时追加的内容，source 区间会由布局几何重新计算。",
+                                      "Runtime content; source ranges are recalculated from layout geometry.")));
+                        scheduleSync();
+                    });
+                    QObject::connect(removeSectionButton, &QAbstractButton::clicked, area, [=]() {
+                        if (contentLayout->count() <= items.size()) {
+                            return;
+                        }
+
+                        QLayoutItem *item = contentLayout->takeAt(contentLayout->count() - 1);
+                        if (item) {
+                            if (QWidget *widget = item->widget()) {
+                                widget->deleteLater();
+                            }
+                            delete item;
+                        }
+                        if (*dynamicSourceCount > 0) {
+                            --(*dynamicSourceCount);
+                        }
+                        scheduleSync();
+                    });
+
+                    scheduleSync();
 
                     row->addWidget(area, 1);
                     row->addWidget(annotated);
                     body->addWidget(shell);
                     body->addWidget(status);
+                    body->addWidget(controls);
                 },
                 true,
                 320));

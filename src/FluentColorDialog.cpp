@@ -61,6 +61,12 @@ static QString toHexArgb(const QColor &c)
     return QStringLiteral("#%1%2%3%4").arg(a, r, g, b);
 }
 
+static QString separatorStyle()
+{
+    return QStringLiteral("background: %1;").arg(
+        ThemeManager::instance().tokens().neutral.strokeSubtle.name(QColor::HexArgb));
+}
+
 static QColor parseHexColor(QString s)
 {
     s = s.trimmed();
@@ -152,7 +158,7 @@ FluentColorDialog::FluentColorDialog(const QColor &initial, QWidget *parent)
 
     m_border.syncFromTheme();
 
-    m_reset    = initial.isValid() ? initial : QColor("#0067C0");
+    m_reset    = initial.isValid() ? initial : ThemeManager::instance().tokens().accent.base;
     m_selected = m_reset;
     int h = 0, initS = 0, initV = 0;
     m_selected.getHsv(&h, &initS, &initV);
@@ -265,8 +271,8 @@ FluentColorDialog::FluentColorDialog(const QColor &initial, QWidget *parent)
     {
         auto *sep = new QWidget(content);
         sep->setFixedHeight(1);
-        sep->setStyleSheet(QStringLiteral("background: %1;").arg(
-            ThemeManager::instance().colors().border.name()));
+        sep->setObjectName(QStringLiteral("FluentColorDialogSeparator"));
+        sep->setStyleSheet(separatorStyle());
         col->addWidget(sep);
     }
 
@@ -331,8 +337,8 @@ FluentColorDialog::FluentColorDialog(const QColor &initial, QWidget *parent)
     {
         auto *div = new QWidget(content);
         div->setFixedHeight(1);
-        div->setStyleSheet(QStringLiteral("background: %1;").arg(
-            ThemeManager::instance().colors().border.name()));
+        div->setObjectName(QStringLiteral("FluentColorDialogSeparator"));
+        div->setStyleSheet(separatorStyle());
         col->addWidget(div);
     }
 
@@ -368,7 +374,8 @@ FluentColorDialog::FluentColorDialog(const QColor &initial, QWidget *parent)
         }
     }
     if (recent.isEmpty())
-        recent = { ThemeManager::instance().colors().accent, ThemeManager::instance().colors().surface };
+        recent = { ThemeManager::instance().tokens().accent.base,
+                   ThemeManager::instance().tokens().neutral.card };
 
     makeSwatchSection(tr(u8"预置颜色"), presetColorPalette());
     makeSwatchSection(tr(u8"最近使用"), recent);
@@ -376,8 +383,8 @@ FluentColorDialog::FluentColorDialog(const QColor &initial, QWidget *parent)
     // ── Bottom divider + OK/Cancel ─────────────────────────────────────────
     auto *bottomDiv = new QWidget(this);
     bottomDiv->setFixedHeight(1);
-    bottomDiv->setStyleSheet(QStringLiteral("background: %1;").arg(
-        ThemeManager::instance().colors().border.name()));
+    bottomDiv->setObjectName(QStringLiteral("FluentColorDialogSeparator"));
+    bottomDiv->setStyleSheet(separatorStyle());
     root->addWidget(bottomDiv);
 
     auto *buttonRow = new QHBoxLayout();
@@ -601,7 +608,7 @@ FluentColorDialog::FluentColorDialog(const QColor &initial, QWidget *parent)
 
     // Theme changes
     connect(&ThemeManager::instance(), &ThemeManager::themeChanged, this,
-        [this, bottomDiv]() {
+        [this]() {
             if (isVisible()) m_border.onThemeChanged();
             else             m_border.syncFromTheme();
 
@@ -609,9 +616,11 @@ FluentColorDialog::FluentColorDialog(const QColor &initial, QWidget *parent)
                 + QStringLiteral("QDialog{background: transparent; border: none; border-radius: 0px;}");
             if (styleSheet() != next) setStyleSheet(next);
 
-            const QString divStyle = QStringLiteral("background: %1;").arg(
-                ThemeManager::instance().colors().border.name());
-            bottomDiv->setStyleSheet(divStyle);
+            const QString divStyle = separatorStyle();
+            const auto separators = findChildren<QWidget *>(QStringLiteral("FluentColorDialogSeparator"));
+            for (QWidget *separator : separators) {
+                separator->setStyleSheet(divStyle);
+            }
 
             applyUiFromColor(false);
         });

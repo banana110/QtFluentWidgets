@@ -1,9 +1,11 @@
 ﻿#pragma once
 
+#include <QMetaObject>
 #include <QTreeView>
 
 class QMouseEvent;
 class QEvent;
+class QItemSelectionModel;
 class QVariantAnimation;
 
 namespace Fluent {
@@ -17,6 +19,7 @@ public:
     QModelIndex hoverIndex() const;
     qreal hoverLevel() const;
     void setModel(QAbstractItemModel *model) override;
+    void setSelectionModel(QItemSelectionModel *selectionModel) override;
 protected:
     void changeEvent(QEvent *event) override;
 
@@ -44,6 +47,7 @@ private:
     qreal m_selStartOpacity = 0.0;
     qreal m_selTargetOpacity = 0.0;
     QVariantAnimation *m_selAnim = nullptr;
+    QMetaObject::Connection m_selectionConnection;
 };
 
 } // namespace Fluent

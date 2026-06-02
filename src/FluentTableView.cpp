@@ -102,6 +102,12 @@ void FluentTableView::setModel(QAbstractItemModel *model)
     hookSelectionModel();
 }
 
+void FluentTableView::setSelectionModel(QItemSelectionModel *selectionModel)
+{
+    QTableView::setSelectionModel(selectionModel);
+    hookSelectionModel();
+}
+
 void FluentTableView::paintEvent(QPaintEvent *event)
 {
     {
@@ -117,10 +123,14 @@ void FluentTableView::paintEvent(QPaintEvent *event)
                 p.setRenderHint(QPainter::Antialiasing, true);
 
                 p.setPen(Qt::NoPen);
-                p.setBrush(Detail::fluentItemSelectionFill(colors, opacity));
+                p.setBrush(isEnabled()
+                               ? Detail::fluentItemSelectionFill(colors, opacity)
+                               : Detail::fluentItemDisabledSelectionFill(colors, opacity));
                 p.drawRoundedRect(r, 4.0, 4.0);
 
-                Detail::paintFluentItemSelectionIndicator(p, r, colors, opacity, 3.0);
+                if (isEnabled()) {
+                    Detail::paintFluentItemSelectionIndicator(p, r, colors, opacity, 3.0);
+                }
             }
         }
     }
@@ -147,8 +157,28 @@ void FluentTableView::leaveEvent(QEvent *event)
 
 void FluentTableView::applyTheme()
 {
+    const bool hoverRunning = m_hoverAnim && m_hoverAnim->state() == QAbstractAnimation::Running;
+    const bool selectionRunning = m_selAnim && m_selAnim->state() == QAbstractAnimation::Running;
+    const QVariant hoverEnd = m_hoverAnim ? m_hoverAnim->endValue() : QVariant();
+
     FluentMotion::configure(m_hoverAnim, FluentMotionRole::Hover);
     FluentMotion::configure(m_selAnim, FluentMotionRole::Selection);
+    if (hoverRunning && m_hoverAnim->duration() <= 0) {
+        m_hoverAnim->stop();
+        m_hoverLevel = qBound<qreal>(0.0, hoverEnd.toReal(), 1.0);
+        viewport()->update();
+    }
+    if (selectionRunning && m_selAnim->duration() <= 0) {
+        m_selAnim->stop();
+        if (m_selTargetOpacity <= 0.0 || !m_selTargetRect.isValid()) {
+            m_selRect = QRectF();
+            m_selOpacity = 0.0;
+        } else {
+            m_selRect = m_selTargetRect;
+            m_selOpacity = m_selTargetOpacity;
+        }
+        viewport()->update();
+    }
 
     const auto &colors = ThemeManager::instance().colors();
     const QString next = Theme::tableViewStyle(colors);
@@ -161,13 +191,22 @@ void FluentTableView::applyTheme()
 
 void FluentTableView::hookSelectionModel()
 {
+    if (m_selectionConnection) {
+        QObject::disconnect(m_selectionConnection);
+        m_selectionConnection = QMetaObject::Connection();
+    }
+
     if (!selectionModel()) {
+        m_selRect = QRectF();
+        m_selStartRect = QRectF();
+        m_selTargetRect = QRectF();
+        m_selOpacity = 0.0;
+        m_selStartOpacity = 0.0;
+        m_selTargetOpacity = 0.0;
         return;
     }
 
-    disconnect(selectionModel(), nullptr, this, nullptr);
-
-    connect(selectionModel(), &QItemSelectionModel::currentChanged, this, [this](const QModelIndex &current, const QModelIndex &previous) {
+    m_selectionConnection = connect(selectionModel(), &QItemSelectionModel::currentChanged, this, [this](const QModelIndex &current, const QModelIndex &previous) {
         startSelectionAnimation(previous, current);
     });
 
@@ -220,6 +259,24 @@ void FluentTableView::startSelectionAnimation(const QModelIndex &from, const QMo
     const qreal startOpacity = animRunning ? m_selOpacity : (startRect.isValid() ? 1.0 : 0.0);
     const QRectF targetRect = selectionRectForIndex(to);
     const bool targetValid = targetRect.isValid();
+    const auto startSelectionMotion = [this]() {
+        FluentMotion::configure(m_selAnim, FluentMotionRole::Selection);
+        m_selAnim->stop();
+        if (m_selAnim->duration() <= 0) {
+            if (m_selTargetOpacity <= 0.0) {
+                m_selRect = QRectF();
+                m_selOpacity = 0.0;
+            } else {
+                m_selRect = m_selTargetRect;
+                m_selOpacity = 1.0;
+            }
+            viewport()->update();
+            return;
+        }
+        m_selAnim->setStartValue(0.0);
+        m_selAnim->setEndValue(1.0);
+        m_selAnim->start();
+    };
 
     if (!targetValid) {
         if (!startRect.isValid()) {
@@ -234,10 +291,7 @@ void FluentTableView::startSelectionAnimation(const QModelIndex &from, const QMo
         m_selTargetOpacity = 0.0;
         m_selRect = startRect;
         m_selOpacity = startOpacity;
-        m_selAnim->stop();
-        m_selAnim->setStartValue(0.0);
-        m_selAnim->setEndValue(1.0);
-        m_selAnim->start();
+        startSelectionMotion();
         return;
     }
 
@@ -248,10 +302,7 @@ void FluentTableView::startSelectionAnimation(const QModelIndex &from, const QMo
         m_selTargetOpacity = 1.0;
         m_selRect = targetRect;
         m_selOpacity = 0.0;
-        m_selAnim->stop();
-        m_selAnim->setStartValue(0.0);
-        m_selAnim->setEndValue(1.0);
-        m_selAnim->start();
+        startSelectionMotion();
         return;
     }
 
@@ -269,14 +320,12 @@ void FluentTableView::startSelectionAnimation(const QModelIndex &from, const QMo
     m_selRect = startRect;
     m_selOpacity = m_selStartOpacity;
 
-    m_selAnim->stop();
-    m_selAnim->setStartValue(0.0);
-    m_selAnim->setEndValue(1.0);
-    m_selAnim->start();
+    startSelectionMotion();
 }
 
 void FluentTableView::startHoverAnimation(qreal endValue)
 {
+    FluentMotion::configure(m_hoverAnim, FluentMotionRole::Hover);
     m_hoverAnim->stop();
     if (m_hoverAnim->duration() <= 0) {
         m_hoverLevel = qBound<qreal>(0.0, endValue, 1.0);

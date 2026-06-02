@@ -27,6 +27,12 @@ auto *bar = new Fluent::FluentInfoBar(
     QStringLiteral("Heads up"),
     QStringLiteral("This is an inline message."));
 bar->setActionText(QStringLiteral("View"));
+
+auto *compact = new Fluent::FluentInfoBar(
+    Fluent::FluentInfoBar::Severity::Success,
+    QStringLiteral("Saved"),
+    QStringLiteral("Compact mode suits one-line status."));
+compact->setCompact(true);
 ```
 
 Purpose: inline feedback for validation results, sync status, lightweight errors, and other messages that should not interrupt the user.
@@ -37,7 +43,14 @@ Key APIs:
 - `setTitle()` / `setMessage()`: title and body.
 - `setActionText()`: optional action button.
 - `setClosable(bool)`: show or hide the close button.
+- `setCompact(bool)`: switch between single-line compact feedback and multi-line expanded feedback; expanded is the default.
 - `actionTriggered()` / `closed()`: action and dismissal signals.
+
+Implementation semantics:
+
+- Clicking the close button uses `FluentMotionRole::PopupClose` for fade-out plus height collapse; when global animations are disabled, it hides immediately and emits `closed()`.
+- The InfoBar surface uses a raised `FluentSurfaceSpec`, a light severity tint, a 3px left accent indicator, and a circular semantic icon.
+- Compact mode tightens margins, icon, and close-button sizing, then lays title/body out as one line. Expanded mode keeps body wrapping for longer explanations.
 
 Demo: Windows / Overview.
 
@@ -234,6 +247,7 @@ Demo: Windows / Overview.
 - **Single popup path**: the custom menubar no longer calls `QMenuBar::setActiveAction()`, so clicking a top-level menu only shows the Fluent popup and does not also activate Qt's native `QMenu` popup.
 - **Neutral menu border**: menu popups use the normal popup border instead of the window accent border, so a one-item menu does not read as a second button/menu strip.
 - **Disable native overflow button**: hides/disables `qt_menubar_ext_button` and clears its menu to avoid the native-styled overflow UI.
+- **Fallback chrome**: `Theme::menuBarStyle()` derives background, hover, pressed, and divider colors from neutral tokens (`card` / `cardHover` / `fillTertiary` / `strokeSubtle`) instead of falling back to legacy `surface/hover/pressed` mixes.
 - **Highlight animations**:
     - hoverLevel uses `FluentMotionRole::Hover`;
     - highlightRect uses `FluentMotionRole::Selection`;
@@ -245,10 +259,11 @@ Demo: Windows / Overview.
 - Uses a `QProxyStyle` override: submenu delay is 120ms and sloppy submenu behavior is disabled.
 - On `aboutToShow`, ensures all submenus are converted to `FluentMenu` recursively.
 - **Popup animation**: on show, starts at `opacity=0` with a small `FluentMotion::popupSlideOffset()` displacement, then uses `FluentMotionRole::PopupOpen` for fade+slide to the final geometry.
+- The slide distance is capped by the clear gap to the anchor, so menus that open under a button never animate through the button content.
 - **Painting**:
     - panel radius=10; clears to transparent first, then uses `paintFluentPanel()`.
-    - hover highlight radius=6, based on `colors.hover` and hoverLevel.
-    - draws extra glyphs: accent checkmark for checked actions, and chevron for actions with submenus.
+    - enabled hover rows use neutral theme tokens (`cardHover` / `strokeSubtle`) instead of legacy hover/border colors; disabled rows do not show the hover accent indicator, so menu popups match ComboBox and AutoSuggest list surfaces.
+    - draws extra glyphs: accent-token checkmark for enabled checked actions, a `disabledText` checkmark for disabled checked actions, a 3px active indicator on hovered rows, and chevron for actions with submenus.
 
 ---
 
@@ -265,6 +280,8 @@ Key APIs / behavior:
 - Inherits `QToolBar`: you still call `addAction()` / `addWidget()`.
 - When you `addAction(QAction*)` and that action is not a separator and not a `QWidgetAction`, the toolbar removes the action and inserts a `QWidgetAction` whose default widget is a `FluentToolButton` bound via `setDefaultAction(action)`.
     - If you already add a `QWidgetAction` or `addWidget()`, it will not be replaced.
+    - When the static type is `FluentToolBar`, `insertAction(before, action)` / `removeAction(action)` map wrapped source `QAction` instances back to their internal wrappers, preserving common toolbar maintenance semantics.
+- Fallback QSS derives toolbar background, hover, and separator colors from neutral tokens (`card` / `cardHover` / `strokeSubtle`) for windows that are only partially promoted or locally styled.
 
 Demo: Windows / Overview.
 
@@ -282,6 +299,7 @@ Key APIs / behavior:
 
 - Inherits `QStatusBar`: use `showMessage()` / `addWidget()`.
 - Size grip is disabled by default (`setSizeGripEnabled(false)`), and `WA_StyledBackground` is enabled for QSS.
+- Fallback QSS derives the status bar background and top divider from neutral tokens (`card` / `strokeSubtle`) to match Fluent main-window panel chrome.
 
 Demo: Windows / Overview.
 
@@ -333,6 +351,7 @@ Key APIs:
 Implementation notes:
 
 - Supports the same mask overlay behavior (dim parent window + block input).
+- `Info` / `Warning` / `Error` icon accents come from `FluentThemeTokens::semantic`; `Question` uses the current accent ramp, so message-box semantic icons follow theme and light/dark changes immediately. The inner glyph uses `Theme::contrastColor()` for a readable foreground.
 - **Adaptive text height + multi-line elide**:
     - max dialog height is `max(240, availableScreenHeight * 0.72)`;
     - it first tries full text layout; only if it truly exceeds the max height it switches to multi-line elide;
@@ -369,13 +388,14 @@ Implementation notes:
 - Toasts live in an internal `ToastOverlay` attached to the target window (object name `FluentToastOverlay`), and use a **mask region** so the overlay only intercepts input around the toast area:
     - when toasts exist, the overlay blocks input only over toast regions; the rest of the window remains interactive.
     - when no toasts exist, the overlay becomes fully mouse-transparent (`WA_TransparentForMouseEvents=true`).
-- Layout: each position (TopLeft/TopCenter/...) has its own queue; new toasts are inserted at the head. Existing toasts are moved smoothly via `QPropertyAnimation(pos)` using `FluentMotionRole::Toast`.
+- Layout: each position (TopLeft/TopCenter/...) has its own queue; new toasts are inserted at the head. Existing toasts are moved smoothly via `QPropertyAnimation(pos)` using the duration and easing from `FluentMotionRole::Toast`.
 - Size stabilization: to avoid word-wrapped `QLabel` “one extra line jump” during fast creation, the overlay fixes the wrap width, calls `adjustSize()`, and stabilizes again on the next event loop turn.
 - Appear/disappear:
     - appear and close opacity use `FluentMotionRole::Toast`;
     - auto-dismiss uses a linear progress animation with minimum duration `max(800, durationMs)`;
-    - disabling global animations or setting the Toast duration to 0 makes appear immediate and close destroy the toast directly.
-- Progress bar expands/shrinks symmetrically from the center of the label area.
+    - disabling global animations or setting the Toast duration to 0 makes appear immediate, close destroy the toast directly, and queue movement snap into place.
+- Panel chrome: surface and border resolve through the `FluentFramePainter` modal frame tokens. The normal border uses `neutral.strokeSubtle`; enabling accent border switches to `accent.base` with the trace-in animation, so Toasts do not fall back to raw legacy `surface/border` colors.
+- The progress bar expands/shrinks symmetrically from the center of the label area. Its track derives from neutral stroke/modal surface tokens, and its fill uses the current `accent.base` token.
 
 ---
 

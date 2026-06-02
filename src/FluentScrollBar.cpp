@@ -4,6 +4,7 @@
 #include "Fluent/FluentStyle.h"
 #include "Fluent/FluentTheme.h"
 
+#include <QAbstractAnimation>
 #include <QAbstractScrollArea>
 #include <QEvent>
 #include <QMouseEvent>
@@ -15,22 +16,28 @@
 
 namespace Fluent {
 
-static QColor handleBaseColor(const ThemeColors &colors)
+static QColor handleBaseColor(const FluentThemeTokens &tokens)
 {
-    const bool dark = colors.background.lightnessF() < 0.5;
-    return dark ? QColor(255, 255, 255, 70) : QColor(0, 0, 0, 70);
+    const QColor base = tokens.dark
+        ? Style::mix(tokens.neutral.strokeStrong, tokens.legacyColors.text, 0.18)
+        : Style::mix(tokens.neutral.strokeStrong, tokens.legacyColors.text, 0.10);
+    return Style::withAlpha(base, 112);
 }
 
-static QColor handleHoverColor(const ThemeColors &colors)
+static QColor handleHoverColor(const FluentThemeTokens &tokens)
 {
-    const bool dark = colors.background.lightnessF() < 0.5;
-    return dark ? QColor(255, 255, 255, 110) : QColor(0, 0, 0, 110);
+    const QColor base = tokens.dark
+        ? Style::mix(tokens.neutral.strokeStrong, tokens.legacyColors.text, 0.28)
+        : Style::mix(tokens.neutral.strokeStrong, tokens.legacyColors.text, 0.18);
+    return Style::withAlpha(base, 158);
 }
 
-static QColor handlePressedColor(const ThemeColors &colors)
+static QColor handlePressedColor(const FluentThemeTokens &tokens)
 {
-    const bool dark = colors.background.lightnessF() < 0.5;
-    return dark ? QColor(255, 255, 255, 150) : QColor(0, 0, 0, 150);
+    const QColor base = tokens.dark
+        ? Style::mix(tokens.neutral.strokeStrong, tokens.legacyColors.text, 0.38)
+        : Style::mix(tokens.neutral.strokeStrong, tokens.legacyColors.text, 0.26);
+    return Style::withAlpha(base, 196);
 }
 
 FluentScrollBar::FluentScrollBar(Qt::Orientation orientation, QWidget *parent)
@@ -68,8 +75,25 @@ FluentScrollBar::FluentScrollBar(Qt::Orientation orientation, QWidget *parent)
     });
 
     connect(&ThemeManager::instance(), &ThemeManager::themeChanged, this, [this]() {
+        const bool snapReveal = m_revealAnim &&
+            m_revealAnim->state() == QAbstractAnimation::Running &&
+            FluentMotion::duration(FluentMotionRole::Hover) <= 0;
+        const bool snapHover = m_hoverAnim &&
+            m_hoverAnim->state() == QAbstractAnimation::Running &&
+            FluentMotion::duration(FluentMotionRole::Hover) <= 0;
+        const qreal revealTarget = m_revealAnim ? m_revealAnim->endValue().toReal() : m_revealLevel;
+        const qreal hoverTarget = m_hoverAnim ? m_hoverAnim->endValue().toReal() : m_hoverLevel;
+
         FluentMotion::configure(m_revealAnim, FluentMotionRole::Hover);
         FluentMotion::configure(m_hoverAnim, FluentMotionRole::Hover);
+        if (snapReveal) {
+            m_revealAnim->stop();
+            setRevealLevel(revealTarget);
+        }
+        if (snapHover) {
+            m_hoverAnim->stop();
+            setHoverLevel(hoverTarget);
+        }
         update();
     });
 
@@ -166,11 +190,11 @@ void FluentScrollBar::paintEvent(QPaintEvent *event)
         return;
     }
 
-    const auto &colors = ThemeManager::instance().colors();
+    const auto tokens = ThemeManager::instance().tokens();
 
-    QColor base = handleBaseColor(colors);
-    QColor hover = handleHoverColor(colors);
-    QColor pressed = handlePressedColor(colors);
+    QColor base = handleBaseColor(tokens);
+    QColor hover = handleHoverColor(tokens);
+    QColor pressed = handlePressedColor(tokens);
 
     QColor c = Style::mix(base, hover, qBound<qreal>(0.0, m_hoverLevel, 1.0));
     if (m_pressed) {
@@ -321,12 +345,18 @@ void FluentScrollBar::updateVisibility(bool animated)
 
 void FluentScrollBar::startRevealAnimation(qreal to)
 {
+    to = qBound<qreal>(0.0, to, 1.0);
     if (!m_revealAnim) {
         m_revealLevel = to;
         update();
         return;
     }
     m_revealAnim->stop();
+    if (m_revealAnim->duration() <= 0) {
+        m_revealLevel = to;
+        update();
+        return;
+    }
     m_revealAnim->setStartValue(m_revealLevel);
     m_revealAnim->setEndValue(to);
     m_revealAnim->start();
@@ -334,12 +364,18 @@ void FluentScrollBar::startRevealAnimation(qreal to)
 
 void FluentScrollBar::startHoverAnimation(qreal to)
 {
+    to = qBound<qreal>(0.0, to, 1.0);
     if (!m_hoverAnim) {
         m_hoverLevel = to;
         update();
         return;
     }
     m_hoverAnim->stop();
+    if (m_hoverAnim->duration() <= 0) {
+        m_hoverLevel = to;
+        update();
+        return;
+    }
     m_hoverAnim->setStartValue(m_hoverLevel);
     m_hoverAnim->setEndValue(to);
     m_hoverAnim->start();

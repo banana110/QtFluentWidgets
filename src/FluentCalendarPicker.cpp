@@ -3,7 +3,9 @@
 #include "Fluent/datePicker/FluentCalendarPopup.h"
 #include "Fluent/FluentStyle.h"
 #include "Fluent/FluentTheme.h"
+#include "FluentInputVisuals_p.h"
 
+#include <QAbstractAnimation>
 #include <QAbstractSpinBox>
 #include <QEasingCurve>
 #include <QEvent>
@@ -22,7 +24,7 @@ namespace {
 
 QLocale defaultCalendarLocale()
 {
-    return QLocale();
+    return QLocale(QLocale::Chinese, QLocale::China);
 }
 
 } // namespace
@@ -132,8 +134,21 @@ void FluentCalendarPicker::changeEvent(QEvent *event)
 
 void FluentCalendarPicker::applyTheme()
 {
+    const bool hoverRunning = m_hoverAnim && m_hoverAnim->state() == QAbstractAnimation::Running;
+    const bool focusRunning = m_focusAnim && m_focusAnim->state() == QAbstractAnimation::Running;
+    const QVariant hoverEnd = m_hoverAnim ? m_hoverAnim->endValue() : QVariant();
+    const QVariant focusEnd = m_focusAnim ? m_focusAnim->endValue() : QVariant();
+
     FluentMotion::configure(m_hoverAnim, FluentMotionRole::Hover);
     FluentMotion::configure(m_focusAnim, FluentMotionRole::Focus);
+    if (hoverRunning && m_hoverAnim->duration() <= 0) {
+        m_hoverAnim->stop();
+        m_hoverLevel = qBound<qreal>(0.0, hoverEnd.toReal(), 1.0);
+    }
+    if (focusRunning && m_focusAnim->duration() <= 0) {
+        m_focusAnim->stop();
+        m_focusLevel = qBound<qreal>(0.0, focusEnd.toReal(), 1.0);
+    }
 
     {
         const auto &colors = ThemeManager::instance().colors();
@@ -147,6 +162,7 @@ void FluentCalendarPicker::applyTheme()
         }
     }
     const auto &colors = ThemeManager::instance().colors();
+    const auto &tokens = ThemeManager::instance().tokens();
     if (auto *lineEdit = findChild<QLineEdit *>()) {
         const auto m = Style::metrics();
         lineEdit->setTextMargins(m.paddingX, 0, m.iconAreaWidth, 0);
@@ -154,7 +170,7 @@ void FluentCalendarPicker::applyTheme()
         const bool dark = ThemeManager::instance().themeMode() == ThemeManager::ThemeMode::Dark;
         const QColor textColor = isEnabled() ? colors.text : colors.disabledText;
 
-        QColor selectionBg = colors.accent;
+        QColor selectionBg = tokens.accent.base;
         selectionBg.setAlphaF(dark ? 0.35 : 0.22);
 
         const QString next = QStringLiteral(
@@ -172,7 +188,8 @@ void FluentCalendarPicker::applyTheme()
         QPalette pal = lineEdit->palette();
         pal.setColor(QPalette::WindowText, textColor);
         pal.setColor(QPalette::Disabled, QPalette::WindowText, colors.disabledText);
-        pal.setColor(QPalette::Text, textColor);
+        // QSS owns the rendered text color; QPalette::Text is left for the native caret.
+        pal.setColor(QPalette::Text, isEnabled() ? tokens.accent.base : colors.disabledText);
         pal.setColor(QPalette::Disabled, QPalette::Text, colors.disabledText);
         pal.setColor(QPalette::Highlight, selectionBg);
         pal.setColor(QPalette::HighlightedText, colors.text);
@@ -205,15 +222,13 @@ void FluentCalendarPicker::paintEvent(QPaintEvent *event)
     painter.setRenderHint(QPainter::Antialiasing, true);
 
     const QRectF rect = QRectF(this->rect());
-    Style::paintControlSurface(painter, rect, colors, m_hoverLevel, m_focusLevel, enabled, expanded);
+    Style::paintControlSurface(painter, rect, colors, m_hoverLevel, 0.0, enabled, expanded);
+    InputVisuals::paintFocusRing(painter, rect.adjusted(0.5, 0.5, -0.5, -0.5), colors, enabled ? m_focusLevel : 0.0);
 
     const auto m = Style::metrics();
     const QRect arrowRect(this->rect().right() - m.iconAreaWidth, this->rect().top(), m.iconAreaWidth, this->rect().height());
 
-    QColor separator = colors.border;
-    separator.setAlpha(80);
-    painter.setPen(QPen(separator, 1));
-    painter.drawLine(QPointF(arrowRect.left() + 0.5, arrowRect.top() + 8), QPointF(arrowRect.left() + 0.5, arrowRect.bottom() - 8));
+    InputVisuals::paintTrailingDivider(painter, arrowRect, colors, enabled);
 
     const QColor iconColor = enabled ? colors.subText : colors.disabledText;
     Style::drawChevronDown(painter, arrowRect.center(), iconColor, 8.0, 1.7);
@@ -386,7 +401,13 @@ void FluentCalendarPicker::hidePopup()
 
 void FluentCalendarPicker::startHoverAnimation(qreal endValue)
 {
+    FluentMotion::configure(m_hoverAnim, FluentMotionRole::Hover);
     m_hoverAnim->stop();
+    if (m_hoverAnim->duration() <= 0) {
+        m_hoverLevel = qBound<qreal>(0.0, endValue, 1.0);
+        update();
+        return;
+    }
     m_hoverAnim->setStartValue(m_hoverLevel);
     m_hoverAnim->setEndValue(endValue);
     m_hoverAnim->start();
@@ -394,7 +415,13 @@ void FluentCalendarPicker::startHoverAnimation(qreal endValue)
 
 void FluentCalendarPicker::startFocusAnimation(qreal endValue)
 {
+    FluentMotion::configure(m_focusAnim, FluentMotionRole::Focus);
     m_focusAnim->stop();
+    if (m_focusAnim->duration() <= 0) {
+        m_focusLevel = qBound<qreal>(0.0, endValue, 1.0);
+        update();
+        return;
+    }
     m_focusAnim->setStartValue(m_focusLevel);
     m_focusAnim->setEndValue(endValue);
     m_focusAnim->start();

@@ -10,7 +10,7 @@
 - `FluentColorPicker` (include: `Fluent/FluentColorPicker.h`)
 - `FluentColorDialog` (include: `Fluent/FluentColorDialog.h`)
 
-Demo pages: Pickers (`demo/pages/PagePickers.cpp`) and Overview (`demo/pages/PageOverview.cpp`).
+Demo pages: Pickers (`demo/pages/PagePickers.cpp`) and Overview (`demo/pages/PageOverview.cpp`). The Pickers page starts with a Picker State Matrix for side-by-side selected/accent and disabled checks.
 
 ## FluentCalendarPicker
 
@@ -31,7 +31,7 @@ Inheritance & construction:
 
 Visual / interaction notes:
 
-- Disables Qt's built-in calendar popup (`setCalendarPopup(false)`) and removes native spin buttons (`QAbstractSpinBox::NoButtons`). The right side becomes a custom-painted chevron area.
+- Disables Qt's built-in calendar popup (`setCalendarPopup(false)`) and removes native spin buttons (`QAbstractSpinBox::NoButtons`). The right side becomes a custom-painted chevron area, and its divider reuses the input stroke token with the disabled `disabledText` mix.
 - Chevron area width follows `Style::metrics().iconAreaWidth`, and it paints a separator + chevron.
 - The internal `QLineEdit` adds a right text margin so text/caret never sits under the chevron area.
 - Weekday headers, month names, and the first day of week follow the widget's own `locale()`. The default locale is Chinese (China).
@@ -42,7 +42,7 @@ Keyboard shortcuts:
 - `Alt+Down` or `F4`: toggle popup (similar to `QComboBox`).
 - `Esc`: closes the popup when open.
 
-Selection / caret: selection uses a semi-transparent accent; caret tries to follow accent via `QPalette`. Placeholder text keeps readability.
+Selection / caret: selection uses a semi-transparent `accent.base` token; caret tries to follow `accent.base` via `QPalette::Text`. Placeholder text keeps readability and does not follow the accent.
 
 Caveat (popup toggle timing): clicks on the text area land on the internal `QLineEdit`. The implementation uses an event filter + `QTimer::singleShot(0, ...)` to defer toggling, avoiding Qt immediately dismissing a `Qt::Popup` during the same mouse event.
 
@@ -81,8 +81,10 @@ Inheritance & construction:
 
 Visual / interaction notes:
 
-- The closed control renders segmented fields for `month / day / year`, and keeps placeholder text when no date is set.
+- The closed control renders segmented fields for `month / day / year`, keeps placeholder text when no date is set, and reuses the input stroke token for the right-side chevron divider with the disabled `disabledText` mix.
+- In the disabled empty state, placeholder text uses `disabledText` directly instead of applying an extra placeholder alpha.
 - The popup uses the same Fluent popup surface treatment as combo boxes and menus, including the shared soft shadow, rounded clipping, and open animation.
+- The wheel popup's centered selection slot uses a translucent `accent.base` treatment, column dividers use `neutral.strokeSubtle`, and bottom action hover uses a `cardHover` / accent-derived tint.
 - Each column supports mouse wheel, drag scrolling, and keyboard up/down navigation. Wheel changes now animate before snapping into the centered slot.
 - The bottom action bar is split into Accept / Cancel regions, matching the gallery-style picker flow more closely.
 - The default locale is Chinese (China), and date formatting text is resolved through the widget's own `locale()`.
@@ -127,12 +129,12 @@ Inheritance & construction:
 
 Visual / interaction notes:
 
-- The control itself uses `Style::paintControlSurface()` and paints a right-side chevron.
+- The control itself uses `Style::paintControlSurface()`, paints a right-side chevron, uses the same 2px bottom accent focus underline as the input controls, and keeps the chevron divider on the shared input stroke token including the disabled mix.
 - The popup switches `FluentCalendarPopup` into `Range` mode, with left/right panels defaulting to one month apart.
 - First click selects the start date, second click selects the end date; hover previews the pending range.
 - The in-range area uses a continuous accent band without visible vertical gaps.
 - `Esc`: cancels the current range-in-progress first; pressing again closes the popup.
-- Input hover uses `FluentMotionRole::Hover`; disabling global animations or setting the Hover duration to 0 makes the hover surface complete immediately.
+- Input hover / focus use `FluentMotionRole::Hover` / `Focus`; disabling global animations or setting the corresponding duration to 0 makes the hover surface and bottom focus underline complete immediately.
 
 Text customization APIs:
 
@@ -246,9 +248,11 @@ Inheritance & construction:
 Visual / interaction notes:
 
 - The closed control shows placeholder text until a value is chosen. By default those labels are Chinese (`时 / 分 / 上午`).
+- In the disabled empty state, placeholder text uses `disabledText` directly instead of applying an extra placeholder alpha.
 - The popup uses the same wheel picker surface as `FluentDatePicker`, with snapping columns, a bottom accept / cancel bar, and the shared soft-shadow popup surface.
+- The selection slot, column dividers, and bottom action hover inherit the same tokenized wheel picker chrome as `FluentDatePicker`.
 - Wheel switching is animated before the column snaps back to the centered selection slot.
-- The right-side chevron region is preserved so the control still reads like a form field.
+- The right-side chevron region is preserved so the control still reads like a form field; the right-side and internal column dividers reuse the input stroke token, including the disabled `disabledText` mix.
 - Supports empty state, minute stepping, and switching between 12-hour and 24-hour layouts.
 
 Key APIs:
@@ -273,6 +277,7 @@ Structure & behavior:
 
 - Composed of a read-only preview field (shows `#RRGGBB`) + a "pick color" button.
 - The preview field shows a 16x16 color swatch on the left (via `QLineEdit::addAction(LeadingPosition)`).
+- The default color comes from the current `accent.base` token; the preview field and button reuse the input/button tokenized fallback QSS instead of native palette fallback or a fixed historical blue.
 - Clicking the button opens `FluentColorDialog`:
 	- while the dialog is open, it emits `colorChanged` and this control updates live
 	- if the user cancels (or the dialog auto-closes), it rolls back to the color from before opening, avoiding "changed but not confirmed" ambiguity
@@ -297,6 +302,12 @@ Window behavior notes:
 - Draggable header: the header widget uses an event filter to implement click-drag window move.
 
 Border / emphasis effect: internally uses `FluentBorderEffect` + `FluentFramePainter` to paint a rounded surface + 1px border + optional accent trace; `showEvent` plays an initial trace once.
+
+Color-panel chrome:
+
+- Dialog separators, swatch borders, HSV/Alpha/gradient track borders, and the eyedropper button chrome are derived from `FluentThemeTokens` (`neutral.card` / `cardHover` / `fillTertiary` / `strokeSubtle` / `accent.base`).
+- Transparent checkerboards use neutral-token light/dark cells instead of fixed black/white remnants; drag handles also derive their border, shadow, and fill from the current theme.
+- If the constructor receives an invalid color, the reset/current initial value falls back to the current `accent.base` instead of a fixed historical blue.
 
 Data model (semantics):
 

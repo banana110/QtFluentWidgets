@@ -10,7 +10,7 @@
 - `FluentColorPicker`（include: `Fluent/FluentColorPicker.h`）
 - `FluentColorDialog`（include: `Fluent/FluentColorDialog.h`）
 
-Demo 页面：Pickers（`demo/pages/PagePickers.cpp`）与 Overview（`demo/pages/PageOverview.cpp`）。
+Demo 页面：Pickers（`demo/pages/PagePickers.cpp`）与 Overview（`demo/pages/PageOverview.cpp`）。Pickers 页顶部提供 Picker State Matrix，可横向检查 selected/accent 与 disabled 状态。
 
 ## FluentCalendarPicker
 
@@ -31,7 +31,7 @@ picker->setDate(QDate::currentDate());
 
 外观/交互要点：
 
-- 禁用 Qt 自带日历弹窗（`setCalendarPopup(false)`），并去掉原生 spinbox 按钮（`NoButtons`），改为自绘右侧下拉箭头区域。
+- 禁用 Qt 自带日历弹窗（`setCalendarPopup(false)`），并去掉原生 spinbox 按钮（`NoButtons`），改为自绘右侧下拉箭头区域；右侧分隔线复用输入描边 token，禁用态会混入 `disabledText`。
 - 右侧箭头区域宽度来自 `Style::metrics().iconAreaWidth`，并绘制分隔线 + chevron。
 - 内部 `QLineEdit` 会设置右侧 text margin 以避开箭头区域（保证文字与光标不被遮挡）。
 - 弹层里的星期标题、月份名称和每周起始列会跟随控件自身 `locale()`；默认 locale 为中文（中国）。
@@ -42,7 +42,7 @@ picker->setDate(QDate::currentDate());
 - `Alt+Down` 或 `F4`：切换弹窗显示/隐藏（与 `QComboBox` 类似）。
 - `Esc`：当弹窗已打开时关闭弹窗。
 
-文本选区/光标：选区背景使用 accent 半透明色；caret 尝试跟随 accent（通过 `QPalette`），placeholder（Qt>=5.12）保持可读性。
+文本选区/光标：选区背景使用半透明 `accent.base` token；caret 尝试通过 `QPalette::Text` 跟随 `accent.base`，placeholder（Qt>=5.12）保持可读性且不跟随 accent。
 
 关键 API：
 
@@ -83,8 +83,10 @@ picker->setVisibleParts(Fluent::FluentDatePicker::MonthPart
 
 外观 / 交互要点：
 
-- 关闭状态下使用分段字段展示 `month / day / year`，空状态保留占位文案。
+- 关闭状态下使用分段字段展示 `month / day / year`，空状态保留占位文案；右侧 chevron 分隔线复用输入描边 token，禁用态会混入 `disabledText`。
+- 禁用空状态下，占位文案直接使用 `disabledText`，不会再叠加 placeholder alpha 导致文字过弱。
 - 弹层使用 `Qt::Popup` + Fluent popup surface，带统一软阴影、圆角裁剪和打开动效，风格与组合框 / 菜单弹层一致。
+- 滚轮弹层的中心选中槽使用 `accent.base` 半透明强调，列分隔线使用 `neutral.strokeSubtle`，底部操作 hover 使用 `cardHover` 与 accent 的派生色。
 - 每一列都支持鼠标滚轮、拖动滚动和键盘上下键；滚轮切换带缓动动画，结束后会自动吸附到中心选中位。
 - 底部操作栏分为确认 / 取消两个区域，行为更接近 WinUI Gallery 的 DatePicker。
 - 默认 locale 为中文（中国），月份/日期/年份格式化文本走控件自身 `locale()`。
@@ -129,12 +131,12 @@ picker->setEndPrefix(QStringLiteral("结束："));
 
 外观/交互要点：
 
-- 控件自身使用 `Style::paintControlSurface()` 绘制输入框表面，右侧带下拉 chevron。
+- 控件自身使用 `Style::paintControlSurface()` 绘制输入框表面，右侧带下拉 chevron；焦点反馈与输入控件一致，使用底部 2px accent underline，右侧分隔线复用输入描边 token 并遵循禁用态混色。
 - 弹出的 `FluentCalendarPopup` 会切到 `Range` 模式，左右两个月份面板默认相差 1 个月。
 - 第一次点击日期选开始，第二次点击选结束；悬停时会实时预览范围。
 - 开始/结束日期之间的区间使用连续 accent 带填充，中间不留竖线缝隙。
 - `Esc`：若当前正在选结束日期，则取消本次范围选择；再次按下关闭弹窗。
-- 输入框 hover 使用 `FluentMotionRole::Hover`；关闭全局动画或把 Hover 时长设为 0 时，hover 背景会即时完成。
+- 输入框 hover / focus 分别使用 `FluentMotionRole::Hover` / `Focus`；关闭全局动画或把对应时长设为 0 时，hover 背景和底部焦点线会即时完成。
 
 文本配置 API：
 
@@ -240,9 +242,11 @@ tp->setTime(QTime::currentTime());
 外观/交互要点：
 
 - 关闭状态下展示占位文案；默认是中文的“时 / 分 / 上午”，如果已有值则显示当前时间。
+- 禁用空状态下，占位文案直接使用 `disabledText`，不会再叠加 placeholder alpha 导致文字过弱。
 - 弹层使用与 `FluentDatePicker` 相同的 wheel picker popup，所有列支持滚动吸附，并复用统一软阴影 popup surface。
+- 选中槽、列分隔线与底部操作 hover 均继承 `FluentDatePicker` 的 token 化 wheel picker chrome。
 - 滚轮切换带缓动动画，快速切换时仍会稳定吸附到中心选中位。
-- 保留右侧 chevron 区域，外观上仍然是表单输入控件，而不是单独的按钮。
+- 保留右侧 chevron 区域，外观上仍然是表单输入控件而不是单独的按钮；右侧与内部列分隔线复用输入描边 token，禁用态会混入 `disabledText`。
 - 支持空状态、`minuteIncrement` 和 24 小时制切换。
 
 关键 API：
@@ -272,6 +276,7 @@ cp->setColor(QColor("#2D7DFF"));
 
 - 由一个只读预览输入框（显示 `#RRGGBB`）+ “选择颜色”按钮组成。
 - 预览框左侧会显示一个 16x16 的颜色方块（通过 `QLineEdit::addAction(LeadingPosition)` 实现）。
+- 默认颜色来自当前 `accent.base` token；预览输入框与按钮分别复用输入控件和按钮族的 token 化 fallback QSS，不再回退到原生 palette 或固定蓝色。
 - 点击按钮会打开 `FluentColorDialog`：
 	- 对话框打开期间会实时发出 `colorChanged` 并同步到该控件。
 	- 若用户取消/对话框自动关闭，会回滚到打开前的颜色（避免“预览改了但没确认”的语义歧义）。
@@ -313,6 +318,12 @@ dlg->exec();
 - 可拖拽标题栏：header widget 安装事件过滤器，按下拖拽移动窗口。
 
 边框/强调效果：内部使用 `FluentBorderEffect` + `FluentFramePainter` 绘制圆角 surface + 1px border + 可选 accent trace；`showEvent` 会播放一次初始 trace。
+
+颜色面板质感：
+
+- 对话框分割线、色块边框、HSV/Alpha/渐变条边框与吸管按钮 chrome 均从 `FluentThemeTokens` 派生（`neutral.card` / `cardHover` / `fillTertiary` / `strokeSubtle` / `accent.base`）。
+- 透明棋盘格使用 neutral token 的浅/深格，不再使用固定黑白残留；拖拽 handle 的描边、阴影与填充也跟随当前主题。
+- 当构造函数传入无效颜色时，reset/current 初始值会回到当前 `accent.base`，而不是固定历史蓝色。
 
 数据模型（语义）：
 

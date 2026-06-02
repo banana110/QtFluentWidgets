@@ -87,8 +87,9 @@ public:
         const QColor &normalBorderOverride = QColor(),
         const QColor &accentBorderOverride = QColor()) const
     {
-        const QColor normalBorder = normalBorderOverride.isValid() ? normalBorderOverride : colors.border;
-        const QColor accentBorder = accentBorderOverride.isValid() ? accentBorderOverride : colors.accent;
+        const auto tokens = Theme::tokens(colors);
+        const QColor normalBorder = normalBorderOverride.isValid() ? normalBorderOverride : tokens.neutral.strokeSubtle;
+        const QColor accentBorder = accentBorderOverride.isValid() ? accentBorderOverride : tokens.accent.base;
 
         const bool animating = m_trace.isAnimating();
         const QColor fromBorderColor = m_trace.fromEnabled() ? accentBorder : normalBorder;

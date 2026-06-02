@@ -3,7 +3,9 @@
 #include "Fluent/FluentMotion.h"
 #include "Fluent/FluentStyle.h"
 #include "Fluent/FluentTheme.h"
+#include "FluentButtonVisuals_p.h"
 
+#include <QAbstractAnimation>
 #include <QEvent>
 #include <QMouseEvent>
 #include <QPainter>
@@ -21,6 +23,7 @@ struct ButtonColors
     QColor hover;
     QColor pressed;
     QColor border;
+    QColor bottomBorder;
     QColor text;
 };
 
@@ -40,37 +43,10 @@ QSize boundedIconSize(const QSize &size)
 
 ButtonColors resolveButtonColors(const ThemeColors &colors, bool primary, bool checked, bool enabled)
 {
-    ButtonColors resolved;
     const auto tokens = Theme::tokens(colors);
-
-    if (primary) {
-        resolved.base = checked ? tokens.accent.dark1 : tokens.accent.base;
-        resolved.hover = tokens.accent.light1;
-        resolved.pressed = tokens.accent.dark1;
-        resolved.border = Style::mix(tokens.accent.base, tokens.onAccent, 0.18);
-        resolved.text = tokens.onAccent;
-    } else {
-        const QColor accentTint = Style::mix(colors.surface, colors.accent, 0.12);
-        resolved.base = checked ? accentTint : colors.surface;
-        resolved.hover = checked
-                             ? Style::mix(accentTint, colors.accent, 0.10)
-                             : Style::mix(colors.surface, colors.hover, 0.88);
-        resolved.pressed = checked
-                               ? Style::mix(accentTint, colors.accent, 0.18)
-                               : Style::mix(colors.surface, colors.pressed, 0.92);
-        resolved.border = checked ? Style::mix(colors.border, colors.accent, 0.85) : colors.border;
-        resolved.text = checked ? Theme::contrastColor(accentTint) : colors.text;
-    }
-
-    if (!enabled) {
-        resolved.base = Style::mix(colors.surface, colors.hover, 0.45);
-        resolved.hover = resolved.base;
-        resolved.pressed = resolved.base;
-        resolved.border = Style::mix(colors.border, colors.disabledText, 0.25);
-        resolved.text = colors.disabledText;
-    }
-
-    return resolved;
+    const ButtonVisuals::StateColors state =
+        ButtonVisuals::resolve(colors, tokens, primary, checked, enabled);
+    return {state.base, state.hover, state.pressed, state.border, state.bottomBorder, state.text};
 }
 
 } // namespace
@@ -221,11 +197,17 @@ void FluentAnimatedButton::paintEvent(QPaintEvent *event)
     updateAnimatedIconGeometry();
 
     const auto &colors = ThemeManager::instance().colors();
+    const auto &tokens = ThemeManager::instance().tokens();
     const bool checked = isCheckable() && isChecked();
     const ButtonColors buttonColors = resolveButtonColors(colors, m_primary, checked, isEnabled());
-
-    QColor fill = Style::mix(buttonColors.base, buttonColors.hover, m_hoverLevel);
-    fill = Style::mix(fill, buttonColors.pressed, m_pressLevel);
+    const ButtonVisuals::StateColors state = {buttonColors.base,
+                                              buttonColors.hover,
+                                              buttonColors.pressed,
+                                              buttonColors.border,
+                                              buttonColors.bottomBorder,
+                                              buttonColors.text};
+    const QColor fill = ButtonVisuals::fillForState(state, m_hoverLevel, m_pressLevel);
+    const QColor textColor = ButtonVisuals::textForState(buttonColors.text, m_pressLevel, isEnabled());
 
     QPainter painter(this);
     if (!painter.isActive()) {
@@ -239,12 +221,10 @@ void FluentAnimatedButton::paintEvent(QPaintEvent *event)
     const QRectF rect = QRectF(this->rect()).adjusted(0.5, 0.5, -0.5, -0.5);
     const qreal radius = m.radius;
 
-    painter.setPen(QPen(buttonColors.border, 1.0));
-    painter.setBrush(fill);
-    painter.drawRoundedRect(rect, radius, radius);
+    ButtonVisuals::paintRoundedControl(painter, rect, radius, fill, buttonColors.border, buttonColors.bottomBorder);
 
     if (checked && m_primary && isEnabled()) {
-        QColor inner = buttonColors.text;
+        QColor inner = textColor;
         inner.setAlpha(115);
         painter.setPen(QPen(inner, 1.0));
         painter.setBrush(Qt::NoBrush);
@@ -252,7 +232,7 @@ void FluentAnimatedButton::paintEvent(QPaintEvent *event)
     }
 
     if (hasFocus() && isEnabled()) {
-        QColor focus = colors.focus;
+        QColor focus = tokens.accent.base;
         focus.setAlpha(230);
         painter.setPen(QPen(focus, 2.0));
         painter.setBrush(Qt::NoBrush);
@@ -273,7 +253,7 @@ void FluentAnimatedButton::paintEvent(QPaintEvent *event)
                          contentRect.right() - textLeft + 1,
                          contentRect.height());
 
-    painter.setPen(buttonColors.text);
+    painter.setPen(textColor);
     painter.setFont(font());
     painter.drawText(textRect, Qt::AlignLeft | Qt::AlignVCenter | Qt::TextShowMnemonic, text());
 }
@@ -361,14 +341,28 @@ void FluentAnimatedButton::initialize()
 
 void FluentAnimatedButton::applyTheme()
 {
+    const bool hoverRunning = m_hoverAnim && m_hoverAnim->state() == QAbstractAnimation::Running;
+    const bool pressRunning = m_pressAnim && m_pressAnim->state() == QAbstractAnimation::Running;
+    const QVariant hoverEnd = m_hoverAnim ? m_hoverAnim->endValue() : QVariant();
+    const QVariant pressEnd = m_pressAnim ? m_pressAnim->endValue() : QVariant();
+
     FluentMotion::configure(m_hoverAnim, FluentMotionRole::Hover);
     FluentMotion::configure(m_pressAnim, FluentMotionRole::Press);
+    if (hoverRunning && m_hoverAnim->duration() <= 0) {
+        m_hoverAnim->stop();
+        m_hoverLevel = qBound<qreal>(0.0, hoverEnd.toReal(), 1.0);
+    }
+    if (pressRunning && m_pressAnim->duration() <= 0) {
+        m_pressAnim->stop();
+        m_pressLevel = qBound<qreal>(0.0, pressEnd.toReal(), 1.0);
+    }
     updateAnimatedIconTint();
     update();
 }
 
 void FluentAnimatedButton::startHoverAnimation(qreal endValue)
 {
+    FluentMotion::configure(m_hoverAnim, FluentMotionRole::Hover);
     m_hoverAnim->stop();
     if (m_hoverAnim->duration() <= 0) {
         setHoverLevel(endValue);
@@ -381,6 +375,7 @@ void FluentAnimatedButton::startHoverAnimation(qreal endValue)
 
 void FluentAnimatedButton::startPressAnimation(qreal endValue)
 {
+    FluentMotion::configure(m_pressAnim, FluentMotionRole::Press);
     m_pressAnim->stop();
     if (m_pressAnim->duration() <= 0) {
         setPressLevel(endValue);

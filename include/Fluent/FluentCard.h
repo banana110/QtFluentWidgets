@@ -63,6 +63,7 @@ private:
     void updateCollapseIndicatorGeometry();
     void syncCollapseIndicatorSpeed(int startFrame, int endFrame);
     void applyCollapsedState(bool animated);
+    void finishCollapseAnimationImmediately();
     void startHoverAnimation(qreal endValue);
     void lockContentHeightForAnimation(int height);
     void releaseContentHeightLock();

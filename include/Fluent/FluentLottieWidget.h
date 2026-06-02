@@ -100,6 +100,8 @@ private:
     void advanceFrame();
     void clearRenderCache();
     void syncTimerInterval();
+    void syncReducedMotionState();
+    void finishActiveSegmentImmediately(bool emitFinished);
     void syncAnimationMetadata();
     void setError(const QString &error);
 

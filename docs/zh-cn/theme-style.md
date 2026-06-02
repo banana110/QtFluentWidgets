@@ -13,7 +13,7 @@
 - `Fluent/FluentStyle.h`
 - `Fluent/FluentMotion.h`
 
-Demo 页面：Overview（`demo/pages/PageOverview.cpp`）与 Windows（`demo/pages/PageWindows.cpp`）。
+Demo 页面：Overview（`demo/pages/PageOverview.cpp`）、Motion（`demo/pages/PageMotion.cpp`）与 Windows（`demo/pages/PageWindows.cpp`）。Motion 页顶部提供 Motion Role Matrix，可横向检查各语义动效角色的 configured/effective duration 与 reduced-motion 结果。
 
 ## 主题切换
 
@@ -71,6 +71,12 @@ colors.accent = QColor("#2D7DFF");
 ThemeManager::instance().setColors(colors);
 ```
 
+## Token ramps 与 Surface / Elevation
+
+`FluentFramePainter.h` 提供 `FluentSurfaceSpec` 与 `paintFluentSurface()`，用于把 Background / Pane / Card / Raised / Popup / Modal 等层级映射到统一的填充、描边和轻量阴影。
+
+Demo 的 Theme 面板包含 Token ramps 与 Surface / Elevation 预览：调整 Background、Surface、Accent 或切换深浅色时，可以直接观察 accent ramp、neutral ramp、radius token，以及各 surface/elevation 层级的分离度。
+
 ## 自绘输入面板（统一风格）
 
 如需自定义控件并保持与输入控件一致，可使用：
@@ -86,6 +92,7 @@ Style::paintControlSurface(p, QRectF(rect()), ThemeManager::instance().colors(),
 关键 API：
 
 - `Style::metrics()`：控件默认尺寸/圆角/padding。
+- `Style::paintControlSurface()` 的 focus stroke 使用当前 `accent.base` token；若传入旧 `ThemeColors::focus` 自定义色，也不会绕过 token ramp。
 - `Style::windowMetrics()` / `Style::setWindowMetrics(...)`：标题栏高度、窗口按钮尺寸、accent trace 动画参数等。
 - `Style::roundedRectPath(...)` / `paintTraceBorder(...)` / `paintElevationShadow(...)`：用于窗口/弹窗/卡片等自绘。
 
@@ -136,8 +143,8 @@ Fluent::ThemeManager::instance().setMotionTokens(tokens);
 Reduced motion：
 
 - `ThemeManager::setAnimationsEnabled(false)` 会让 `FluentMotion::duration(...)` 返回 0。
-- 已迁移控件会在下一次状态变化时即时完成动画；例如 Button/ToolButton/LineEdit/ComboBox 的 hover/focus 直接落到最终状态，popup 直接显示到最终几何，Toggle/Check/Radio/Slider/Progress 直接跳到目标状态。
-- 容器、导航和弹层控件也会跟随该开关：NavigationView 的 pane/selection、TabWidget 的切换指示器、DataViews hover、ScrollBar reveal/hover、DateRangePicker hover、TeachingTip mask、Toast opacity 和 Demo Page transition 都会直接完成或静态展示。
+- 已迁移控件会在下一次状态变化时即时完成动画；例如 Button/ToolButton/输入控件族/ComboBox 的 hover/focus 直接落到最终状态，popup 直接显示到最终几何，Toggle/Check/Radio/Slider/Progress 直接跳到目标状态。
+- 容器、导航、弹层和 Lottie 控件也会跟随该开关：NavigationView 的 pane/selection、TabWidget 的切换指示器、DataViews hover、ScrollBar reveal/hover、picker hover/focus、TeachingTip mask、Toast opacity 与队列移动、Lottie 片段/状态过渡和 Demo Page transition 都会直接完成或静态展示。
 - 对于 `FluentProgressRing` 的 indeterminate 状态，关闭全局动画会暂停旋转，只保留静态进度/弧段展示。
 
 ## Theme::baseStyleSheet（全局 QSS）
@@ -146,13 +153,16 @@ Reduced motion：
 
 - 全局字体（`Segoe UI`/`Microsoft YaHei UI` 等）与默认字号（14px）
 - window 背景色（`QWidget:window, QMainWindow, QDialog`）
-- Win11-like overlay 滚动条（仅在 `QAbstractScrollArea:hover` 时显示 handle 更明显）
-- `QToolTip` 外观
+- Win11-like overlay 滚动条（仅在 `QAbstractScrollArea:hover` 时显示 handle 更明显），handle 颜色由 `neutral.strokeStrong` 与文本 token 派生，不再使用固定灰色 `rgba(...)`
+- `QToolTip` 外观，背景与描边分别由 `neutral.layer` / `neutral.strokeSubtle` 和 `accent.base` 轻量混合得到
 - `QLabel#FluentLink` 的链接色
 
 补充说明：
 
 - `Theme::baseStyleSheet(...)` 负责的是“全局底座外观”，并不直接承担 `FluentMainWindow` 外层描边的绘制；主窗口的 accent 描边与 trace 动画是自绘的。
+- `FluentMainWindow` 同步 `QApplication` palette 时也会使用同一套 neutral/accent token（Base、AlternateBase、ToolTipBase、Mid、Highlight 等），避免 native/fallback 路径回到旧 `surface/border/accent` 直取。
+- `FluentMainWindow` 的应用级 QSS / palette 缓存签名会跟踪实际派生出的 token 色；即使只调整 `border` / `pressed` / `error`，tooltip、scrollbar 和 native palette 角色也会刷新到新的 `strokeSubtle` / `fillTertiary` / semantic token。
+- `Theme::*Style(...)` 的控件级 fallback QSS 也遵循同一套 token：disabled surface 向 `neutral.background` 收敛，pressed 使用 `neutral.fillTertiary`，CheckBox fallback checkmark 使用随 `onAccent` 切换的库内 SVG，RadioButton fallback checked 态使用 token 化径向渐变绘制 accent 内点与 neutral 圆面，ProgressBar disabled chunk 使用 muted `accent.base`，slider/dialog 的暗色提亮使用当前 text token，不再直接混旧 `hover` / `pressed`、平台原生图片或固定白色。
 - 因为 `FluentMainWindow` 会在主题变化时做“相等判定”后再决定是否重新设置 `qApp->setStyleSheet(...)`，所以一般不会因为重复 themeChanged 而触发不必要的全量 repolish。
 
 ## 相关头文件

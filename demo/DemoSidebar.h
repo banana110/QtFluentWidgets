@@ -9,6 +9,7 @@
 class QStringListModel;
 
 namespace Fluent {
+class FluentAnnotatedScrollBar;
 class FluentListView;
 }
 
@@ -31,9 +32,13 @@ signals:
     void languageChanged(DemoLanguage language);
 
 private:
+    void resizeEvent(QResizeEvent *event) override;
+    void refreshAnnotatedSources();
+
     QPointer<QWidget> m_hostWindow;
     QStringListModel *m_navModel = nullptr;
     Fluent::FluentListView *m_navView = nullptr;
+    Fluent::FluentAnnotatedScrollBar *m_annotatedScrollBar = nullptr;
 
     Fluent::FluentToast::Position m_toastPosition = Fluent::FluentToast::Position::BottomRight;
 };

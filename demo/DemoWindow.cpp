@@ -149,8 +149,9 @@ void animateStackPageTransition(QStackedWidget *stack, QWidget *page, int previo
         if (!oldEffect->property("_demoPageTransitionEffect").toBool()) {
             return;
         }
-        page->setGraphicsEffect(nullptr);
-        oldEffect->deleteLater();
+        // A transition is already animating this page. The running animation owns
+        // its cleanup; clearing the effect here would delete its animation target.
+        return;
     }
 
     const QPoint finalPos = page->pos();
@@ -182,12 +183,23 @@ void animateStackPageTransition(QStackedWidget *stack, QWidget *page, int previo
     QObject::connect(group, &QParallelAnimationGroup::finished, page, [page, effect, finalPos, group]() {
         page->move(finalPos);
         if (page->graphicsEffect() == effect) {
+            // QWidget owns graphicsEffect(); setGraphicsEffect(nullptr) deletes it.
             page->setGraphicsEffect(nullptr);
         }
-        effect->deleteLater();
         group->deleteLater();
     });
     group->start();
+}
+
+void fitCommandButtonText(FluentButton *button, int minimumWidth = 72)
+{
+    if (!button) {
+        return;
+    }
+
+    const int horizontalPadding = 28;
+    const int textWidth = button->fontMetrics().horizontalAdvance(button->text());
+    button->setFixedSize(qMax(minimumWidth, textWidth + horizontalPadding), 28);
 }
 
 } // namespace
@@ -281,7 +293,7 @@ void DemoWindow::buildUi()
     lightAction->setChecked(!isDarkAtStartup);
     QObject::connect(lightAction, &QAction::triggered, []() { ThemeManager::instance().setLightMode(); });
     QObject::connect(darkAction, &QAction::triggered, []() { ThemeManager::instance().setDarkMode(); });
-    QObject::connect(&ThemeManager::instance(), &ThemeManager::themeChanged, this, [lightAction, darkAction]() {
+    QObject::connect(&ThemeManager::instance(), &ThemeManager::themeChanged, menuBar, [lightAction, darkAction]() {
         const bool isDark = ThemeManager::instance().themeMode() == ThemeManager::ThemeMode::Dark;
         darkAction->setChecked(isDark);
         lightAction->setChecked(!isDark);
@@ -360,8 +372,8 @@ void DemoWindow::buildUi()
 
         auto *toastOne = new FluentButton(DEMO_TEXT("发一条", "Send one"));
         auto *toastAll = new FluentButton(DEMO_TEXT("全位置", "All positions"));
-        toastOne->setFixedSize(72, 28);
-        toastAll->setFixedSize(72, 28);
+        fitCommandButtonText(toastOne);
+        fitCommandButtonText(toastAll);
         toastOne->setToolTip(DEMO_TEXT("按当前选择的位置发送一条 Toast", "Send one Toast at the selected position"));
         toastAll->setToolTip(DEMO_TEXT("在所有位置依次弹出 Toast（用于对比布局）", "Show Toasts in every position for layout comparison"));
 
@@ -522,6 +534,12 @@ void DemoWindow::buildUi()
             buttons.text = DEMO_TEXT("按钮/开关", "Buttons / Toggles");
             applyIcon(buttons, FluentIconType::Controls);
             basicInput.children.push_back(buttons);
+
+            NI angles;
+            angles.key  = QStringLiteral("angles");
+            angles.text = DEMO_TEXT("角度控件", "Angle Controls");
+            applyIcon(angles, FluentIconType::Gauge);
+            basicInput.children.push_back(angles);
         }
         mainItems.push_back(basicInput);
 
@@ -543,12 +561,6 @@ void DemoWindow::buildUi()
         pickers.text = DEMO_TEXT("选择器", "Pickers");
         applyIcon(pickers, FluentIconType::Calendar);
         mainItems.push_back(pickers);
-
-        NI angles;
-        angles.key  = QStringLiteral("angles");
-        angles.text = DEMO_TEXT("角度控件", "Angle Controls");
-        applyIcon(angles, FluentIconType::Gauge);
-        mainItems.push_back(angles);
 
         NI dataViews;
         dataViews.key  = QStringLiteral("dataviews");

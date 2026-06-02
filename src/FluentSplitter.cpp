@@ -4,6 +4,7 @@
 #include "Fluent/FluentTheme.h"
 #include "Fluent/FluentQtCompat.h"
 
+#include <QAbstractAnimation>
 #include <QEvent>
 #include <QPainter>
 #include <QSplitterHandle>
@@ -22,15 +23,24 @@ public:
     {
         setMouseTracking(true);
         setCursor(orientation == Qt::Horizontal ? Qt::SplitHCursor : Qt::SplitVCursor);
+        setProperty("fluentHoverLevel", m_hoverLevel);
 
         m_hoverAnim = new QVariantAnimation(this);
         FluentMotion::configure(m_hoverAnim, FluentMotionRole::Hover);
         connect(m_hoverAnim, &QVariantAnimation::valueChanged, this, [this](const QVariant &v) {
-            m_hoverLevel = v.toReal();
+            m_hoverLevel = qBound<qreal>(0.0, v.toReal(), 1.0);
+            setProperty("fluentHoverLevel", m_hoverLevel);
             update();
         });
         connect(&ThemeManager::instance(), &ThemeManager::themeChanged, this, [this]() {
+            const bool running = m_hoverAnim && m_hoverAnim->state() == QAbstractAnimation::Running;
+            const QVariant end = m_hoverAnim ? m_hoverAnim->endValue() : QVariant();
             FluentMotion::configure(m_hoverAnim, FluentMotionRole::Hover);
+            if (running && m_hoverAnim->duration() <= 0) {
+                m_hoverAnim->stop();
+                m_hoverLevel = qBound<qreal>(0.0, end.toReal(), 1.0);
+                setProperty("fluentHoverLevel", m_hoverLevel);
+            }
             update();
         });
     }
@@ -59,7 +69,7 @@ protected:
 
         p.setRenderHint(QPainter::Antialiasing, true);
 
-        const auto &colors = ThemeManager::instance().colors();
+        const auto tokens = ThemeManager::instance().tokens();
 
         // Handle is kept wide enough to grab, but visuals stay minimal.
         const QRectF r = QRectF(rect());
@@ -68,7 +78,7 @@ protected:
 
         // Always-on subtle separator line.
         {
-            QColor line = colors.border;
+            QColor line = tokens.neutral.strokeSubtle;
             const int baseA = 110;
             const int hoverA = 165;
             line.setAlpha(qBound(0, int(baseA + (hoverA - baseA) * m_hoverLevel), 255));
@@ -99,14 +109,14 @@ protected:
                 pill = QRectF(r.center().x() - w / 2.0, r.center().y() - h / 2.0, w, h);
             }
 
-            QColor pillFill = colors.hover;
-            pillFill.setAlpha(qBound(0, int(std::lround(70.0 * t)), 90));
+            QColor pillFill = tokens.neutral.cardHover;
+            pillFill.setAlpha(qBound(0, int(std::lround((tokens.dark ? 92.0 : 76.0) * t)), 110));
             p.setPen(Qt::NoPen);
             p.setBrush(pillFill);
             p.drawRoundedRect(pill, 4.0, 4.0);
 
-            QColor dot = colors.subText;
-            dot.setAlpha(qBound(0, int(std::lround(150.0 * t)), 170));
+            QColor dot = tokens.neutral.strokeStrong;
+            dot.setAlpha(qBound(0, int(std::lround((tokens.dark ? 170.0 : 145.0) * t)), 190));
             p.setPen(Qt::NoPen);
             p.setBrush(dot);
 
@@ -130,13 +140,22 @@ protected:
 private:
     void startHover(qreal end)
     {
+        end = qBound<qreal>(0.0, end, 1.0);
         if (!m_hoverAnim) {
             m_hoverLevel = end;
+            setProperty("fluentHoverLevel", m_hoverLevel);
             update();
             return;
         }
 
+        FluentMotion::configure(m_hoverAnim, FluentMotionRole::Hover);
         m_hoverAnim->stop();
+        if (m_hoverAnim->duration() <= 0) {
+            m_hoverLevel = end;
+            setProperty("fluentHoverLevel", m_hoverLevel);
+            update();
+            return;
+        }
         m_hoverAnim->setStartValue(m_hoverLevel);
         m_hoverAnim->setEndValue(end);
         m_hoverAnim->start();

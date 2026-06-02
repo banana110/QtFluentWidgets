@@ -2,12 +2,13 @@
 
 This module covers common input/edit widgets (excluding date/time/color pickers and the code editor), and also includes angle-input controls.
 
-Demo pages: Inputs (`demo/pages/PageInputs.cpp`), Angle Controls (`demo/pages/PageAngleControls.cpp`), and Overview (`demo/pages/PageOverview.cpp`).
+Demo pages: Basic Input (`demo/pages/PageBasicInput.cpp`), Inputs (`demo/pages/PageInputs.cpp`), Angle Controls (`demo/pages/PageAngleControls.cpp`), and Overview (`demo/pages/PageOverview.cpp`). The Basic Input page starts with a Hub Matrix for Ready / Active / Disabled checks across text, numeric/combo, command, and selection controls.
 
 ## Widget list (public headers)
 
 - `FluentLineEdit` (include: `Fluent/FluentLineEdit.h`)
 - `FluentAutoSuggestBox` / `FluentSearchBox` (include: `Fluent/FluentAutoSuggestBox.h`)
+- `FluentKeySequenceEdit` (include: `Fluent/FluentKeySequenceEdit.h`)
 - `FluentTextEdit` (include: `Fluent/FluentTextEdit.h`)
 - `FluentComboBox` (include: `Fluent/FluentComboBox.h`)
 - `FluentSpinBox` / `FluentDoubleSpinBox` (include: `Fluent/FluentSpinBox.h`)
@@ -27,7 +28,7 @@ Related but documented under Containers/Layout:
 
 ## FluentLineEdit
 
-Purpose: a `QLineEdit` painted with `Style::paintControlSurface()` for a unified rounded surface + 1px border + focus ring, with hover/focus animations.
+Purpose: a `QLineEdit` painted with `Style::paintControlSurface()` for a unified rounded surface + 1px border, plus a full accent focus ring and hover/focus animations.
 
 Inheritance & construction:
 
@@ -37,8 +38,10 @@ Inheritance & construction:
 Visual / interaction notes:
 
 - Disables the native frame (`setFrame(false)`), and uses `Style::metrics()` for paddings and minimum height.
-- Selection background is a semi-transparent accent (different alpha for light/dark).
-- Caret tries to follow accent (via `QPalette::Text`), while actual text color is controlled by stylesheet; placeholder text stays readable and does not follow accent.
+- Selection background is a semi-transparent `accent.base` token (different alpha for light/dark).
+- Caret tries to follow `accent.base` (via `QPalette::Text`), while actual text color is controlled by stylesheet; placeholder text stays readable and does not follow accent.
+- Focus uses a full 2px `accent.base` focus ring, and the fallback QSS mirrors this with a full focus border resolved from the current token.
+- Hover/focus use `FluentMotionRole::Hover` / `Focus`; when global animations are disabled, the next hover/focus transition jumps to its final state.
 
 Theme coupling: listens to `ThemeManager::themeChanged` and `EnabledChange` to update stylesheet/palette and repaint.
 
@@ -97,7 +100,41 @@ connect(search, &Fluent::FluentSearchBox::submitted, this, [](const QString &tex
 Notes:
 
 - The suggestion popup is drawn by the library, matching `FluentComboBox` with a rounded panel, Fluent scroll bar, and custom suggestion rows.
+- Re-focusing the inner line edit with existing query text reopens matching suggestions. Popup placement uses the shared Fluent placement helper, opens above or below as space allows, and keeps the content clear of the input anchor.
+- Reduced motion is honored: disabling global animations finishes the popup reveal immediately and clears transient masks/opacity.
 - `FluentSearchBox` shows the search button by default; use `FluentAutoSuggestBox` for suggestions-only input.
+
+Demo: Inputs / Overview.
+
+---
+
+## FluentKeySequenceEdit
+
+Purpose: a shortcut editor (`QKeySequenceEdit`) that visually matches the rest of the input family with a unified rounded surface, full accent focus ring, and hover/focus motion.
+
+Inheritance & construction:
+
+- `class FluentKeySequenceEdit : public QKeySequenceEdit`
+- Constructors: `FluentKeySequenceEdit(QWidget*)`, `FluentKeySequenceEdit(const QKeySequence&, QWidget*)`
+
+Visual / interaction notes:
+
+- The internal editor syncs its theme palette, selection color, and placeholder color with the input tokens.
+- `sizeHint()` / `minimumSizeHint()` use Fluent input height and padding, so it can sit directly in form rows.
+- Hover/focus use `FluentMotionRole::Hover` / `Focus`; disabling global animations jumps directly to the final state.
+
+Key APIs:
+
+- Inherits `QKeySequenceEdit`: use `setKeySequence()` / `keySequence()`.
+- `hoverLevel` / `focusLevel` (Q_PROPERTY)
+
+Example:
+
+```cpp
+#include "Fluent/FluentKeySequenceEdit.h"
+
+auto *shortcut = new Fluent::FluentKeySequenceEdit(QKeySequence(QStringLiteral("Ctrl+K")));
+```
 
 Demo: Inputs / Overview.
 
@@ -105,7 +142,7 @@ Demo: Inputs / Overview.
 
 ## FluentTextEdit
 
-Purpose: a `QTextEdit` painted like Fluent inputs via `Style::paintControlSurface()`, plus a transparent border overlay so the border/focus ring stays on top of the viewport content (avoids the “scroll content covers the border” feel).
+Purpose: a `QTextEdit` painted like Fluent inputs via `Style::paintControlSurface()`, plus a transparent border overlay so the border and full focus ring stay on top of the viewport content (avoids the “scroll content covers the border” feel).
 
 Inheritance & construction:
 
@@ -116,8 +153,10 @@ Visual / interaction notes:
 
 - Disables native frame (`QFrame::NoFrame`), uses `Style::metrics()` for viewport margins and minimum height.
 - Replaces scrollbars with `FluentScrollBar` by default.
-- Selection background and caret behavior mirror `FluentLineEdit` (semi-transparent accent selection; caret tries to follow accent).
+- Selection background and caret behavior mirror `FluentLineEdit` (semi-transparent `accent.base` selection; caret tries to follow `accent.base`).
+- Multiline editors use the same full `accent.base` focus ring as single-line inputs, avoiding an overly prominent full-width lower edge on tall text areas.
 - Default `sizeHint()` is `200x80` (form-friendly).
+- Hover/focus use `FluentMotionRole::Hover` / `Focus`; disabling global animations jumps directly to the final state.
 
 Theme coupling: applies theme once on first show (to avoid early viewport paint before shown), then follows `themeChanged`.
 
@@ -142,7 +181,7 @@ Demo: Inputs / Containers / Windows / Overview.
 
 ## FluentComboBox
 
-Purpose: a `QComboBox` with custom-painted surface/border/focus ring, plus a patched popup view + delegate so the dropdown is rounded, Fluent-hover/selected, and uses Fluent scrollbars.
+Purpose: a `QComboBox` with custom-painted surface/border/full focus ring, plus a patched popup view + delegate so the dropdown is rounded, Fluent-hover/selected, and uses Fluent scrollbars.
 
 Inheritance & construction:
 
@@ -152,8 +191,10 @@ Inheritance & construction:
 Popup behavior:
 
 - Uses a custom list view (`FluentComboPopupView`).
-- The popup container is patched to be frameless and disables drop shadow; rounded clipping uses a mask to avoid light-mode black background artifacts on Windows translucent popups.
-- `showPopup()` adds a small gap (~5px) on top of Qt's default position and clamps the popup to the available screen area.
+- The popup uses the library-owned `FluentComboPopup`, with a rounded panel, shadow, accent trace, and the same placement/reveal behavior as AutoSuggest.
+- `showPopup()` opens below or above depending on available screen space while preserving an anchor gap of about `5px`.
+- Popup rows have a `36px` minimum height; enabled hover rows use neutral-token tint with a 5px radius, and enabled selected rows paint a 3px accent indicator on the left. Disabled items keep disabled text/neutral treatment even if they become the current row, without an accent indicator.
+- Multi-select checkbox glyphs use accent / `onAccent` tokens for enabled checked rows so they remain readable with bright accents and dark mode; disabled checked rows keep the neutral disabled surface and use `disabledText` for the checkmark.
 
 Key APIs:
 
@@ -188,7 +229,9 @@ Visual / interaction notes:
 	- cursor becomes `PointingHandCursor` over the stepper; restores to `IBeamCursor` outside.
 - Installs an event filter on the internal `QLineEdit` to map mouse events back to the spinbox, so the stepper works even if the editor covers that region.
 - `sizeHint()` estimates a better minimum width from `prefix/suffix/min/max/value/specialValueText` to reduce truncation (you can still override with `setMinimumWidth()`).
-- Selection/caret behavior follows `FluentLineEdit`.
+- Selection/caret behavior follows `FluentLineEdit` (`accent.base` selection and caret).
+- Focus uses the same full 2px `accent.base` focus ring as other input entries; the stepper divider reuses the input stroke token (mixing in `disabledText` when disabled), and hover/pressed fills are derived from theme tokens.
+- Hover/focus and stepper emphasis use `FluentMotionRole::Hover` / `Focus`; disabling global animations jumps directly to the final state.
 
 Key APIs:
 
@@ -224,9 +267,10 @@ Inheritance & construction:
 
 Interaction notes:
 
-- `handlePos` (0..1) is used for painting; when `valueChanged` happens and `!isSliderDown()`, it animates to the new position over ~100ms.
+- `handlePos` (0..1) is used for painting; when `valueChanged` happens and `!isSliderDown()`, it animates to the new position using the duration and easing from `FluentMotionRole::Selection`. Disabling global animations or setting the Selection duration to 0 snaps directly to the target position.
 - Clicking the handle enters dragging (records drag offset).
 - Clicking the track jumps to the clicked position and immediately enters dragging (no second click required).
+- The track, active fill, handle surface, and handle border are derived from the current theme tokens; active fill and the hover handle accent border use `accent.base`, and dark mode does not fall back to a fixed white handle.
 - On hover, the handle grows and shows an accent inner dot.
 
 Key APIs:
@@ -253,7 +297,7 @@ Demo: Inputs / Overview.
 
 ## FluentProgressBar
 
-Purpose: a thin progress bar (~4px) with border track + accent fill, and a smooth transition on value changes. Supports placing the percentage text at left/center/right or hiding it.
+Purpose: a thin progress bar (~4px) with border track + `accent.base` fill, and a smooth transition on value changes. Supports placing the percentage text at left/center/right or hiding it.
 
 Inheritance & construction:
 
@@ -264,7 +308,7 @@ Painting / behavior notes:
 
 - `displayValue` is the animated display value: on `valueChanged(int)`, a property animation transitions from old→new.
 - Text is painted as a percentage derived from `displayValue / (maximum-minimum)`, not `QProgressBar::text()`.
-- Track uses `colors.border`, fill uses `colors.accent`, with fixed left/right insets (~12px).
+- Track uses subtle stroke/fill from the current neutral tokens, and fill uses `accent.base`; disabled state mixes `accent.base` into the neutral stroke and lowers alpha.
 
 Key APIs:
 
@@ -301,6 +345,7 @@ Key APIs:
 - `setRange()` / `setValue()`: inherited determinate progress.
 - `setIndeterminate(true)`: enable the spinning busy state.
 - `setRingWidth(qreal)`: set the ring stroke width.
+- Track uses the same neutral token derivation as `FluentProgressBar`; determinate/busy arcs use `accent.base`, while disabled arcs use a muted accent-token derivation.
 
 Example:
 
@@ -328,6 +373,7 @@ Demo: Buttons / Overview.
 auto *dial = new Fluent::FluentDial();
 dial->setValue(135);
 dial->setTicksVisible(true);
+dial->setMajorTickStep(45);
 ```
 
 Purpose: compact circular knob for angle selection, useful for gradient angles, rotation, and direction input.
@@ -349,8 +395,9 @@ Key APIs:
 Implementation notes:
 
 - Custom-painted `QWidget` with internal hover/focus animations.
+- `setValue(int)` normalizes to `0..359`; when the value changes, it emits `valueChanged(int)`.
 - Mouse dragging converts cursor position into an angle value; the mouse wheel can be used for fine adjustment.
-- It can draw the outer track, current accent arc, optional ticks / major ticks, optional pointer, and a focus ring.
+- It can draw the outer track, current accent arc, optional ticks / major ticks, optional pointer, and a focus ring; the track/ticks come from neutral tokens, while the arc, pointer, indicator dot, and focus ring use the `accent.base` ramp. Disabled state uses a muted accent-token derivation.
 
 Demo: Angle Controls / Overview.
 
@@ -383,6 +430,7 @@ Key APIs:
 Implementation notes:
 
 - Dial and spin box stay synchronized, with temporary `blockSignals(true)` guards to avoid signal loops.
+- `setValue(int)` emits `valueChanged(int)` when the normalized value actually changes.
 - In wrapping mode, values are normalized back into range; in non-wrapping mode they are clamped.
 - Visibility toggles make it easy to create compact variants such as dial-only, spinbox-only, or label-less forms.
 

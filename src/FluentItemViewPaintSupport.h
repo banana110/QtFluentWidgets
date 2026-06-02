@@ -20,7 +20,17 @@ inline QColor fluentItemHoverFill(const ThemeColors &colors, qreal level)
 inline QColor fluentItemSelectionFill(const ThemeColors &colors, qreal opacity)
 {
     const auto tokens = Theme::tokens(colors);
-    QColor fill = Style::mix(colors.surface, colors.accent, tokens.dark ? 0.28 : 0.13);
+    QColor fill = Style::mix(tokens.neutral.card, tokens.accent.base, tokens.dark ? 0.28 : 0.13);
+    fill.setAlphaF(qBound<qreal>(0.0, opacity, 1.0));
+    return fill;
+}
+
+inline QColor fluentItemDisabledSelectionFill(const ThemeColors &colors, qreal opacity)
+{
+    const auto tokens = Theme::tokens(colors);
+    const QColor disabledBase =
+        Style::mix(tokens.neutral.card, tokens.neutral.fillSecondary, tokens.dark ? 0.30 : 0.46);
+    QColor fill = Style::mix(disabledBase, colors.disabledText, tokens.dark ? 0.16 : 0.10);
     fill.setAlphaF(qBound<qreal>(0.0, opacity, 1.0));
     return fill;
 }
@@ -31,7 +41,8 @@ inline void paintFluentItemSelectionIndicator(QPainter &painter,
                                               qreal opacity,
                                               qreal leftOffset = 0.0)
 {
-    QColor indicator = colors.accent;
+    const auto tokens = Theme::tokens(colors);
+    QColor indicator = tokens.accent.base;
     indicator.setAlphaF(qBound<qreal>(0.0, opacity, 1.0));
 
     painter.setPen(Qt::NoPen);

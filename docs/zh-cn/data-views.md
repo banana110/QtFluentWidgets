@@ -51,25 +51,22 @@ view->setSelectionMode(QAbstractItemView::SingleSelection);
 
 - 动画触发：监听 `selectionModel()->currentChanged(current, previous)`。
 - 动画形式：
-	- `QVariantAnimation`（180ms，`InOutCubic`）插值 `QRectF` 与透明度。
+	- `QVariantAnimation` 使用 `FluentMotionRole::Selection` 插值 `QRectF` 与透明度；关闭全局动效或把 Selection 时长设为 0 时会直接切到目标状态。
 	- 背景为 accent（alpha 40 的轻量填充）。
 	- 左侧还有一条 3px 宽的 accent 指示条（高度约 16px）。
 - 多选/非 current 的选中项：在 delegate 中用“轻量选中底色”绘制（但会避开 current 行，避免和动画层重复）。
+- Disabled 视图保留 selected/current 的行位置提示，但改用 neutral disabled selection fill，且不绘制 accent 指示条；文字继续使用 `disabledText`。
 
 ### 主题联动
 
 - 主题变化（`ThemeManager::themeChanged`）或 enabled 状态变化时，会用 `Theme::listViewStyle(colors)` 刷新 `styleSheet`。
-- focus 边框、disabled 背景/文字/边框都由 theme token 派生，深色/浅色与高亮 accent 下保持一致的可读性。
+- focus 边框、disabled 背景/文字/边框都由 theme token 派生，fallback stylesheet 同样解析到 `neutral.card` / `strokeSubtle` / `accent.base`，深色/浅色与高亮 accent 下保持一致的可读性。
 
 关键 API：
 
 - `hoverIndex()`：当前 hover 的 index。
 - `hoverLevel()`：hover 动效强度（内部驱动）。
-- 重载 `setModel()`：会自动 hook selection model（用于选中动画）。
-
-注意事项：
-
-- `hookSelectionModel()` 只在 `setModel()` / 构造后延迟一次时机调用；如果你在外部替换了 selection model（`setSelectionModel()`），需要自行确保 currentChanged 能被接入（最简单是重新 `setModel(model())` 或在控件侧补一个公共方法）。
+- 重载 `setModel()` / `setSelectionModel()`：会自动 hook 当前 selection model（用于选中动画），外部替换 `QItemSelectionModel` 后仍会保持 current-row 过渡。
 
 Demo：DataViews / Overview。
 
@@ -104,7 +101,7 @@ table->setSelectionBehavior(QAbstractItemView::SelectRows);
 
 水平表头会在 `viewportEvent(Paint)` 中额外绘制分隔线：
 
-- 颜色来自 `colors.border`（alpha ≈ 140）。
+- 颜色来自 `ThemeManager::tokens().neutral.strokeSubtle`，并与 view palette 的 `Mid` role 保持一致。
 - 上下各留 `inset=6` 的空白，不画到边缘。
 - 为避免启动时的 Qt 警告（`Paint device returned engine == 0`），在窗口尚未 `isExposed()` 时跳过这次绘制。
 
@@ -113,18 +110,19 @@ table->setSelectionBehavior(QAbstractItemView::SelectRows);
 与 `FluentListView` 一致的思路：
 
 - hover：`hoverIndex()` + `hoverLevel()`，动画参数来自 `FluentMotionRole::Hover`；当全局动效关闭或 hover 时长为 0 时，会直接切到目标状态。
-- 选中切换：监听 `selectionModel()->currentChanged`，用 180ms 动画插值选中背景矩形与透明度。
+- 选中切换：监听 `selectionModel()->currentChanged`，用 `FluentMotionRole::Selection` 插值选中背景矩形与透明度；关闭全局动效或把 Selection 时长设为 0 时直接落位。
 - `SelectRows` 下，动画矩形会把同一行多个 cell 的 `visualRect` 做 union（跳过隐藏列），再做轻微内缩（`adjusted(2,1,-2,-1)`）。
+- Disabled 视图的 selected/current 行不会继续显示 accent fill 或左侧 indicator，而是使用 neutral disabled selection fill；`FluentTableWidget` 共享同一语义。
 
 ### 主题联动
 
 - 主题变化/EnabledChange 时，会用 `Theme::tableViewStyle(colors)` 刷新 `styleSheet`。
-- 表格/表头的 focus、disabled、header 背景与分隔线均由同一套 neutral/accent token 派生，避免暗色模式下出现原生浅色残留。
+- 表格/表头的 focus、disabled、view palette role、fallback stylesheet、header 背景与分隔线均由同一套 neutral/accent token 派生，避免暗色模式下出现原生浅色残留。
 
 关键 API：
 
 - `hoverIndex()` / `hoverLevel()`
-- 重载 `setModel()`：自动接入选中动画。
+- 重载 `setModel()` / `setSelectionModel()`：自动接入选中动画。
 
 Demo：DataViews / Overview。
 
@@ -155,13 +153,14 @@ table->setCellWidget(0, 3, new Fluent::FluentComboBox());
 
 ### 默认行为与样式
 
-- 与 `FluentTableView` 共享同一套 `FluentHeaderView` + `FluentTableItemDelegate`：行 hover / 选中描边、列分隔线、Fluent 滚动条、180ms 选中切换动效一致。
+- 与 `FluentTableView` 共享同一套 `FluentHeaderView` + `FluentTableItemDelegate`：行 hover / 选中描边、列分隔线、Fluent 滚动条、`FluentMotionRole::Selection` 选中切换动效一致。
 - 构造函数：`FluentTableWidget(QWidget*)` 或 `FluentTableWidget(int rows, int cols, QWidget*)`。
 
 关键 API：
 
 - 继承自 `QTableWidget`：`setItem()` / `item()` / `setCellWidget()` / `cellWidget()` / `setHorizontalHeaderLabels()` 等。
 - `hoverIndex()` / `hoverLevel()`。
+- 重载 `setSelectionModel()`：外部替换 selection model 后仍会接入选中动画。
 
 Demo：DataViews（"FluentTableWidget" 段落）。
 
@@ -202,7 +201,7 @@ tree->setHeaderHidden(false);
 ### Hover/选中动效
 
 - hover：同样通过 `hoverIndex()` + `hoverLevel()`，动画参数来自 `FluentMotionRole::Hover`；在 `SelectRows` 下以“同 row + 同 parent”为一行。
-- 选中切换：与 TableView 相同，`SelectRows` 下会 union 一整行的可视矩形作为动画目标。
+- 选中切换：与 TableView 相同，`SelectRows` 下会 union 一整行的可视矩形作为动画目标；disabled selected/current 行同样使用 neutral disabled selection fill，不绘制 accent indicator。
 
 ### 主题联动
 
@@ -211,7 +210,7 @@ tree->setHeaderHidden(false);
 关键 API：
 
 - `hoverIndex()` / `hoverLevel()`
-- 重载 `setModel()`：自动接入选中动画。
+- 重载 `setModel()` / `setSelectionModel()`：自动接入选中动画。
 - 重载 `drawBranches()`：用于 Fluent 风格分支绘制。
 
 Demo：DataViews / Overview。

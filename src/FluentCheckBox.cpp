@@ -3,6 +3,7 @@
 #include "Fluent/FluentStyle.h"
 #include "Fluent/FluentTheme.h"
 
+#include <QAbstractAnimation>
 #include <QEvent>
 #include <QPainter>
 #include <QVariantAnimation>
@@ -34,6 +35,7 @@ FluentCheckBox::FluentCheckBox(QWidget *parent)
         update();
     });
     connect(this, &QCheckBox::stateChanged, this, [this](int state) {
+        FluentMotion::configure(m_checkAnim, FluentMotionRole::Selection);
         m_checkAnim->stop();
         const qreal target = state == Qt::Checked ? 1.0 : 0.0;
         if (m_checkAnim->duration() <= 0) {
@@ -76,6 +78,7 @@ FluentCheckBox::FluentCheckBox(const QString &text, QWidget *parent)
         update();
     });
     connect(this, &QCheckBox::stateChanged, this, [this](int state) {
+        FluentMotion::configure(m_checkAnim, FluentMotionRole::Selection);
         m_checkAnim->stop();
         const qreal target = state == Qt::Checked ? 1.0 : 0.0;
         if (m_checkAnim->duration() <= 0) {
@@ -142,9 +145,34 @@ void FluentCheckBox::changeEvent(QEvent *event)
 
 void FluentCheckBox::applyTheme()
 {
+    const bool snapHover = m_hoverAnim &&
+        m_hoverAnim->state() == QAbstractAnimation::Running &&
+        FluentMotion::duration(FluentMotionRole::Hover) <= 0;
+    const bool snapFocus = m_focusAnim &&
+        m_focusAnim->state() == QAbstractAnimation::Running &&
+        FluentMotion::duration(FluentMotionRole::Focus) <= 0;
+    const bool snapCheck = m_checkAnim &&
+        m_checkAnim->state() == QAbstractAnimation::Running &&
+        FluentMotion::duration(FluentMotionRole::Selection) <= 0;
+    const qreal hoverTarget = m_hoverAnim ? m_hoverAnim->endValue().toReal() : m_hoverLevel;
+    const qreal focusTarget = m_focusAnim ? m_focusAnim->endValue().toReal() : m_focusLevel;
+    const qreal checkTarget = m_checkAnim ? m_checkAnim->endValue().toReal() : m_checkLevel;
+
     FluentMotion::configure(m_hoverAnim, FluentMotionRole::Hover);
     FluentMotion::configure(m_focusAnim, FluentMotionRole::Focus);
     FluentMotion::configure(m_checkAnim, FluentMotionRole::Selection);
+    if (snapHover) {
+        m_hoverAnim->stop();
+        setHoverLevel(hoverTarget);
+    }
+    if (snapFocus) {
+        m_focusAnim->stop();
+        setFocusLevel(focusTarget);
+    }
+    if (snapCheck) {
+        m_checkAnim->stop();
+        m_checkLevel = qBound<qreal>(0.0, checkTarget, 1.0);
+    }
     update();
 }
 
@@ -152,6 +180,7 @@ void FluentCheckBox::paintEvent(QPaintEvent *event)
 {
     Q_UNUSED(event)
     const auto &colors = ThemeManager::instance().colors();
+    const auto tokens = ThemeManager::instance().tokens();
 
     QPainter painter(this);
     if (!painter.isActive()) {
@@ -172,23 +201,23 @@ void FluentCheckBox::paintEvent(QPaintEvent *event)
     // Hover background (full row highlight)
     if (m_hoverLevel > 0.01 && isEnabled()) {
         painter.setPen(Qt::NoPen);
-        QColor hoverBg = Style::withAlpha(colors.hover, static_cast<int>(90 * m_hoverLevel));
+        QColor hoverBg = Style::withAlpha(tokens.neutral.fillSecondary, static_cast<int>(90 * m_hoverLevel));
         painter.setBrush(hoverBg);
         const QRectF hoverRect = QRectF(this->rect()).adjusted(1.0, 2.0, -1.0, -2.0);
         painter.drawRoundedRect(hoverRect, 6.0, 6.0);
     }
 
     // Determine checkbox state colors
-    QColor borderColor = colors.border;
-    QColor fillColor = colors.surface;
+    QColor borderColor = tokens.neutral.strokeStrong;
+    QColor fillColor = tokens.neutral.card;
     
     if (!isEnabled()) {
-        borderColor = colors.border;
-        fillColor = colors.hover;
+        borderColor = tokens.neutral.strokeSubtle;
+        fillColor = Style::mix(tokens.neutral.card, tokens.neutral.background, tokens.dark ? 0.48 : 0.34);
     } else if (m_checkLevel > 0.01) {
-        // Checked state: use accent color
-        borderColor = colors.accent;
-        fillColor = colors.accent;
+        // Checked state: use the accent token ramp.
+        borderColor = tokens.accent.base;
+        fillColor = tokens.accent.base;
     }
 
     // Draw checkbox box
@@ -208,7 +237,7 @@ void FluentCheckBox::paintEvent(QPaintEvent *event)
 
     // Focus ring (keyboard focus)
     if (isEnabled() && m_focusLevel > 0.01) {
-        QColor focus = colors.focus;
+        QColor focus = tokens.accent.base;
         focus.setAlphaF(0.9 * m_focusLevel);
         painter.setPen(QPen(focus, 2.0));
         painter.setBrush(Qt::NoBrush);
@@ -221,7 +250,7 @@ void FluentCheckBox::paintEvent(QPaintEvent *event)
         painter.setPen(Qt::NoPen);
         painter.setBrush(Qt::NoBrush);
         
-        QColor checkColor = Theme::contrastColor(colors.accent);
+        QColor checkColor = isEnabled() ? tokens.onAccent : colors.disabledText;
         checkColor.setAlphaF(m_checkLevel);
         painter.setPen(QPen(checkColor, 2.0, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
         
@@ -275,6 +304,7 @@ void FluentCheckBox::focusOutEvent(QFocusEvent *event)
 
 void FluentCheckBox::startHoverAnimation(qreal endValue)
 {
+    FluentMotion::configure(m_hoverAnim, FluentMotionRole::Hover);
     m_hoverAnim->stop();
     if (m_hoverAnim->duration() <= 0) {
         setHoverLevel(endValue);
@@ -287,6 +317,7 @@ void FluentCheckBox::startHoverAnimation(qreal endValue)
 
 void FluentCheckBox::startFocusAnimation(qreal endValue)
 {
+    FluentMotion::configure(m_focusAnim, FluentMotionRole::Focus);
     m_focusAnim->stop();
     if (m_focusAnim->duration() <= 0) {
         setFocusLevel(endValue);

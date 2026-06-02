@@ -3,8 +3,10 @@
 #include "../DemoHelpers.h"
 
 #include <QDate>
+#include <QGridLayout>
 #include <QHBoxLayout>
 #include <QLabel>
+#include <QSizePolicy>
 #include <QTime>
 #include <QVBoxLayout>
 
@@ -33,6 +35,124 @@ QWidget *createPickersPage(FluentMainWindow *window)
                                    DEMO_TEXT("DatePicker / Calendar / Time / ComboBox（联动 Accent）", "DatePicker / Calendar / Time / ComboBox with Accent linkage"));
 
         page->addWidget(s.card);
+
+        // Picker state matrix
+        {
+            const QString code = QStringLiteral(
+                "auto *date = new FluentDatePicker();\n"
+                "date->setDate(QDate::currentDate());\n"
+                "auto *disabledDate = new FluentDatePicker();\n"
+                "disabledDate->setDate(QDate::currentDate().addDays(1));\n"
+                "disabledDate->setDisabled(true);\n");
+
+            page->addWidget(Demo::makeCollapsedExample(
+                QStringLiteral("Picker State Matrix"),
+                DEMO_TEXT("日期、时间、范围、颜色和下拉选择器的 selected / disabled 横向对比",
+                          "Side-by-side selected / disabled states for date, time, range, color, and combo pickers"),
+                DEMO_TEXT("要点：\n"
+                          "-所有 picker 入口都放在相近密度下比较，便于检查圆角、描边和文字强度\n"
+                          "-DatePicker、TimePicker、CalendarPicker 和 ComboBox 的弹层使用统一 Fluent popup surface\n"
+                          "-DateRangePicker 与 ColorPicker 重点检查 Accent 高亮和 disabled 灰度是否克制",
+                          "Highlights:\n"
+                          "-Picker entries are compared at similar density to inspect radius, borders, and text strength\n"
+                          "-DatePicker, TimePicker, CalendarPicker, and ComboBox popups share the Fluent popup surface\n"
+                          "-DateRangePicker and ColorPicker focus on restrained accent and disabled-state treatment"),
+                code,
+                [=](QVBoxLayout *body) {
+                    auto *grid = new QGridLayout();
+                    grid->setContentsMargins(0, 0, 0, 0);
+                    grid->setHorizontalSpacing(14);
+                    grid->setVerticalSpacing(10);
+
+                    auto makeCaption = [](const QString &text, bool strong = false) {
+                        auto *label = new FluentLabel(text);
+                        label->setWordWrap(true);
+                        label->setStyleSheet(strong
+                                                 ? QStringLiteral("font-size: 12px; font-weight: 600; opacity: 0.9;")
+                                                 : QStringLiteral("font-size: 12px; opacity: 0.78;"));
+                        return label;
+                    };
+
+                    auto preparePicker = [](QWidget *widget, int width) {
+                        widget->setMinimumWidth(width);
+                        widget->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Fixed);
+                        return widget;
+                    };
+
+                    auto makeDatePicker = [](bool enabled) {
+                        auto *picker = new FluentDatePicker();
+                        picker->setDate(QDate::currentDate().addDays(enabled ? 0 : 1));
+                        picker->setEnabled(enabled);
+                        return picker;
+                    };
+
+                    auto makeCalendarPicker = [](bool enabled) {
+                        auto *picker = new FluentCalendarPicker();
+                        picker->setDate(QDate::currentDate().addDays(enabled ? 2 : 3));
+                        picker->setTodayText(DEMO_TEXT("今天", "Today"));
+                        picker->setEnabled(enabled);
+                        return picker;
+                    };
+
+                    auto makeTimePicker = [](bool enabled) {
+                        auto *picker = new FluentTimePicker();
+                        picker->setUse24HourClock(true);
+                        picker->setMinuteIncrement(5);
+                        picker->setTime(enabled ? QTime(9, 30) : QTime(16, 45));
+                        picker->setEnabled(enabled);
+                        return picker;
+                    };
+
+                    auto makeRangePicker = [](bool enabled) {
+                        auto *picker = new FluentDateRangePicker();
+                        picker->setDateRange(QDate::currentDate().addDays(4),
+                                             QDate::currentDate().addDays(10));
+                        picker->setEnabled(enabled);
+                        return picker;
+                    };
+
+                    auto makeColorPicker = [](bool enabled) {
+                        auto *picker = new FluentColorPicker();
+                        picker->setColor(enabled ? ThemeManager::instance().colors().accent
+                                                 : ThemeManager::instance().colors().disabledText);
+                        picker->setEnabled(enabled);
+                        return picker;
+                    };
+
+                    auto makeCombo = [](bool enabled) {
+                        auto *combo = new FluentComboBox();
+                        combo->addItems({DEMO_TEXT("蓝色 Accent", "Blue accent"),
+                                         DEMO_TEXT("绿色 Accent", "Green accent"),
+                                         DEMO_TEXT("紫色 Accent", "Purple accent")});
+                        combo->setCurrentIndex(enabled ? 1 : 2);
+                        combo->setEnabled(enabled);
+                        return combo;
+                    };
+
+                    grid->addWidget(makeCaption(DEMO_TEXT("控件", "Control"), true), 0, 0);
+                    grid->addWidget(makeCaption(DEMO_TEXT("Selected / Accent", "Selected / Accent"), true), 0, 1);
+                    grid->addWidget(makeCaption(DEMO_TEXT("Disabled", "Disabled"), true), 0, 2);
+
+                    auto addRow = [&](int row, const QString &name, QWidget *selected, QWidget *disabled, int width) {
+                        grid->addWidget(makeCaption(name), row, 0);
+                        grid->addWidget(preparePicker(selected, width), row, 1);
+                        grid->addWidget(preparePicker(disabled, width), row, 2);
+                    };
+
+                    addRow(1, QStringLiteral("FluentDatePicker"), makeDatePicker(true), makeDatePicker(false), 220);
+                    addRow(2, QStringLiteral("FluentCalendarPicker"), makeCalendarPicker(true), makeCalendarPicker(false), 220);
+                    addRow(3, QStringLiteral("FluentTimePicker"), makeTimePicker(true), makeTimePicker(false), 170);
+                    addRow(4, QStringLiteral("FluentDateRangePicker"), makeRangePicker(true), makeRangePicker(false), 300);
+                    addRow(5, QStringLiteral("FluentColorPicker"), makeColorPicker(true), makeColorPicker(false), 170);
+                    addRow(6, QStringLiteral("FluentComboBox"), makeCombo(true), makeCombo(false), 200);
+
+                    grid->setColumnStretch(1, 1);
+                    grid->setColumnStretch(2, 1);
+                    body->addLayout(grid);
+                },
+                false,
+                310));
+        }
 
         // DatePicker
         {

@@ -125,7 +125,31 @@ public:
                     }
                 }
             }
+            if (FluentMotion::duration(FluentMotionRole::Toast) <= 0) {
+                snapMoveAnimations();
+                layoutToasts(false);
+            }
         });
+    }
+
+    ~ToastOverlay() override
+    {
+        for (const auto &list : m_toastsByPos) {
+            for (auto t : list) {
+                if (t) {
+                    disconnect(t, nullptr, this, nullptr);
+                }
+            }
+        }
+
+        const auto animations = findChildren<QPropertyAnimation *>(QString(), Qt::FindDirectChildrenOnly);
+        for (auto *animation : animations) {
+            if (animation) {
+                disconnect(animation, nullptr, this, nullptr);
+                animation->stop();
+            }
+        }
+        m_moveAnims.clear();
     }
 
     void addToast(FluentToast *toast, FluentToast::Position position)
@@ -268,6 +292,26 @@ private:
         });
     }
 
+    void snapMoveAnimations()
+    {
+        const auto animations = m_moveAnims;
+        for (auto it = animations.constBegin(); it != animations.constEnd(); ++it) {
+            FluentToast *toast = it.key();
+            QPropertyAnimation *animation = it.value();
+            if (!toast || !animation) {
+                continue;
+            }
+
+            const QVariant end = animation->endValue();
+            animation->stop();
+            if (end.canConvert<QPoint>()) {
+                toast->move(end.toPoint());
+            }
+            animation->deleteLater();
+        }
+        m_moveAnims.clear();
+    }
+
     void layoutToasts(bool animated)
     {
         bool anyToast = false;
@@ -320,6 +364,12 @@ private:
                 if (!animated || t->pos() == targetPos) {
                     t->move(targetPos);
                 } else {
+                    const int duration = moveDurationFor(position);
+                    if (duration <= 0) {
+                        t->move(targetPos);
+                        continue;
+                    }
+
                     // Cancel any previous queued move animation for this toast.
                     if (auto prev = m_moveAnims.value(t)) {
                         prev->stop();
@@ -327,10 +377,10 @@ private:
                     }
 
                     auto *anim = new QPropertyAnimation(t, "pos", this);
-                    anim->setDuration(moveDurationFor(position));
+                    anim->setDuration(duration);
                     anim->setStartValue(t->pos());
                     anim->setEndValue(targetPos);
-                    anim->setEasingCurve(QEasingCurve::OutCubic);
+                    anim->setEasingCurve(FluentMotion::easing(FluentMotionRole::Toast));
                     connect(anim, &QObject::destroyed, this, [this, t]() {
                         m_moveAnims.remove(t);
                     });
@@ -391,6 +441,7 @@ public:
     explicit ProgressBar(QWidget *parent = nullptr)
         : QWidget(parent)
     {
+        setObjectName(QStringLiteral("FluentToastProgressBar"));
         setFixedHeight(3);
     }
 
@@ -405,6 +456,7 @@ protected:
     {
         Q_UNUSED(event)
         const auto &c = ThemeManager::instance().colors();
+        const auto tokens = ThemeManager::instance().tokens();
 
         QPainter p(this);
         if (!p.isActive()) {
@@ -417,11 +469,11 @@ protected:
             return;
         }
 
-        QColor track = c.border;
-        track.setAlpha(80);
-
-        QColor bar = c.accent;
-        bar.setAlpha(200);
+        FluentFrameSpec frame;
+        frame.accentBorderEnabled = false;
+        const QColor surface = fluentFrameSurface(c, frame);
+        const QColor track = Style::mix(tokens.neutral.strokeSubtle, surface, tokens.dark ? 0.32 : 0.46);
+        const QColor bar = tokens.accent.base;
 
         p.setPen(Qt::NoPen);
         p.setBrush(track);
@@ -457,15 +509,18 @@ FluentToast::FluentToast(const QString &title, const QString &message, QWidget *
     auto *titleLabel = new QLabel(title, this);
     titleLabel->setObjectName("FluentToastTitle");
     titleLabel->setWordWrap(true);
+    titleLabel->setAttribute(Qt::WA_TransparentForMouseEvents, true);
 
     auto *msgLabel = new QLabel(message, this);
     msgLabel->setObjectName("FluentToastMessage");
     msgLabel->setWordWrap(true);
+    msgLabel->setAttribute(Qt::WA_TransparentForMouseEvents, true);
 
     layout->addWidget(titleLabel);
     layout->addWidget(msgLabel);
 
     m_progress = new ProgressBar(this);
+    m_progress->setAttribute(Qt::WA_TransparentForMouseEvents, true);
     layout->addWidget(m_progress);
 
     applyTheme();
@@ -519,6 +574,8 @@ void FluentToast::mousePressEvent(QMouseEvent *event)
 
 void FluentToast::applyTheme()
 {
+    finishOpacityAnimationsImmediatelyIfReducedMotion();
+
     const auto &c = ThemeManager::instance().colors();
     const bool dark = c.background.lightnessF() < 0.5;
 
@@ -546,19 +603,42 @@ void FluentToast::applyTheme()
     }
 }
 
+void FluentToast::finishOpacityAnimationsImmediatelyIfReducedMotion()
+{
+    if (FluentMotion::duration(FluentMotionRole::Toast) > 0) {
+        return;
+    }
+
+    const auto groups = findChildren<QParallelAnimationGroup *>(QString(), Qt::FindDirectChildrenOnly);
+    bool hadRunningOpacityGroup = false;
+    for (QParallelAnimationGroup *group : groups) {
+        if (!group) {
+            continue;
+        }
+        hadRunningOpacityGroup = hadRunningOpacityGroup || group->state() == QAbstractAnimation::Running;
+        group->stop();
+        group->deleteLater();
+    }
+
+    if (!hadRunningOpacityGroup) {
+        return;
+    }
+
+    if (m_dismissing) {
+        emit dismissed();
+        deleteLater();
+        return;
+    }
+
+    if (auto *effect = qobject_cast<QGraphicsOpacityEffect *>(graphicsEffect())) {
+        effect->setOpacity(1.0);
+    }
+}
+
 void FluentToast::paintEvent(QPaintEvent *event)
 {
     Q_UNUSED(event)
     const auto &c = ThemeManager::instance().colors();
-    const bool dark = c.background.lightnessF() < 0.5;
-
-    QColor bg = c.surface;
-
-    QColor accent = c.accent;
-    accent.setAlpha(220);
-
-    QColor normalBorder = c.border;
-    normalBorder.setAlpha(dark ? 200 : 170);
 
     QPainter p(this);
     if (!p.isActive()) {
@@ -578,10 +658,9 @@ void FluentToast::paintEvent(QPaintEvent *event)
     frame.radius = kToastRadius;
     frame.maximized = false;
     frame.clearToTransparent = false;
-    frame.surfaceOverride = bg;
     frame.borderWidth = 1.0;
 
-    m_border.applyToFrameSpec(frame, c, normalBorder, accent);
+    m_border.applyToFrameSpec(frame, c);
 
     paintFluentPanel(p, r, c, frame);
 }

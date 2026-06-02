@@ -27,6 +27,8 @@ class FluentDial final : public QWidget
     Q_PROPERTY(int tickStep READ tickStep WRITE setTickStep)
     Q_PROPERTY(int majorTickStep READ majorTickStep WRITE setMajorTickStep)
     Q_PROPERTY(bool pointerVisible READ pointerVisible WRITE setPointerVisible)
+    Q_PROPERTY(qreal hoverLevel READ hoverLevel)
+    Q_PROPERTY(qreal focusLevel READ focusLevel)
 public:
     explicit FluentDial(QWidget *parent = nullptr);
 
@@ -45,6 +47,9 @@ public:
     bool pointerVisible() const { return m_pointerVisible; }
     void setPointerVisible(bool visible);
 
+    qreal hoverLevel() const { return m_hoverLevel; }
+    qreal focusLevel() const { return m_focusLevel; }
+
     QSize sizeHint() const override;
     QSize minimumSizeHint() const override;
 
@@ -52,6 +57,7 @@ signals:
     void valueChanged(int value);
 
 protected:
+    void changeEvent(QEvent *event) override;
     void enterEvent(FluentEnterEvent *event) override;
     void leaveEvent(QEvent *event) override;
     void focusInEvent(QFocusEvent *event) override;
@@ -63,6 +69,10 @@ protected:
     void paintEvent(QPaintEvent *event) override;
 
 private:
+    void setValueInternal(int angleDegrees, bool emitSignal);
+    void syncEnabledState();
+    void startHoverAnimation(qreal endValue);
+    void startFocusAnimation(qreal endValue);
     void updateFromPos(const QPointF &pos, bool emitSignal = true);
 
     int  m_value          = 0;

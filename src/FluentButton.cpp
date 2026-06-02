@@ -2,7 +2,9 @@
 #include "Fluent/FluentMotion.h"
 #include "Fluent/FluentStyle.h"
 #include "Fluent/FluentTheme.h"
+#include "FluentButtonVisuals_p.h"
 
+#include <QAbstractAnimation>
 #include <QEvent>
 #include <QPainter>
 #include <QStyleOptionButton>
@@ -126,8 +128,21 @@ void FluentButton::changeEvent(QEvent *event)
 
 void FluentButton::applyTheme()
 {
+    const bool hoverRunning = m_hoverAnim && m_hoverAnim->state() == QAbstractAnimation::Running;
+    const bool pressRunning = m_pressAnim && m_pressAnim->state() == QAbstractAnimation::Running;
+    const QVariant hoverEnd = m_hoverAnim ? m_hoverAnim->endValue() : QVariant();
+    const QVariant pressEnd = m_pressAnim ? m_pressAnim->endValue() : QVariant();
+
     FluentMotion::configure(m_hoverAnim, FluentMotionRole::Hover);
     FluentMotion::configure(m_pressAnim, FluentMotionRole::Press);
+    if (hoverRunning && m_hoverAnim->duration() <= 0) {
+        m_hoverAnim->stop();
+        m_hoverLevel = qBound<qreal>(0.0, hoverEnd.toReal(), 1.0);
+    }
+    if (pressRunning && m_pressAnim->duration() <= 0) {
+        m_pressAnim->stop();
+        m_pressLevel = qBound<qreal>(0.0, pressEnd.toReal(), 1.0);
+    }
     update();
 }
 
@@ -135,45 +150,13 @@ void FluentButton::paintEvent(QPaintEvent *event)
 {
     Q_UNUSED(event)
     const auto &colors = ThemeManager::instance().colors();
+    const auto &tokens = ThemeManager::instance().tokens();
 
     const bool checked = isCheckable() && isChecked();
-
-    QColor base;
-    QColor hover;
-    QColor pressed;
-    QColor border;
-    QColor textColor;
-    const auto tokens = Theme::tokens(colors);
-
-    if (m_primary) {
-        // Primary buttons: accent-filled. In checked state, stay accent but appear "selected".
-        base = checked ? tokens.accent.dark1 : tokens.accent.base;
-        hover = tokens.accent.light1;
-        pressed = tokens.accent.dark1;
-        border = Style::mix(tokens.accent.base, tokens.onAccent, 0.18);
-        textColor = tokens.onAccent;
-    } else {
-        // Secondary buttons: neutral surface. In checked state, use a subtle accent tint and accent border.
-        const QColor accentTint = Style::mix(colors.surface, colors.accent, 0.12);
-        base = checked ? accentTint : colors.surface;
-        hover = checked
-                    ? Style::mix(accentTint, colors.accent, 0.10)
-                    : Style::mix(colors.surface, colors.hover, 0.88);
-        pressed = checked
-                      ? Style::mix(accentTint, colors.accent, 0.18)
-                      : Style::mix(colors.surface, colors.pressed, 0.92);
-        border = checked ? Style::mix(colors.border, colors.accent, 0.85) : colors.border;
-        textColor = checked ? Theme::contrastColor(accentTint) : colors.text;
-    }
-
-    QColor fill = Style::mix(base, hover, m_hoverLevel);
-    fill = Style::mix(fill, pressed, m_pressLevel);
-
-    if (!isEnabled()) {
-        fill = Style::mix(colors.surface, colors.hover, 0.45);
-        border = Style::mix(colors.border, colors.disabledText, 0.25);
-        textColor = colors.disabledText;
-    }
+    const ButtonVisuals::StateColors state =
+        ButtonVisuals::resolve(colors, tokens, m_primary, checked, isEnabled());
+    const QColor fill = ButtonVisuals::fillForState(state, m_hoverLevel, m_pressLevel);
+    const QColor textColor = ButtonVisuals::textForState(state.text, m_pressLevel, isEnabled());
 
     QPainter painter(this);
     if (!painter.isActive()) {
@@ -186,9 +169,7 @@ void FluentButton::paintEvent(QPaintEvent *event)
     QRectF rect = QRectF(this->rect()).adjusted(0.5, 0.5, -0.5, -0.5);
     const qreal radius = m.radius;
 
-    painter.setPen(QPen(border, 1.0));
-    painter.setBrush(fill);
-    painter.drawRoundedRect(rect, radius, radius);
+    ButtonVisuals::paintRoundedControl(painter, rect, radius, fill, state.border, state.bottomBorder);
 
     // Fluent-like checked detail (without indicator bar): add a subtle inner highlight so
     // the selected state is still obvious on accent-filled primary buttons.
@@ -201,7 +182,7 @@ void FluentButton::paintEvent(QPaintEvent *event)
     }
 
     if (hasFocus() && isEnabled()) {
-        QColor focus = colors.focus;
+        QColor focus = tokens.accent.base;
         focus.setAlpha(230);
         painter.setPen(QPen(focus, 2.0));
         painter.setBrush(Qt::NoBrush);
@@ -288,6 +269,7 @@ void FluentButton::mouseReleaseEvent(QMouseEvent *event)
 
 void FluentButton::startHoverAnimation(qreal endValue)
 {
+    FluentMotion::configure(m_hoverAnim, FluentMotionRole::Hover);
     m_hoverAnim->stop();
     if (m_hoverAnim->duration() <= 0) {
         setHoverLevel(endValue);
@@ -300,6 +282,7 @@ void FluentButton::startHoverAnimation(qreal endValue)
 
 void FluentButton::startPressAnimation(qreal endValue)
 {
+    FluentMotion::configure(m_pressAnim, FluentMotionRole::Press);
     m_pressAnim->stop();
     if (m_pressAnim->duration() <= 0) {
         setPressLevel(endValue);

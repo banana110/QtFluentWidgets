@@ -47,6 +47,7 @@ protected:
 
 private:
     void applyTheme();
+    void syncEnabledState();
     void startFocusAnimation(qreal endValue);
 
     QString m_text;

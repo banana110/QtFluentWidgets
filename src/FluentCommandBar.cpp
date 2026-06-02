@@ -15,6 +15,7 @@
 #include <QPainter>
 #include <QResizeEvent>
 #include <QScopedValueRollback>
+#include <QSignalBlocker>
 
 namespace Fluent {
 
@@ -185,6 +186,14 @@ QWidget *FluentCommandBar::createButtonForAction(QAction *action)
     if (action->menu()) {
         auto *drop = new FluentDropDownButton(action->text(), this);
         drop->setMenu(action->menu());
+        QPointer<QAction> guardedAction(action);
+        connect(drop, &QAbstractButton::clicked, this, [guardedAction, drop]() {
+            if (!guardedAction || !guardedAction->isCheckable()) {
+                return;
+            }
+            QSignalBlocker blocker(drop);
+            drop->setChecked(guardedAction->isChecked());
+        });
         button = drop;
     } else {
         auto *tool = new FluentToolButton(action->text(), this);
@@ -193,7 +202,6 @@ QWidget *FluentCommandBar::createButtonForAction(QAction *action)
         button = tool;
     }
 
-    syncActionWidget(action);
     if (auto *tool = qobject_cast<QAbstractButton *>(button)) {
         tool->setProperty("fluentCommandBarButton", true);
         tool->setIcon(action->icon());
@@ -217,14 +225,45 @@ void FluentCommandBar::syncActionWidget(QAction *action)
         return;
     }
 
+    const bool shouldUseMenuButton = action->menu() != nullptr;
+    const bool usesMenuButton = qobject_cast<FluentDropDownButton *>(widget) != nullptr;
+    if (shouldUseMenuButton != usesMenuButton) {
+        const int layoutIndex = m_layout ? m_layout->indexOf(widget) : -1;
+        QWidget *replacement = createButtonForAction(action);
+        if (!replacement) {
+            return;
+        }
+
+        if (m_layout) {
+            m_layout->removeWidget(widget);
+            if (layoutIndex >= 0) {
+                m_layout->insertWidget(layoutIndex, replacement);
+            } else {
+                const int overflowIndex = m_overflowButton ? m_layout->indexOf(m_overflowButton) : -1;
+                m_layout->insertWidget(overflowIndex >= 0 ? overflowIndex : m_layout->count(), replacement);
+            }
+        }
+
+        widget->hide();
+        widget->deleteLater();
+        m_actionWidgets.insert(action, replacement);
+        widget = replacement;
+    }
+
     widget->setVisible(action->isVisible());
     widget->setEnabled(isEnabled() && action->isEnabled());
     widget->setToolTip(action->toolTip());
 
     if (auto *button = qobject_cast<QAbstractButton *>(widget)) {
+        QSignalBlocker blocker(button);
         button->setText(action->text());
         button->setIcon(action->icon());
         button->setIconSize(m_iconSize);
+        button->setCheckable(action->isCheckable());
+        button->setChecked(action->isCheckable() && action->isChecked());
+        if (auto *drop = qobject_cast<FluentDropDownButton *>(button)) {
+            drop->setMenu(action->menu());
+        }
     }
     if (!m_updatingOverflow) {
         updateOverflow();

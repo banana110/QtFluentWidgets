@@ -9,11 +9,14 @@
 #include <QTimer>
 #include <QVBoxLayout>
 
+#include <initializer_list>
+
 #include "Fluent/FluentButton.h"
 #include "Fluent/FluentCard.h"
 #include "Fluent/FluentColorDialog.h"
 #include "Fluent/FluentComboBox.h"
 #include "Fluent/FluentFlowLayout.h"
+#include "Fluent/FluentFramePainter.h"
 #include "Fluent/FluentLabel.h"
 #include "Fluent/FluentSlider.h"
 #include "Fluent/FluentSpinBox.h"
@@ -26,6 +29,17 @@ namespace Demo {
 using namespace Fluent;
 
 namespace {
+
+void fitCommandButtonText(FluentButton *button, int minimumWidth = 72)
+{
+    if (!button) {
+        return;
+    }
+
+    const int horizontalPadding = 28;
+    const int textWidth = button->fontMetrics().horizontalAdvance(button->text());
+    button->setFixedSize(qMax(minimumWidth, textWidth + horizontalPadding), 28);
+}
 
 class ColorSwatch final : public QWidget
 {
@@ -67,6 +81,275 @@ protected:
 
 private:
     QColor m_color;
+};
+
+class SurfaceElevationPreview final : public QWidget
+{
+public:
+    explicit SurfaceElevationPreview(QWidget *parent = nullptr)
+        : QWidget(parent)
+    {
+        setMinimumHeight(158);
+        setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
+        connect(&ThemeManager::instance(), &ThemeManager::themeChanged, this, [this]() {
+            update();
+        });
+    }
+
+    QSize sizeHint() const override
+    {
+        return QSize(280, 158);
+    }
+
+protected:
+    void paintEvent(QPaintEvent *event) override
+    {
+        Q_UNUSED(event)
+
+        QPainter p(this);
+        if (!p.isActive()) {
+            return;
+        }
+        p.setRenderHint(QPainter::Antialiasing, true);
+
+        const auto &colors = ThemeManager::instance().colors();
+        const QRectF canvas = QRectF(rect()).adjusted(0.5, 0.5, -0.5, -0.5);
+
+        FluentSurfaceSpec background;
+        background.level = FluentSurfaceLevel::Background;
+        background.radius = 8.0;
+        background.drawBorder = true;
+        background.borderColorOverride = Style::withAlpha(colors.border, 90);
+        paintFluentSurface(p, canvas, colors, background);
+
+        const qreal margin = 10.0;
+        const qreal paneW = qBound<qreal>(112.0, width() * 0.43, 150.0);
+        const QRectF paneRect(margin, margin + 8.0, paneW, height() - margin * 2.0 - 10.0);
+        drawSurface(p, paneRect, QStringLiteral("L1\nPane"), FluentSurfaceLevel::Pane, FluentElevationLevel::None);
+
+        const QRectF cardRect = paneRect.adjusted(12.0, 42.0, -12.0, -12.0);
+        drawSurface(p, cardRect, QStringLiteral("L2\nCard"), FluentSurfaceLevel::Card, FluentElevationLevel::None);
+
+        const qreal rightX = paneRect.right() + 12.0;
+        const qreal rightW = qMax<qreal>(104.0, width() - rightX - margin);
+        const QRectF raisedRect(rightX, margin + 10.0, rightW, 38.0);
+        const QRectF popupRect(rightX + 8.0, raisedRect.bottom() + 12.0, qMax<qreal>(92.0, rightW - 8.0), 40.0);
+        const QRectF modalRect(rightX - 2.0, popupRect.bottom() + 12.0, qMax<qreal>(104.0, rightW + 2.0), 44.0);
+
+        drawSurface(p, raisedRect, QStringLiteral("L3 Raised"), FluentSurfaceLevel::Raised, FluentElevationLevel::Low);
+        drawSurface(p, popupRect, QStringLiteral("L4 Popup"), FluentSurfaceLevel::Popup, FluentElevationLevel::Medium);
+        drawSurface(p, modalRect, QStringLiteral("L5 Modal"), FluentSurfaceLevel::Modal, FluentElevationLevel::High, true);
+    }
+
+private:
+    void drawSurface(QPainter &p,
+                     const QRectF &rect,
+                     const QString &label,
+                     FluentSurfaceLevel level,
+                     FluentElevationLevel elevation,
+                     bool accentEdge = false)
+    {
+        const auto &colors = ThemeManager::instance().colors();
+
+        FluentSurfaceSpec spec;
+        spec.level = level;
+        spec.elevation = elevation;
+        spec.radius = level == FluentSurfaceLevel::Pane ? 8.0 : 7.0;
+        spec.borderColorOverride = level == FluentSurfaceLevel::Pane
+            ? Style::withAlpha(colors.border, 95)
+            : QColor();
+        paintFluentSurface(p, rect, colors, spec);
+
+        if (accentEdge) {
+            const QRectF stripe(rect.left() + 9.0, rect.center().y() - 10.0, 3.0, 20.0);
+            p.setPen(Qt::NoPen);
+            p.setBrush(colors.accent);
+            p.drawRoundedRect(stripe, 1.5, 1.5);
+        }
+
+        QFont f = p.font();
+        f.setPointSizeF(qMax<qreal>(8.5, f.pointSizeF() - 1.0));
+        f.setWeight(level == FluentSurfaceLevel::Modal ? QFont::DemiBold : QFont::Medium);
+        p.setFont(f);
+        p.setPen(level == FluentSurfaceLevel::Background ? colors.subText : colors.text);
+        const QRectF textRect = accentEdge ? rect.adjusted(18.0, 4.0, -6.0, -4.0) : rect.adjusted(8.0, 4.0, -8.0, -4.0);
+        p.drawText(textRect, Qt::AlignCenter | Qt::TextWordWrap, label);
+    }
+};
+
+class ThemeTokenPreview final : public QWidget
+{
+public:
+    explicit ThemeTokenPreview(QWidget *parent = nullptr)
+        : QWidget(parent)
+    {
+        setObjectName(QStringLiteral("ThemeTokenPreview"));
+        setMinimumHeight(188);
+        setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
+        connect(&ThemeManager::instance(), &ThemeManager::themeChanged, this, [this]() {
+            update();
+        });
+    }
+
+    QSize sizeHint() const override
+    {
+        return QSize(280, 188);
+    }
+
+protected:
+    void paintEvent(QPaintEvent *event) override
+    {
+        Q_UNUSED(event)
+
+        QPainter p(this);
+        if (!p.isActive()) {
+            return;
+        }
+        p.setRenderHint(QPainter::Antialiasing, true);
+
+        const auto &colors = ThemeManager::instance().colors();
+        const auto &tokens = ThemeManager::instance().tokens();
+        const QRectF canvas = QRectF(rect()).adjusted(0.5, 0.5, -0.5, -0.5);
+
+        FluentSurfaceSpec surface;
+        surface.level = FluentSurfaceLevel::Card;
+        surface.radius = 8.0;
+        surface.drawBorder = true;
+        paintFluentSurface(p, canvas, colors, surface);
+
+        QFont titleFont = font();
+        titleFont.setPixelSize(11);
+        titleFont.setWeight(QFont::DemiBold);
+        QFont smallFont = font();
+        smallFont.setPixelSize(9);
+
+        qreal y = 10.0;
+        y = drawSwatchRow(p,
+                          y,
+                          DEMO_TEXT("Accent ramp", "Accent ramp"),
+                          {
+                              tokens.accent.light3,
+                              tokens.accent.light2,
+                              tokens.accent.light1,
+                              tokens.accent.base,
+                              tokens.accent.dark1,
+                              tokens.accent.dark2,
+                              tokens.accent.dark3,
+                          },
+                          titleFont,
+                          smallFont);
+        y = drawSwatchRow(p,
+                          y + 8.0,
+                          DEMO_TEXT("Neutral ramp", "Neutral ramp"),
+                          {
+                              tokens.neutral.background,
+                              tokens.neutral.layer,
+                              tokens.neutral.layerAlt,
+                              tokens.neutral.card,
+                              tokens.neutral.cardHover,
+                              tokens.neutral.strokeSubtle,
+                              tokens.neutral.strokeStrong,
+                          },
+                          titleFont,
+                          smallFont);
+        drawRadiusRow(p, y + 10.0, titleFont, smallFont);
+    }
+
+private:
+    qreal drawSwatchRow(QPainter &p,
+                        qreal y,
+                        const QString &label,
+                        std::initializer_list<QColor> colors,
+                        const QFont &titleFont,
+                        const QFont &smallFont) const
+    {
+        const auto &themeColors = ThemeManager::instance().colors();
+        const qreal margin = 12.0;
+        const qreal gap = 4.0;
+        const qreal labelH = 16.0;
+        const qreal swatchH = 18.0;
+        const qreal availableW = qMax<qreal>(40.0, width() - margin * 2.0);
+        const int count = static_cast<int>(colors.size());
+        const qreal swatchW = qMax<qreal>(14.0, (availableW - gap * qMax(0, count - 1)) / qMax(1, count));
+
+        p.save();
+        p.setFont(titleFont);
+        p.setPen(themeColors.text);
+        p.drawText(QRectF(margin, y, availableW, labelH), Qt::AlignLeft | Qt::AlignVCenter, label);
+        p.restore();
+
+        qreal x = margin;
+        int index = 0;
+        for (const QColor &color : colors) {
+            const QRectF r(x, y + labelH + 2.0, swatchW, swatchH);
+            p.setPen(QPen(Style::withAlpha(themeColors.border, 150), 1.0));
+            p.setBrush(color);
+            p.drawRoundedRect(r, 4.0, 4.0);
+
+            if (index == count / 2) {
+                p.save();
+                p.setFont(smallFont);
+                p.setPen(Theme::contrastColor(color));
+                p.drawText(r, Qt::AlignCenter, QStringLiteral("A"));
+                p.restore();
+            }
+
+            x += swatchW + gap;
+            ++index;
+        }
+
+        return y + labelH + swatchH + 2.0;
+    }
+
+    void drawRadiusRow(QPainter &p, qreal y, const QFont &titleFont, const QFont &smallFont) const
+    {
+        const auto &themeColors = ThemeManager::instance().colors();
+        const auto &tokens = ThemeManager::instance().tokens();
+        const qreal margin = 12.0;
+        const qreal labelH = 16.0;
+        const qreal availableW = qMax<qreal>(40.0, width() - margin * 2.0);
+
+        p.save();
+        p.setFont(titleFont);
+        p.setPen(themeColors.text);
+        p.drawText(QRectF(margin, y, availableW, labelH), Qt::AlignLeft | Qt::AlignVCenter,
+                   DEMO_TEXT("Radius tokens", "Radius tokens"));
+        p.restore();
+
+        struct RadiusItem {
+            QString label;
+            int radius = 0;
+        };
+
+        const RadiusItem items[] = {
+            {QStringLiteral("Ctl"), tokens.radius.control},
+            {QStringLiteral("Ovl"), tokens.radius.overlay},
+            {QStringLiteral("Card"), tokens.radius.card},
+            {QStringLiteral("Win"), tokens.radius.window},
+        };
+
+        const qreal chipH = 28.0;
+        const qreal gap = 6.0;
+        const qreal chipW = qMax<qreal>(42.0, (availableW - gap * 3.0) / 4.0);
+        qreal x = margin;
+        for (const RadiusItem &item : items) {
+            const QRectF chip(x, y + labelH + 5.0, chipW, chipH);
+            QColor fill = Style::mix(themeColors.surface, themeColors.accent, Theme::isDark(themeColors) ? 0.16 : 0.08);
+            QColor border = Style::mix(themeColors.border, themeColors.accent, Theme::isDark(themeColors) ? 0.38 : 0.24);
+            p.setPen(QPen(border, 1.0));
+            p.setBrush(fill);
+            p.drawRoundedRect(chip, item.radius, item.radius);
+
+            p.save();
+            p.setFont(smallFont);
+            p.setPen(themeColors.text);
+            p.drawText(chip.adjusted(3.0, 1.0, -3.0, -1.0), Qt::AlignCenter,
+                       QStringLiteral("%1 %2").arg(item.label).arg(item.radius));
+            p.restore();
+
+            x += chipW + gap;
+        }
+    }
 };
 
 static QWidget *makeAccentBorderAnimWidget(QWidget *parent)
@@ -262,17 +545,37 @@ static FluentCard *makeColorPreviewCard(QWidget *parent)
 
 } // namespace
 
-DemoThemePanel::DemoThemePanel(QWidget *hostWindow, QWidget *parent, bool showToastControls)
+DemoThemePanel::DemoThemePanel(QWidget *hostWindow, QWidget *parent, bool showToastControls, bool useSectionCards)
     : QWidget(parent)
     , m_hostWindow(hostWindow)
     , m_showToastControls(showToastControls)
+    , m_useSectionCards(useSectionCards)
 {
-    auto *themeLayout = new QVBoxLayout(this);
-    themeLayout->setContentsMargins(0, 0, 0, 0);
-    themeLayout->setSpacing(10);
+    auto *rootLayout = new QVBoxLayout(this);
+    rootLayout->setContentsMargins(0, 0, 0, 0);
+    rootLayout->setSpacing(m_useSectionCards ? 14 : 10);
+    QVBoxLayout *themeLayout = rootLayout;
 
     bool firstGroup = true;
     auto addGroupTitle = [&](const QString &t) {
+        if (m_useSectionCards) {
+            auto *card = new FluentCard(this);
+            card->setProperty("_demoSectionTitle", t);
+            card->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
+            auto *cardLayout = new QVBoxLayout(card);
+            cardLayout->setContentsMargins(16, 16, 16, 16);
+            cardLayout->setSpacing(10);
+
+            auto *lab = new FluentLabel(t);
+            lab->setStyleSheet("font-size: 14px; font-weight: 700;");
+            cardLayout->addWidget(lab);
+
+            rootLayout->addWidget(card);
+            themeLayout = cardLayout;
+            firstGroup = false;
+            return;
+        }
+
         if (!firstGroup) {
             themeLayout->addSpacing(6);
         }
@@ -357,25 +660,35 @@ DemoThemePanel::DemoThemePanel(QWidget *hostWindow, QWidget *parent, bool showTo
 
     addGroupTitle(DEMO_TEXT("颜色", "Colors"));
 
-    {
-        auto *hint = new FluentLabel(DEMO_TEXT(
-            "-Accent：强调色（Primary 按钮、开关高亮、进度条、焦点边框等）\n"
-            "-Background：窗口底色（大面积背景）\n"
-            "-Surface：卡片/控件表面底色（更适合承载内容）\n"
-            "提示：如果你只改 Accent，整体不会变暗/变亮；想要氛围变化请配合 Theme 或 Background/Surface。",
-            "-Accent: emphasis color for primary buttons, toggles, progress bars, focus borders, and more\n"
-            "-Background: main window background tone\n"
-            "-Surface: card and control surface color for content\n"
-            "Tip: changing only Accent will not shift the whole atmosphere. Pair it with Theme or Background/Surface for a broader change."));
-        hint->setWordWrap(true);
-        hint->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Preferred);
-        hint->setMinimumWidth(0);
-        hint->setStyleSheet("font-size: 12px; opacity: 0.85;");
-        themeLayout->addWidget(hint);
-    }
-
     themeLayout->addWidget(makeColorPreviewCard(this));
 
+    if (m_useSectionCards) {
+        addGroupTitle(DEMO_TEXT("Token 色阶", "Token ramps"));
+    }
+    {
+        if (!m_useSectionCards) {
+            auto *t = new FluentLabel(DEMO_TEXT("Token ramps", "Token ramps"));
+            t->setStyleSheet("font-size: 12px; font-weight: 600; opacity: 0.9;");
+            themeLayout->addWidget(t);
+        }
+        themeLayout->addWidget(new ThemeTokenPreview(this));
+    }
+
+    if (m_useSectionCards) {
+        addGroupTitle(QStringLiteral("Surface / Elevation"));
+    }
+    {
+        if (!m_useSectionCards) {
+            auto *t = new FluentLabel(DEMO_TEXT("Surface / Elevation", "Surface / Elevation"));
+            t->setStyleSheet("font-size: 12px; font-weight: 600; opacity: 0.9;");
+            themeLayout->addWidget(t);
+        }
+        themeLayout->addWidget(new SurfaceElevationPreview(this));
+    }
+
+    if (m_useSectionCards) {
+        addGroupTitle(DEMO_TEXT("颜色调整", "Color controls"));
+    }
     {
         auto *t = new FluentLabel(DEMO_TEXT("Accent 预设", "Accent presets"));
         t->setStyleSheet("font-size: 12px; font-weight: 600; opacity: 0.9;");
@@ -563,10 +876,8 @@ DemoThemePanel::DemoThemePanel(QWidget *hostWindow, QWidget *parent, bool showTo
 
         auto *toastOne = new FluentButton(DEMO_TEXT("发一条", "Send one"));
         auto *toastAll = new FluentButton(DEMO_TEXT("全位置", "All positions"));
-        toastOne->setFixedHeight(28);
-        toastAll->setFixedHeight(28);
-        toastOne->setFixedWidth(72);
-        toastAll->setFixedWidth(72);
+        fitCommandButtonText(toastOne);
+        fitCommandButtonText(toastAll);
 
         toastRowL->addWidget(toastPosCombo, 1);
         toastRowL->addWidget(toastOne);

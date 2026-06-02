@@ -58,6 +58,7 @@ private:
     void closeChildPopup();
     void scheduleCloseChildPopup(int delayMs = 320);
     void cancelPendingChildClose();
+    void finishOpenAnimationImmediately();
     void startOpenAnimation(const QRect &targetGeometry, int slideOffsetY);
     void stopOpenAnimation(bool resetOpacity = true);
 
@@ -71,6 +72,7 @@ private:
     FluentBorderEffect m_border;
     QVariantAnimation *m_openFadeAnim = nullptr;
     QVariantAnimation *m_openSlideAnim = nullptr;
+    QRect m_openTargetGeometry;
 };
 
 } // namespace Fluent

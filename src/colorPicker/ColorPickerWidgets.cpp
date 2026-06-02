@@ -1,5 +1,6 @@
 #include "ColorPickerWidgets.h"
 
+#include "Fluent/FluentStyle.h"
 #include "Fluent/FluentTheme.h"
 
 #include <QApplication>
@@ -39,6 +40,82 @@ static QPointF mouseLocalPosF(QMouseEvent *event)
 #else
     return event->localPos();
 #endif
+}
+
+static QColor pickerBorder(const ThemeColors &colors)
+{
+    return Theme::tokens(colors).neutral.strokeSubtle;
+}
+
+static QColor pickerStrongBorder(const ThemeColors &colors)
+{
+    return Theme::tokens(colors).neutral.stroke;
+}
+
+static QColor pickerAccent(const ThemeColors &colors)
+{
+    return Theme::tokens(colors).accent.base;
+}
+
+static QColor pickerHoverFill(const ThemeColors &colors)
+{
+    const auto tokens = Theme::tokens(colors);
+    return Style::mix(tokens.neutral.card, tokens.neutral.cardHover, tokens.dark ? 0.70 : 0.55);
+}
+
+static QColor pickerPressedFill(const ThemeColors &colors)
+{
+    const auto tokens = Theme::tokens(colors);
+    return Style::mix(tokens.neutral.card, tokens.neutral.fillTertiary, tokens.dark ? 0.44 : 0.38);
+}
+
+static QColor pickerHandleFill(const ThemeColors &colors)
+{
+    const auto tokens = Theme::tokens(colors);
+    return tokens.dark
+        ? Style::mix(tokens.neutral.card, colors.text, 0.72)
+        : tokens.neutral.card;
+}
+
+static QColor pickerHandleShine(const ThemeColors &colors, int alpha = 150)
+{
+    const auto tokens = Theme::tokens(colors);
+    return Style::withAlpha(tokens.dark ? colors.text : tokens.neutral.layer, alpha);
+}
+
+static QColor pickerShadow(const ThemeColors &colors)
+{
+    const auto tokens = Theme::tokens(colors);
+    return Style::withAlpha(tokens.elevation.shadow, tokens.dark ? 86 : 42);
+}
+
+static QColor pickerHandleOutline(const ThemeColors &colors, bool active, bool hovered)
+{
+    QColor outline = pickerBorder(colors);
+    if (active) {
+        outline = pickerAccent(colors);
+    } else if (hovered) {
+        outline = Style::mix(outline, pickerAccent(colors), Theme::tokens(colors).dark ? 0.34 : 0.26);
+    }
+    outline.setAlpha(220);
+    return outline;
+}
+
+static void fillCheckerboard(QPainter &p, const QRect &rect, const ThemeColors &colors, int size = 6)
+{
+    const auto tokens = Theme::tokens(colors);
+    const QColor a = Style::mix(tokens.neutral.card,
+                                tokens.neutral.strokeSubtle,
+                                tokens.dark ? 0.42 : 0.30);
+    const QColor b = Style::mix(tokens.neutral.layer,
+                                tokens.neutral.cardHover,
+                                tokens.dark ? 0.24 : 0.18);
+    for (int y = rect.top(); y <= rect.bottom(); y += size) {
+        for (int x = rect.left(); x <= rect.right(); x += size) {
+            const bool dark = (((x - rect.left()) / size) + ((y - rect.top()) / size)) % 2 == 0;
+            p.fillRect(QRect(x, y, size, size), dark ? a : b);
+        }
+    }
 }
 
 ColorSwatchButton::ColorSwatchButton(const QColor &color, QWidget *parent)
@@ -95,26 +172,28 @@ void ColorSwatchButton::paintEvent(QPaintEvent *event)
     p.setRenderHint(QPainter::Antialiasing, true);
 
     const auto &tc = ThemeManager::instance().colors();
-    QColor border = tc.border;
+    QColor border = pickerBorder(tc);
     if (m_hover) {
-        border = tc.accent;
+        border = pickerAccent(tc);
     }
     border.setAlpha(220);
 
     const QRectF r = QRectF(rect()).adjusted(1.0, 1.0, -1.0, -1.0);
-    p.setPen(QPen(border, 1.0));
+    QPainterPath swatchPath;
+    swatchPath.addRoundedRect(r, 5.0, 5.0);
 
+    p.save();
+    p.setClipPath(swatchPath);
     if (m_color.alpha() < 255) {
-        const int s = 4;
-        for (int y = 0; y < height(); y += s) {
-            for (int x = 0; x < width(); x += s) {
-                const bool dark = ((x / s) + (y / s)) % 2 == 0;
-                p.fillRect(QRect(x, y, s, s), dark ? QColor(0, 0, 0, 40) : QColor(255, 255, 255, 50));
-            }
-        }
+        fillCheckerboard(p, r.toAlignedRect(), tc, 4);
     }
-
+    p.setPen(Qt::NoPen);
     p.setBrush(m_color);
+    p.drawRoundedRect(r, 5.0, 5.0);
+    p.restore();
+
+    p.setPen(QPen(border, 1.0));
+    p.setBrush(Qt::NoBrush);
     p.drawRoundedRect(r, 5.0, 5.0);
 }
 
@@ -205,16 +284,19 @@ void SvPanel::paintEvent(QPaintEvent *event)
     p.restore();
 
     const auto &tc = ThemeManager::instance().colors();
-    p.setPen(QPen(tc.border, 1.0));
+    p.setPen(QPen(pickerBorder(tc), 1.0));
     p.setBrush(Qt::NoBrush);
     p.drawRoundedRect(QRectF(r).adjusted(0.5, 0.5, -0.5, -0.5), radius, radius);
 
     const qreal x = r.left() + (m_s / 255.0) * r.width();
     const qreal y = r.top() + ((255 - m_v) / 255.0) * r.height();
 
-    p.setPen(QPen(QColor(0, 0, 0, 160), 3.0));
+    const QColor selected = QColor::fromHsv(m_h, m_s, m_v);
+    p.setPen(QPen(pickerShadow(tc), 3.0));
     p.drawEllipse(QPointF(x, y), 7.0, 7.0);
-    p.setPen(QPen(QColor(255, 255, 255, 230), 2.0));
+    QColor indicator = Theme::contrastColor(selected);
+    indicator.setAlpha(230);
+    p.setPen(QPen(indicator, 2.0));
     p.drawEllipse(QPointF(x, y), 7.0, 7.0);
 }
 
@@ -288,13 +370,7 @@ void PreviewSwatch::paintEvent(QPaintEvent *event)
     p.save();
     p.setClipPath(clip);
 
-    const int s = 6;
-    for (int y = r.top(); y <= r.bottom(); y += s) {
-        for (int x = r.left(); x <= r.right(); x += s) {
-            const bool dark = (((x - r.left()) / s) + ((y - r.top()) / s)) % 2 == 0;
-            p.fillRect(QRect(x, y, s, s), dark ? QColor(0, 0, 0, 35) : QColor(255, 255, 255, 45));
-        }
-    }
+    fillCheckerboard(p, r, tc);
 
     if (m_showGradient && m_gradStops.size() >= 2) {
         if (m_isRadial) {
@@ -328,7 +404,7 @@ void PreviewSwatch::paintEvent(QPaintEvent *event)
 
     p.restore();
 
-    p.setPen(QPen(tc.border, 1.0));
+    p.setPen(QPen(pickerBorder(tc), 1.0));
     p.setBrush(Qt::NoBrush);
     p.drawRoundedRect(QRectF(r).adjusted(0.5, 0.5, -0.5, -0.5), radius, radius);
 }
@@ -446,7 +522,7 @@ void HueStrip::paintEvent(QPaintEvent *event)
         grad.setColorAt(1.00,       QColor("#FF0000"));
 
         const qreal radius = 7.0;
-        p.setPen(QPen(tc.border, 1.0));
+        p.setPen(QPen(pickerBorder(tc), 1.0));
         p.setBrush(grad);
         p.drawRoundedRect(QRectF(track).adjusted(0.5, 0.5, -0.5, -0.5), radius, radius);
 
@@ -459,20 +535,17 @@ void HueStrip::paintEvent(QPaintEvent *event)
         const qreal yy = outer.center().y() - handleH / 2.0;
         const QRectF handleRect(xx, yy, handleW, handleH);
 
-        QColor outline = m_dragging ? tc.accent : tc.border;
-        if (m_hover && !m_dragging)
-            outline = tc.hover;
-        outline.setAlpha(220);
+        const QColor outline = pickerHandleOutline(tc, m_dragging, m_hover);
 
         p.setPen(Qt::NoPen);
-        p.setBrush(QColor(0, 0, 0, 40));
+        p.setBrush(pickerShadow(tc));
         p.drawRoundedRect(handleRect.translated(0.0, 1.0), 7.0, 7.0);
 
         p.setPen(QPen(outline, 1.0));
-        p.setBrush(QColor(255, 255, 255, 238));
+        p.setBrush(pickerHandleFill(tc));
         p.drawRoundedRect(handleRect, 7.0, 7.0);
 
-        p.setPen(QPen(QColor(255, 255, 255, 160), 1.0));
+        p.setPen(QPen(pickerHandleShine(tc, 160), 1.0));
         p.drawLine(QPointF(handleRect.left() + 4.0, handleRect.top() + 3.0),
                    QPointF(handleRect.left() + 4.0, handleRect.bottom() - 3.0));
     } else {
@@ -492,7 +565,7 @@ void HueStrip::paintEvent(QPaintEvent *event)
         grad.setColorAt(1.00,       QColor("#FF0000"));
 
         const qreal radius = 7.0;
-        p.setPen(QPen(tc.border, 1.0));
+        p.setPen(QPen(pickerBorder(tc), 1.0));
         p.setBrush(grad);
         p.drawRoundedRect(QRectF(track).adjusted(0.5, 0.5, -0.5, -0.5), radius, radius);
 
@@ -504,20 +577,17 @@ void HueStrip::paintEvent(QPaintEvent *event)
         const qreal xx = outer.center().x() - handleW / 2.0;
         const QRectF handleRect(xx, yy, handleW, handleH);
 
-        QColor outline = m_dragging ? tc.accent : tc.border;
-        if (m_hover && !m_dragging)
-            outline = tc.hover;
-        outline.setAlpha(220);
+        const QColor outline = pickerHandleOutline(tc, m_dragging, m_hover);
 
         p.setPen(Qt::NoPen);
-        p.setBrush(QColor(0, 0, 0, 40));
+        p.setBrush(pickerShadow(tc));
         p.drawRoundedRect(handleRect.translated(0.0, 1.0), 7.0, 7.0);
 
         p.setPen(QPen(outline, 1.0));
-        p.setBrush(QColor(255, 255, 255, 238));
+        p.setBrush(pickerHandleFill(tc));
         p.drawRoundedRect(handleRect, 7.0, 7.0);
 
-        p.setPen(QPen(QColor(255, 255, 255, 160), 1.0));
+        p.setPen(QPen(pickerHandleShine(tc, 160), 1.0));
         p.drawLine(QPointF(handleRect.left() + 3.0, handleRect.top() + 4.0),
                    QPointF(handleRect.right() - 3.0, handleRect.top() + 4.0));
     }
@@ -622,13 +692,7 @@ void AlphaStrip::paintEvent(QPaintEvent *event)
     clip.addRoundedRect(QRectF(track).adjusted(0.5, 0.5, -0.5, -0.5), radius, radius);
     p.setClipPath(clip);
 
-    const int s = 6;
-    for (int y = track.top(); y <= track.bottom(); y += s) {
-        for (int x = track.left(); x <= track.right(); x += s) {
-            const bool dark = (((x - track.left()) / s) + ((y - track.top()) / s)) % 2 == 0;
-            p.fillRect(QRect(x, y, s, s), dark ? QColor(0, 0, 0, 35) : QColor(255, 255, 255, 45));
-        }
-    }
+    fillCheckerboard(p, track, tc);
 
     QColor left = m_baseColor;
     left.setAlpha(0);
@@ -640,7 +704,7 @@ void AlphaStrip::paintEvent(QPaintEvent *event)
     p.fillRect(track, grad);
     p.restore();
 
-    p.setPen(QPen(tc.border, 1.0));
+    p.setPen(QPen(pickerBorder(tc), 1.0));
     p.setBrush(Qt::NoBrush);
     p.drawRoundedRect(QRectF(track).adjusted(0.5, 0.5, -0.5, -0.5), radius, radius);
 
@@ -652,21 +716,17 @@ void AlphaStrip::paintEvent(QPaintEvent *event)
     const qreal yy = outer.center().y() - handleH / 2.0;
     const QRectF handleRect(xx, yy, handleW, handleH);
 
-    QColor outline = m_dragging ? tc.accent : tc.border;
-    if (m_hover && !m_dragging) {
-        outline = tc.hover;
-    }
-    outline.setAlpha(220);
+    const QColor outline = pickerHandleOutline(tc, m_dragging, m_hover);
 
     p.setPen(Qt::NoPen);
-    p.setBrush(QColor(0, 0, 0, 40));
+    p.setBrush(pickerShadow(tc));
     p.drawRoundedRect(handleRect.translated(0.0, 1.0), 7.0, 7.0);
 
     p.setPen(QPen(outline, 1.0));
-    p.setBrush(QColor(255, 255, 255, 238));
+    p.setBrush(pickerHandleFill(tc));
     p.drawRoundedRect(handleRect, 7.0, 7.0);
 
-    p.setPen(QPen(QColor(255, 255, 255, 150), 1.0));
+    p.setPen(QPen(pickerHandleShine(tc), 1.0));
     p.drawLine(QPointF(handleRect.left() + 3.0, handleRect.top() + 4.0), QPointF(handleRect.right() - 3.0, handleRect.top() + 4.0));
 }
 
@@ -746,13 +806,13 @@ void EyeDropperButton::paintEvent(QPaintEvent *event)
     const QRectF r = QRectF(rect()).adjusted(0.5, 0.5, -0.5, -0.5);
 
     // Background
-    QColor bg = tc.surface;
+    QColor bg = Theme::tokens(tc).neutral.card;
     if (m_pressed)
-        bg = tc.pressed;
+        bg = pickerPressedFill(tc);
     else if (m_hover)
-        bg = tc.hover;
+        bg = pickerHoverFill(tc);
 
-    p.setPen(QPen(tc.border, 1.0));
+    p.setPen(QPen(m_hover || m_pressed ? pickerStrongBorder(tc) : pickerBorder(tc), 1.0));
     p.setBrush(bg);
     p.drawRoundedRect(r, 5.0, 5.0);
 
@@ -999,17 +1059,11 @@ void GradientStopBar::paintEvent(QPaintEvent *event)
 
     // ── Checkerboard background ───────────────────────────────────────────
     {
-        const int s = 6;
         QPainterPath clip;
         clip.addRoundedRect(QRectF(bar).adjusted(0.5, 0.5, -0.5, -0.5), 6.0, 6.0);
         p.save();
         p.setClipPath(clip);
-        for (int y = bar.top(); y <= bar.bottom(); y += s) {
-            for (int x = bar.left(); x <= bar.right(); x += s) {
-                const bool dark = (((x - bar.left()) / s) + ((y - bar.top()) / s)) % 2 == 0;
-                p.fillRect(QRect(x, y, s, s), dark ? QColor(0, 0, 0, 35) : QColor(255, 255, 255, 45));
-            }
-        }
+        fillCheckerboard(p, bar, tc);
         // Gradient fill
         if (m_stops.size() >= 2) {
             QLinearGradient grad(bar.left(), 0, bar.right(), 0);
@@ -1020,7 +1074,7 @@ void GradientStopBar::paintEvent(QPaintEvent *event)
         p.restore();
     }
     // Bar border
-    p.setPen(QPen(tc.border, 1.0));
+    p.setPen(QPen(pickerBorder(tc), 1.0));
     p.setBrush(Qt::NoBrush);
     p.drawRoundedRect(QRectF(bar).adjusted(0.5, 0.5, -0.5, -0.5), 6.0, 6.0);
 
@@ -1032,12 +1086,12 @@ void GradientStopBar::paintEvent(QPaintEvent *event)
 
         // Shadow
         p.setPen(Qt::NoPen);
-        p.setBrush(QColor(0, 0, 0, 40));
+        p.setBrush(pickerShadow(tc));
         p.drawEllipse(center + QPointF(0.0, 1.0), (qreal)kHandleR, (qreal)kHandleR);
 
         // Fill with stop colour
         p.setBrush(m_stops[i].color);
-        QColor border = (i == m_selected) ? tc.accent : tc.border;
+        QColor border = (i == m_selected) ? pickerAccent(tc) : pickerBorder(tc);
         border.setAlpha(220);
         p.setPen(QPen(border, i == m_selected ? 2.0 : 1.0));
         p.drawEllipse(center, (qreal)kHandleR, (qreal)kHandleR);

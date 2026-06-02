@@ -102,6 +102,160 @@ QWidget *createMotionPage()
         summary->setStyleSheet(QStringLiteral("font-size: 12px; opacity: 0.88;"));
         s.body->addWidget(summary);
 
+        // Motion role matrix
+        {
+            const QString code = QStringLiteral(
+                "FluentMotion::setDuration(FluentMotionRole::Hover, 120);\n"
+                "FluentMotion::setDuration(FluentMotionRole::PopupOpen, 150);\n"
+                "FluentMotion::setDuration(FluentMotionRole::Selection, 180);\n"
+                "ThemeManager::instance().setAnimationsEnabled(false);\n");
+
+            page->addWidget(Demo::makeCollapsedExample(
+                QStringLiteral("Motion Role Matrix"),
+                DEMO_TEXT("把语义动效角色映射到真实控件和 reduced-motion 结果",
+                          "Map semantic motion roles to real controls and reduced-motion outcomes"),
+                DEMO_TEXT("要点：\n"
+                          "-同一页横向检查 Hover、Focus、Popup、Selection、Navigation、Page、Toast、WheelSnap\n"
+                          "-Configured / effective 时长分开显示，关闭全局动效时 effective 会变为 0\n"
+                          "-矩阵下方的 Motion Token 示例可直接调节这些角色并观察控件反馈",
+                          "Highlights:\n"
+                          "-Inspect Hover, Focus, Popup, Selection, Navigation, Page, Toast, and WheelSnap together\n"
+                          "-Configured and effective durations are shown separately; effective becomes 0 when animations are disabled\n"
+                          "-Use the Motion Token sample below to tune these roles and observe control feedback"),
+                code,
+                [](QVBoxLayout *body) {
+                    auto *grid = new QGridLayout();
+                    grid->setContentsMargins(0, 0, 0, 0);
+                    grid->setHorizontalSpacing(14);
+                    grid->setVerticalSpacing(10);
+
+                    auto makeCaption = [](const QString &text, bool strong = false) {
+                        auto *label = new FluentLabel(text);
+                        label->setWordWrap(true);
+                        label->setStyleSheet(strong
+                                                 ? QStringLiteral("font-size: 12px; font-weight: 600; opacity: 0.9;")
+                                                 : QStringLiteral("font-size: 12px; opacity: 0.78;"));
+                        return label;
+                    };
+
+                    auto makeDuration = [](FluentMotionRole role) {
+                        auto *label = new FluentLabel(QStringLiteral("%1 / %2 ms")
+                                                          .arg(FluentMotion::configuredDuration(role))
+                                                          .arg(FluentMotion::duration(role)));
+                        label->setAlignment(Qt::AlignCenter);
+                        label->setStyleSheet(QStringLiteral("font-size: 12px; opacity: 0.84;"));
+                        return label;
+                    };
+
+                    auto makeResult = [](const QString &text) {
+                        auto *label = new FluentLabel(text);
+                        label->setWordWrap(true);
+                        label->setStyleSheet(QStringLiteral("font-size: 12px; opacity: 0.78;"));
+                        return label;
+                    };
+
+                    auto makeControlHost = [](QWidget *widget) {
+                        auto *host = new QWidget();
+                        auto *row = new QHBoxLayout(host);
+                        row->setContentsMargins(0, 0, 0, 0);
+                        row->setSpacing(8);
+                        row->addWidget(widget);
+                        row->addStretch(1);
+                        return host;
+                    };
+
+                    grid->addWidget(makeCaption(DEMO_TEXT("Role", "Role"), true), 0, 0);
+                    grid->addWidget(makeCaption(DEMO_TEXT("Sample", "Sample"), true), 0, 1);
+                    grid->addWidget(makeCaption(DEMO_TEXT("Configured / effective", "Configured / effective"), true), 0, 2);
+                    grid->addWidget(makeCaption(DEMO_TEXT("Reduced motion", "Reduced motion"), true), 0, 3);
+
+                    auto addRow = [&](int row,
+                                      const QString &roleName,
+                                      FluentMotionRole role,
+                                      QWidget *sample,
+                                      const QString &reduced) {
+                        grid->addWidget(makeCaption(roleName), row, 0);
+                        grid->addWidget(makeControlHost(sample), row, 1);
+                        grid->addWidget(makeDuration(role), row, 2);
+                        grid->addWidget(makeResult(reduced), row, 3);
+                    };
+
+                    auto *hoverButton = new FluentButton(DEMO_TEXT("Hover / Press", "Hover / Press"));
+                    hoverButton->setMinimumWidth(128);
+                    addRow(1,
+                           QStringLiteral("Hover / Press"),
+                           FluentMotionRole::Hover,
+                           hoverButton,
+                           DEMO_TEXT("立即切到 hover / pressed 目标状态", "Jumps to hover / pressed target state"));
+
+                    auto *focusEdit = new FluentLineEdit();
+                    focusEdit->setPlaceholderText(DEMO_TEXT("Focus input", "Focus input"));
+                    focusEdit->setMinimumWidth(160);
+                    addRow(2,
+                           QStringLiteral("Focus"),
+                           FluentMotionRole::Focus,
+                           focusEdit,
+                           DEMO_TEXT("焦点描边直接落位", "Focus border snaps into place"));
+
+                    auto *popupCombo = new FluentComboBox();
+                    popupCombo->addItems({QStringLiteral("Popup"), QStringLiteral("Surface"), QStringLiteral("Placement")});
+                    popupCombo->setMinimumWidth(150);
+                    addRow(3,
+                           QStringLiteral("PopupOpen / PopupClose"),
+                           FluentMotionRole::PopupOpen,
+                           popupCombo,
+                           DEMO_TEXT("弹层无等待，直接到最终位置", "Popup opens immediately at final geometry"));
+
+                    auto *bar = new FluentProgressBar();
+                    bar->setRange(0, 100);
+                    bar->setValue(68);
+                    bar->setTextPosition(FluentProgressBar::TextPosition::Right);
+                    addRow(4,
+                           QStringLiteral("Selection"),
+                           FluentMotionRole::Selection,
+                           bar,
+                           DEMO_TEXT("选中条和进度直接到目标值", "Selection and progress jump to target values"));
+
+                    auto *navigationLabel = new FluentLabel(QStringLiteral("NavigationView"));
+                    navigationLabel->setStyleSheet(QStringLiteral("font-size: 12px; opacity: 0.84;"));
+                    addRow(5,
+                           QStringLiteral("Navigation"),
+                           FluentMotionRole::Navigation,
+                           navigationLabel,
+                           DEMO_TEXT("Pane 宽度和选中条直接落位", "Pane width and selection indicator snap into place"));
+
+                    auto *pageLabel = new FluentLabel(DEMO_TEXT("Demo page transition", "Demo page transition"));
+                    pageLabel->setStyleSheet(QStringLiteral("font-size: 12px; opacity: 0.84;"));
+                    addRow(6,
+                           QStringLiteral("Page"),
+                           FluentMotionRole::Page,
+                           pageLabel,
+                           DEMO_TEXT("页面切换不再等待淡入/滑入", "Page changes skip fade / slide wait"));
+
+                    auto *toastLabel = new FluentLabel(QStringLiteral("Toast queue"));
+                    toastLabel->setStyleSheet(QStringLiteral("font-size: 12px; opacity: 0.84;"));
+                    addRow(7,
+                           QStringLiteral("Toast"),
+                           FluentMotionRole::Toast,
+                           toastLabel,
+                           DEMO_TEXT("出现、关闭和队列移动直接完成", "Appear, close, and queue movement complete immediately"));
+
+                    auto *wheelLabel = new FluentLabel(DEMO_TEXT("Date / Time wheel", "Date / Time wheel"));
+                    wheelLabel->setStyleSheet(QStringLiteral("font-size: 12px; opacity: 0.84;"));
+                    addRow(8,
+                           QStringLiteral("WheelSnap"),
+                           FluentMotionRole::WheelSnap,
+                           wheelLabel,
+                           DEMO_TEXT("滚轮选择直接吸附到目标项", "Wheel selection snaps directly to target item"));
+
+                    grid->setColumnStretch(1, 1);
+                    grid->setColumnStretch(3, 1);
+                    body->addLayout(grid);
+                },
+                false,
+                300));
+        }
+
         // Global motion switch
         {
             QString code;

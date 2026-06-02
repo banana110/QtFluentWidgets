@@ -25,6 +25,7 @@ protected:
     void highlightBlock(const QString &text) override;
 
 private:
+    void applyThemeFormats();
     void rebuildRulesIfNeeded();
 
     bool m_operatorHighlightEnabled = true;

@@ -94,6 +94,18 @@ QString actionLabelText(QAction *action)
     return text;
 }
 
+QColor menuSeparatorColor(const FluentThemeTokens &tokens)
+{
+    QColor separator = tokens.neutral.strokeSubtle;
+    separator.setAlpha(tokens.dark ? 190 : 220);
+    return separator;
+}
+
+QColor menuHoverFill(const FluentThemeTokens &tokens)
+{
+    return tokens.neutral.cardHover;
+}
+
 static QRect popupAnchorRect(const QMenu *menu)
 {
     if (!menu) {
@@ -126,13 +138,16 @@ static QRect popupAnchorRect(const QMenu *menu)
 static int popupOpenSlideOffsetY(const QMenu *menu, const QPoint &finalContentTopLeft, int contentHeight)
 {
     const QRect anchorRect = popupAnchorRect(menu);
+    const int preferredOffset = FluentMotion::popupSlideOffset();
     if (anchorRect.isValid()) {
         if (finalContentTopLeft.y() >= anchorRect.bottom()) {
-            return -FluentMotion::popupSlideOffset();
+            const int clearGap = qMax(0, finalContentTopLeft.y() - anchorRect.bottom());
+            return -qMin(preferredOffset, clearGap);
         }
 
         if (finalContentTopLeft.y() + contentHeight <= anchorRect.top()) {
-            return FluentMotion::popupSlideOffset();
+            const int clearGap = qMax(0, anchorRect.top() - (finalContentTopLeft.y() + contentHeight));
+            return qMin(preferredOffset, clearGap);
         }
     }
 
@@ -143,10 +158,10 @@ static int popupOpenSlideOffsetY(const QMenu *menu, const QPoint &finalContentTo
 
     const QRect avail = screen ? screen->availableGeometry() : QRect();
     if (avail.isValid() && finalContentTopLeft.y() > avail.center().y()) {
-        return FluentMotion::popupSlideOffset();
+        return preferredOffset;
     }
 
-    return -FluentMotion::popupSlideOffset();
+    return -preferredOffset;
 }
 
 class FluentMenuItemDelegate final : public QStyledItemDelegate
@@ -320,7 +335,7 @@ public:
             row = (row + delta + count()) % count();
             QListWidgetItem *candidate = item(row);
             QAction *action = actionFromItem(candidate);
-            if (action && !candidate->data(kSeparatorRole).toBool()) {
+            if (action && action->isEnabled() && !candidate->data(kSeparatorRole).toBool()) {
                 setHoveredAction(action);
                 if (onHoverChanged) {
                     onHoverChanged(action);
@@ -391,16 +406,14 @@ void FluentMenuItemDelegate::paint(QPainter *painter,
 
     const bool isSeparator = index.data(kSeparatorRole).toBool();
     QAction *action = actionFromIndex(index);
-    const auto &colors = ThemeManager::instance().colors();
-    const bool dark = colors.background.lightnessF() < 0.5;
+    const auto &tokens = ThemeManager::instance().tokens();
+    const auto &colors = tokens.legacyColors;
 
     painter->save();
     painter->setRenderHint(QPainter::Antialiasing, true);
 
     if (isSeparator) {
-        QColor sep = colors.border;
-        sep.setAlpha(dark ? 140 : 90);
-        painter->setPen(QPen(sep, 1.0));
+        painter->setPen(QPen(menuSeparatorColor(tokens), 1.0));
         painter->drawLine(QPointF(option.rect.left() + 12.0, option.rect.center().y() + 0.5),
                           QPointF(option.rect.right() - 12.0, option.rect.center().y() + 0.5));
         painter->restore();
@@ -413,19 +426,17 @@ void FluentMenuItemDelegate::paint(QPainter *painter,
     }
 
     const QRect rowRect = option.rect.adjusted(kRowInsetX, kRowInsetY, -kRowInsetX, -kRowInsetY);
-    const bool hovered = action == m_view->hoveredAction();
+    const bool enabled = action->isEnabled();
+    const bool hovered = enabled && action == m_view->hoveredAction();
     if (hovered) {
-        QColor fill = colors.hover;
-        fill.setAlpha(110);
         painter->setPen(Qt::NoPen);
-        painter->setBrush(fill);
+        painter->setBrush(menuHoverFill(tokens));
         painter->drawRoundedRect(rowRect, 5, 5);
 
-        painter->setBrush(colors.accent);
+        painter->setBrush(tokens.accent.base);
         painter->drawRoundedRect(QRectF(rowRect.left(), rowRect.center().y() - 8.0, 3.0, 16.0), 1.5, 1.5);
     }
 
-    const bool enabled = action->isEnabled();
     const int checkSlot = m_view->hasCheckable() ? kCheckSlotWidth : 0;
     const int iconSlot = m_view->hasIcons() ? kIconSlotWidth : 0;
     const int arrowSlot = m_view->hasSubMenus() ? kSubMenuSlotWidth : 0;
@@ -433,7 +444,7 @@ void FluentMenuItemDelegate::paint(QPainter *painter,
 
     if (checkSlot > 0) {
         if (action->isCheckable() && action->isChecked()) {
-            painter->setPen(QPen(enabled ? colors.accent : colors.disabledText,
+            painter->setPen(QPen(enabled ? tokens.accent.base : colors.disabledText,
                                  1.8,
                                  Qt::SolidLine,
                                  Qt::RoundCap,
@@ -539,6 +550,9 @@ FluentMenuPopupHost::FluentMenuPopupHost(QMenu *sourceMenu)
     m_border.syncFromTheme();
 
     connect(&ThemeManager::instance(), &ThemeManager::themeChanged, this, [this]() {
+        if (m_openFadeAnim && FluentMotion::duration(FluentMotionRole::PopupOpen) <= 0) {
+            finishOpenAnimationImmediately();
+        }
         if (isVisible()) {
             m_border.onThemeChanged();
         } else {
@@ -781,22 +795,31 @@ void FluentMenuPopupHost::syncChildPopup()
     auto *popup = new FluentMenuPopupHost(submenuMenu);
     popup->setAttribute(Qt::WA_DeleteOnClose, true);
     popup->m_parentHost = this;
+    QPointer<FluentMenuPopupHost> self(this);
     QPointer<FluentMenuPopupHost> popupRef = popup;
-    popup->onClosed = [this, popupRef]() {
+    popup->onClosed = [self, popupRef]() {
+        if (!self) {
+            return;
+        }
         const bool fromParent = popupRef && popupRef->isClosingFromParent();
-        m_childPopup = nullptr;
+        self->m_childPopup = nullptr;
         if (!fromParent) {
-            close();
+            self->close();
         }
     };
-    popup->onActionTriggered = [this](QAction *triggeredAction) {
-        close();
-        if (onActionTriggered) {
-            onActionTriggered(triggeredAction);
+    popup->onActionTriggered = [self](QAction *triggeredAction) {
+        if (!self) {
+            return;
+        }
+        self->close();
+        if (self->onActionTriggered) {
+            self->onActionTriggered(triggeredAction);
         }
     };
-    popup->onEntered = [this]() {
-        cancelPendingChildClose();
+    popup->onEntered = [self]() {
+        if (self) {
+            self->cancelPendingChildClose();
+        }
     };
     m_childPopup = popup;
     popup->popupAt(submenuPopupPosition(action, popup->sizeHint()), nullptr, 0);
@@ -877,13 +900,38 @@ void FluentMenuPopupHost::cancelPendingChildClose()
     }
 }
 
+void FluentMenuPopupHost::finishOpenAnimationImmediately()
+{
+    if (!m_openFadeAnim && !m_openSlideAnim) {
+        return;
+    }
+
+    if (m_openFadeAnim) {
+        auto *animation = m_openFadeAnim;
+        m_openFadeAnim = nullptr;
+        animation->stop();
+        animation->deleteLater();
+    }
+    if (m_openSlideAnim) {
+        auto *animation = m_openSlideAnim;
+        m_openSlideAnim = nullptr;
+        animation->stop();
+        animation->deleteLater();
+    }
+    Detail::finishPopupOpen(this, m_openTargetGeometry);
+    m_openTargetGeometry = QRect();
+    raise();
+}
+
 void FluentMenuPopupHost::startOpenAnimation(const QRect &targetGeometry, int slideOffsetY)
 {
     stopOpenAnimation(false);
 
     Detail::preparePopupOpen(this, targetGeometry, slideOffsetY);
+    m_openTargetGeometry = targetGeometry;
     m_openFadeAnim = Detail::startPopupOpenAnimation(this, targetGeometry, slideOffsetY, true, [this]() {
         m_openFadeAnim = nullptr;
+        m_openTargetGeometry = QRect();
     });
 }
 
@@ -902,6 +950,7 @@ void FluentMenuPopupHost::stopOpenAnimation(bool resetOpacity)
     if (resetOpacity) {
         Detail::resetPopupOpenState(this);
     }
+    m_openTargetGeometry = QRect();
 }
 
 } // namespace Fluent

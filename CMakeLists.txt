@@ -17,6 +17,7 @@ else()
     find_package(Qt5 REQUIRED COMPONENTS Widgets Svg)
     set(QT_PACKAGE Qt5)
 endif()
+get_filename_component(FLUENT_QT_BIN_DIR "${${QT_PACKAGE}_DIR}/../../../bin" ABSOLUTE)
 
 if(FLUENT_BUILD_DESIGNER_PLUGIN)
     find_package(${QT_PACKAGE} REQUIRED COMPONENTS UiPlugin)
@@ -25,7 +26,6 @@ endif()
 if(FLUENT_BUILD_TESTS)
     find_package(${QT_PACKAGE} REQUIRED COMPONENTS Test)
     enable_testing()
-    get_filename_component(FLUENT_QT_BIN_DIR "${${QT_PACKAGE}_DIR}/../../../bin" ABSOLUTE)
 endif()
 
 if(NOT EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/third_party/rlottie/CMakeLists.txt")
@@ -294,13 +294,14 @@ if(FLUENT_BUILD_TESTS)
                 "PATH=path_list_prepend:$<TARGET_FILE_DIR:QtFluentWidgetsDesignerCompatTest>"
                 "PATH=path_list_prepend:${FLUENT_QT_BIN_DIR}"
                 "QT_QPA_PLATFORM=set:offscreen"
+                "QTFLUENT_SUPPRESS_KNOWN_WARNINGS=set:1"
             )
             set_tests_properties(QtFluentWidgetsDesignerCompatTest PROPERTIES
                 ENVIRONMENT_MODIFICATION "${_fluent_designer_compat_test_environment}"
             )
         else()
             set_tests_properties(QtFluentWidgetsDesignerCompatTest PROPERTIES
-                ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
+                ENVIRONMENT "QT_QPA_PLATFORM=offscreen;QTFLUENT_SUPPRESS_KNOWN_WARNINGS=1"
             )
         endif()
     endif()
@@ -310,9 +311,12 @@ if(FLUENT_BUILD_TESTS)
     )
     target_link_libraries(QtFluentWidgetsVisualSmokeTest PRIVATE QtFluentWidgets ${QT_PACKAGE}::Widgets ${QT_PACKAGE}::Test)
     if(MSVC)
-        target_compile_options(QtFluentWidgetsVisualSmokeTest PRIVATE /utf-8)
+        target_compile_options(QtFluentWidgetsVisualSmokeTest PRIVATE /utf-8 /bigobj)
     endif()
-    add_test(NAME QtFluentWidgetsVisualSmokeTest COMMAND QtFluentWidgetsVisualSmokeTest)
+    add_test(NAME QtFluentWidgetsVisualSmokeTest COMMAND QtFluentWidgetsVisualSmokeTest -maxwarnings 100000)
+    add_test(NAME QtFluentWidgetsVisualSmokeTestLottieHighDpi
+        COMMAND QtFluentWidgetsVisualSmokeTest -maxwarnings 100000 lottieTintCacheSurvivesResizeAndThemeChanges
+    )
     add_custom_target(run-QtFluentWidgetsVisualSmokeTest
         COMMAND ${CMAKE_COMMAND} -E env
             "PATH=$<TARGET_FILE_DIR:QtFluentWidgetsVisualSmokeTest>$<SEMICOLON>${FLUENT_QT_BIN_DIR}$<SEMICOLON>$ENV{PATH}"
@@ -336,13 +340,24 @@ if(FLUENT_BUILD_TESTS)
                 "PATH=path_list_prepend:${FLUENT_QT_BIN_DIR}"
                 "QT_QPA_PLATFORM=set:offscreen"
                 "QTFLUENT_VISUAL_SMOKE_OUTPUT_DIR=set:${CMAKE_CURRENT_BINARY_DIR}/visual-smoke-output"
+                "QTFLUENT_SUPPRESS_KNOWN_WARNINGS=set:1"
             )
             set_tests_properties(QtFluentWidgetsVisualSmokeTest PROPERTIES
                 ENVIRONMENT_MODIFICATION "${_fluent_visual_smoke_test_environment}"
             )
+            set(_fluent_visual_smoke_high_dpi_environment
+                ${_fluent_visual_smoke_test_environment}
+                "QT_SCALE_FACTOR=set:1.5"
+            )
+            set_tests_properties(QtFluentWidgetsVisualSmokeTestLottieHighDpi PROPERTIES
+                ENVIRONMENT_MODIFICATION "${_fluent_visual_smoke_high_dpi_environment}"
+            )
         else()
             set_tests_properties(QtFluentWidgetsVisualSmokeTest PROPERTIES
-                ENVIRONMENT "QT_QPA_PLATFORM=offscreen;QTFLUENT_VISUAL_SMOKE_OUTPUT_DIR=${CMAKE_CURRENT_BINARY_DIR}/visual-smoke-output"
+                ENVIRONMENT "QT_QPA_PLATFORM=offscreen;QTFLUENT_VISUAL_SMOKE_OUTPUT_DIR=${CMAKE_CURRENT_BINARY_DIR}/visual-smoke-output;QTFLUENT_SUPPRESS_KNOWN_WARNINGS=1"
+            )
+            set_tests_properties(QtFluentWidgetsVisualSmokeTestLottieHighDpi PROPERTIES
+                ENVIRONMENT "QT_QPA_PLATFORM=offscreen;QT_SCALE_FACTOR=1.5;QTFLUENT_VISUAL_SMOKE_OUTPUT_DIR=${CMAKE_CURRENT_BINARY_DIR}/visual-smoke-output;QTFLUENT_SUPPRESS_KNOWN_WARNINGS=1"
             )
         endif()
     endif()
@@ -361,6 +376,78 @@ if (QTFLUENT_DEMO_SUPPRESS_KNOWN_PAINT_WARNINGS)
 else()
     add_custom_target(run-QtFluentDemo
         COMMAND $<TARGET_FILE:QtFluentDemo>
+        DEPENDS QtFluentDemo
+        WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+        VERBATIM
+    )
+endif()
+
+if(WIN32)
+    add_custom_target(render-QtFluentDemoVisualBaselines
+        COMMAND powershell -NoProfile -ExecutionPolicy Bypass
+            -File "${CMAKE_CURRENT_SOURCE_DIR}/tools/render_demo_visual_baselines.ps1"
+            -Executable "$<TARGET_FILE:QtFluentDemo>"
+            -OutputDir "${CMAKE_CURRENT_BINARY_DIR}/demo-visual-baselines"
+            -QtBinDir "${FLUENT_QT_BIN_DIR}"
+            -Pages "overview,basic_input,inputs,buttons,icons,motion,pickers,angles,dataviews,containers,windows,settings"
+            -Variants "light,dark,accent"
+            -ScaleFactors "1,1.5"
+            -Platform "windows"
+        DEPENDS QtFluentDemo
+        WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+        VERBATIM
+    )
+else()
+    add_custom_target(render-QtFluentDemoVisualBaselines
+        COMMAND ${CMAKE_COMMAND} -E remove_directory ${CMAKE_CURRENT_BINARY_DIR}/demo-visual-baselines
+        COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_CURRENT_BINARY_DIR}/demo-visual-baselines
+        COMMAND ${CMAKE_COMMAND} -E env
+            QTFLUENT_SUPPRESS_KNOWN_PAINT_WARNINGS=1
+            QT_QPA_PLATFORM=offscreen
+            QT_SCALE_FACTOR=1
+            $<TARGET_FILE:QtFluentDemo>
+            --render-baselines ${CMAKE_CURRENT_BINARY_DIR}/demo-visual-baselines
+            --render-pages overview,basic_input,inputs,buttons,icons,motion,pickers,angles,dataviews,containers,windows,settings
+            --render-variants light,dark,accent
+        COMMAND ${CMAKE_COMMAND} -E env
+            QTFLUENT_SUPPRESS_KNOWN_PAINT_WARNINGS=1
+            QT_QPA_PLATFORM=offscreen
+            QT_SCALE_FACTOR=1.5
+            $<TARGET_FILE:QtFluentDemo>
+            --render-baselines ${CMAKE_CURRENT_BINARY_DIR}/demo-visual-baselines
+            --render-pages overview,basic_input,inputs,buttons,icons,motion,pickers,angles,dataviews,containers,windows,settings
+            --render-variants light,dark,accent
+        DEPENDS QtFluentDemo
+        WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+        VERBATIM
+    )
+endif()
+
+add_custom_target(capture-QtFluentDemoScreenshots
+    DEPENDS render-QtFluentDemoVisualBaselines
+)
+
+if(WIN32)
+    add_custom_target(smoke-QtFluentDemoInteractions
+        COMMAND powershell -NoProfile -ExecutionPolicy Bypass
+            -File "${CMAKE_CURRENT_SOURCE_DIR}/tools/run_demo_interaction_smoke.ps1"
+            -Executable "$<TARGET_FILE:QtFluentDemo>"
+            -OutputDir "${CMAKE_CURRENT_BINARY_DIR}/demo-interaction-smoke"
+            -QtBinDir "${FLUENT_QT_BIN_DIR}"
+            -Platform "windows"
+        DEPENDS QtFluentDemo
+        WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+        VERBATIM
+    )
+else()
+    add_custom_target(smoke-QtFluentDemoInteractions
+        COMMAND ${CMAKE_COMMAND} -E remove_directory ${CMAKE_CURRENT_BINARY_DIR}/demo-interaction-smoke
+        COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_CURRENT_BINARY_DIR}/demo-interaction-smoke
+        COMMAND ${CMAKE_COMMAND} -E env
+            QTFLUENT_SUPPRESS_KNOWN_PAINT_WARNINGS=1
+            QT_QPA_PLATFORM=offscreen
+            $<TARGET_FILE:QtFluentDemo>
+            --interaction-smoke ${CMAKE_CURRENT_BINARY_DIR}/demo-interaction-smoke
         DEPENDS QtFluentDemo
         WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
         VERBATIM

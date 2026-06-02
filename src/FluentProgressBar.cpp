@@ -1,7 +1,9 @@
 #include "Fluent/FluentProgressBar.h"
 #include "Fluent/FluentMotion.h"
+#include "Fluent/FluentStyle.h"
 #include "Fluent/FluentTheme.h"
 
+#include <QAbstractAnimation>
 #include <QEvent>
 #include <QPainter>
 #include <QPropertyAnimation>
@@ -21,6 +23,7 @@ FluentProgressBar::FluentProgressBar(QWidget *parent)
     applyTheme();
     connect(&ThemeManager::instance(), &ThemeManager::themeChanged, this, &FluentProgressBar::applyTheme);
     connect(this, &QProgressBar::valueChanged, this, [this](int newValue) {
+        FluentMotion::configure(m_valueAnim, FluentMotionRole::Selection);
         m_valueAnim->stop();
         const qreal target = static_cast<qreal>(newValue);
         if (m_valueAnim->duration() <= 0) {
@@ -80,7 +83,16 @@ void FluentProgressBar::changeEvent(QEvent *event)
 
 void FluentProgressBar::applyTheme()
 {
+    const bool snapValue = m_valueAnim &&
+        m_valueAnim->state() == QAbstractAnimation::Running &&
+        FluentMotion::duration(FluentMotionRole::Selection) <= 0;
+    const qreal target = m_valueAnim ? m_valueAnim->endValue().toReal() : m_displayValue;
+
     FluentMotion::configure(m_valueAnim, FluentMotionRole::Selection);
+    if (snapValue) {
+        m_valueAnim->stop();
+        setDisplayValue(target);
+    }
     update();
 }
 
@@ -88,6 +100,7 @@ void FluentProgressBar::paintEvent(QPaintEvent *event)
 {
     Q_UNUSED(event)
     const auto &colors = ThemeManager::instance().colors();
+    const auto tokens = ThemeManager::instance().tokens();
 
     QPainter painter(this);
     if (!painter.isActive()) {
@@ -106,7 +119,10 @@ void FluentProgressBar::paintEvent(QPaintEvent *event)
     
     // Draw full track background
     painter.setPen(Qt::NoPen);
-    painter.setBrush(colors.border); // Use border color as track background
+    QColor track = isEnabled()
+        ? Style::mix(tokens.neutral.strokeSubtle, tokens.neutral.fillSecondary, tokens.dark ? 0.36 : 0.28)
+        : tokens.neutral.strokeSubtle;
+    painter.setBrush(track);
     painter.drawRoundedRect(trackRect, radius, radius);
 
     const int minVal = minimum();
@@ -118,8 +134,13 @@ void FluentProgressBar::paintEvent(QPaintEvent *event)
     if (fillWidth > 0) {
         QRectF fillRect = trackRect;
         fillRect.setWidth(fillWidth);
+        QColor fill = tokens.accent.base;
+        if (!isEnabled()) {
+            fill = Style::mix(tokens.neutral.strokeStrong, tokens.accent.base, tokens.dark ? 0.22 : 0.28);
+            fill.setAlpha(172);
+        }
         painter.setPen(Qt::NoPen);
-        painter.setBrush(colors.accent);
+        painter.setBrush(fill);
         painter.drawRoundedRect(fillRect, radius, radius);
     }
     
@@ -141,7 +162,7 @@ void FluentProgressBar::paintEvent(QPaintEvent *event)
             break;
         }
 
-        const QColor tc = m_textColor.isValid() ? m_textColor : colors.text;
+        const QColor tc = m_textColor.isValid() ? m_textColor : (isEnabled() ? colors.text : colors.disabledText);
         painter.setPen(tc);
         painter.drawText(textRect.toRect(), align, QString("%1%").arg(static_cast<int>(progress * 100)));
     }

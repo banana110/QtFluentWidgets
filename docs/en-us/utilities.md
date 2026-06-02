@@ -113,12 +113,12 @@ Key APIs:
 Currently wired to:
 
 - hover / press on `FluentButton`, `FluentToolButton`, and `FluentAnimatedButton`; these controls resync tokens when the theme or global animation switch changes.
-- hover / focus on `FluentLineEdit`; when global animations are disabled, the next hover/focus transition jumps to its final state.
+- hover / focus on `FluentLineEdit`, `FluentKeySequenceEdit`, `FluentTextEdit`, `FluentCodeEditor`, `FluentSpinBox`, and `FluentDoubleSpinBox`, plus spinbox stepper emphasis; when global animations are disabled, the next state change jumps to its final state.
 - hover, focus, checked, and position transitions on `FluentToggleSwitch`, `FluentCheckBox`, `FluentRadioButton`, and `FluentSlider`.
 - determinate progress transitions on `FluentProgressBar` and `FluentProgressRing`; when global animations are disabled, progress jumps to the target value immediately and indeterminate ring rotation pauses.
-- popup opening for `FluentComboBox`, `FluentAutoSuggestBox`, `FluentMenu`, `FluentMenuBar`, `FluentFlyout`, `FluentCalendarPopup`, `FluentDatePicker`, and `FluentTimePicker`; ComboBox/AutoSuggestBox list hover and selection feedback also follow token updates.
+- popup opening for `FluentComboBox`, `FluentAutoSuggestBox`, `FluentMenu`, `FluentMenuBar`, `FluentFlyout`, `FluentCalendarPopup`, `FluentDatePicker`, and `FluentTimePicker`; ComboBox/AutoSuggestBox/Menu list hover, selection, and checked indicators also follow token updates.
 - `FluentCard` collapse motion and wheel-picker snap motion.
-- `FluentNavigationView` pane width, hover, and selection indicator; `FluentTabWidget` hover/selection; DataViews hover/selection; `FluentScrollBar` reveal/hover; `FluentDateRangePicker` hover; `FluentTeachingTip` mask fade-in/fade-out; `FluentToast` appear/disappear and queue movement.
+- `FluentNavigationView` pane width, hover, and selection indicator; `FluentTabWidget` hover/selection; DataViews hover/selection; `FluentScrollBar` reveal/hover; `FluentSplitter` handle hover; `FluentDateRangePicker` and `FluentDial` hover/focus; `FluentTeachingTip` mask fade-in/fade-out; `FluentToast` appear/disappear and queue movement.
 - `FluentFlowLayout` geometry reflow motion; explicit `setAnimationDuration()` / `setAnimationEasing()` still overrides the default token, while disabling global animations makes items snap into place.
 - The demo main window page transition uses `FluentMotionRole::Page`, so the Motion page can show the Page token in a real navigation flow.
 
@@ -145,6 +145,8 @@ Implementation notes:
 
 - `paintFluentFrame(...)` is for translucent top-level windows: when `FluentFrameSpec::clearToTransparent=true`, it clears the whole widget rect to transparent first to avoid corner artifacts.
 - `paintFluentPanel(...)` is for drawing a rounded panel inside a larger translucent widget: it does not clear the whole window; it only paints the given `panelRect`.
+- The default surface resolves through the modal Fluent surface token. The default border uses `neutral.strokeSubtle` in the normal state and `accent.base` when accent border is enabled. `surfaceOverride` / `borderColorOverride` can still override those defaults.
+- `FluentSurfaceSpec` derives Raised / Popup / Modal levels and hover / pressed / disabled states from `FluentThemeTokens`: hover uses `neutral.cardHover`, pressed uses `neutral.fillTertiary`, and disabled resolves toward `neutral.background` instead of directly mixing legacy `hover` / `pressed` colors or fixed black/white.
 
 ## Minimal integration example (custom painted panel + accent border)
 
@@ -190,6 +192,7 @@ Key APIs:
 - `FluentFrameSpec`
 - `paintFluentFrame(...)`
 - `paintFluentPanel(...)`
+- `fluentFrameSurface(...)` / `fluentFrameBorder(...)` resolve the current spec's tokenized default surface and border colors for custom drawing paths.
 
 ---
 
@@ -208,6 +211,7 @@ Key APIs:
 Implementation notes:
 
 - Internally it creates a `Qt::ToolTip | Qt::FramelessWindowHint | Qt::NoDropShadowWindowHint` top-level popup and paints it with `paintFluentPanel()`.
+- The panel surface uses a light `neutral.layer` + `accent.base` tint, the border uses the same light `neutral.strokeSubtle` + `accent.base` mix as `Theme::baseStyleSheet()`'s `QToolTip`, and text uses the current theme text color; dark or custom surface/border themes no longer fall back to legacy `surface/accent/border` mixes.
 - Text width is capped at about `420px`, and default display time is estimated from the text length (~0.9s + 55ms per character, clamped to `1600..8000ms`).
 - Position is based on the global cursor point plus an offset (~`+14,+22`), then clamped to the available screen geometry; if it does not fit below, it flips above the cursor.
 - Once installed, it intercepts `QEvent::ToolTip`, reads `widget->toolTip()` / `widget->toolTipDuration()`, and hides on `Leave`, mouse press, wheel, key press, focus out, or app deactivation.

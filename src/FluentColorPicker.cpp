@@ -28,7 +28,7 @@ FluentColorPicker::FluentColorPicker(QWidget *parent)
     connect(m_button, &QPushButton::clicked, this, &FluentColorPicker::openDialog);
     connect(&ThemeManager::instance(), &ThemeManager::themeChanged, this, &FluentColorPicker::applyTheme);
 
-    setColor(QColor("#0067C0"));
+    setColor(ThemeManager::instance().tokens().accent.base);
     applyTheme();
 }
 

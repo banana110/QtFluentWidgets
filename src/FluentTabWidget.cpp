@@ -4,6 +4,7 @@
 #include "Fluent/FluentStyle.h"
 #include "Fluent/FluentTheme.h"
 
+#include <QAbstractAnimation>
 #include <QEvent>
 #include <QIcon>
 #include <QMouseEvent>
@@ -112,18 +113,19 @@ static void paintWindowCloseGlyph(QPainter &painter,
                                   qreal pressLevel,
                                   bool neutralClose = false)
 {
+    const auto tokens = Theme::tokens(colors);
     QColor fill = Qt::transparent;
     if (!neutralClose) {
-        QColor danger = colors.error.isValid() ? colors.error : QColor("#E81123");
+        QColor danger = tokens.semantic.error.isValid() ? tokens.semantic.error : QColor("#E81123");
         QColor dangerPressed = danger.darker(125);
         danger.setAlphaF(0.92);
         dangerPressed.setAlphaF(0.97);
         fill = Style::mix(fill, danger, hoverLevel);
         fill = Style::mix(fill, dangerPressed, pressLevel);
     } else {
-        QColor h = colors.hover;
+        QColor h = tokens.neutral.cardHover;
         h.setAlphaF(0.58);
-        QColor pr = colors.pressed;
+        QColor pr = tokens.neutral.fillTertiary;
         pr.setAlphaF(0.78);
         fill = Style::mix(fill, h, hoverLevel);
         fill = Style::mix(fill, pr, pressLevel);
@@ -149,6 +151,12 @@ static void paintWindowCloseGlyph(QPainter &painter,
     painter.drawLine(QPointF(r.left(), r.top()), QPointF(r.right(), r.bottom()));
     painter.drawLine(QPointF(r.right(), r.top()), QPointF(r.left(), r.bottom()));
     painter.restore();
+}
+
+static QColor tabIndicatorColor(const ThemeColors &colors, bool enabled)
+{
+    const auto tokens = Theme::tokens(colors);
+    return enabled ? tokens.accent.base : colors.disabledText;
 }
 
 static void paintDocumentPaneSurface(QPainter &painter,
@@ -213,6 +221,7 @@ public:
         : QWidget(host)
         , m_host(host)
     {
+        setObjectName(QStringLiteral("FluentTabFrameOverlay"));
         setAttribute(Qt::WA_TransparentForMouseEvents, true);
         setAttribute(Qt::WA_NoSystemBackground, true);
         setAttribute(Qt::WA_TranslucentBackground, true);
@@ -289,8 +298,24 @@ public:
         });
 
         connect(&ThemeManager::instance(), &ThemeManager::themeChanged, this, [this]() {
+            const bool indicatorRunning = m_indicatorAnim
+                && m_indicatorAnim->state() == QAbstractAnimation::Running;
+            const bool hoverRunning = m_hoverAnim
+                && m_hoverAnim->state() == QAbstractAnimation::Running;
+            const QVariant hoverEnd = m_hoverAnim ? m_hoverAnim->endValue() : QVariant();
+
             FluentMotion::configure(m_indicatorAnim, FluentMotionRole::Selection);
             FluentMotion::configure(m_hoverAnim, FluentMotionRole::Hover);
+            if (indicatorRunning && m_indicatorAnim->duration() <= 0) {
+                m_indicatorAnim->stop();
+                m_indicatorRect = m_indicatorTargetRect;
+                m_indicatorStartRect = m_indicatorRect;
+            }
+            if (hoverRunning && m_hoverAnim->duration() <= 0) {
+                m_hoverAnim->stop();
+                m_hoverLevel = qBound<qreal>(0.0, hoverEnd.toReal(), 1.0);
+            }
+            update();
         });
 
         connect(this, &QTabBar::currentChanged, this, [this](int index) {
@@ -321,6 +346,7 @@ public:
 
         m_indicatorStartRect = m_indicatorRect;
         m_indicatorTargetRect = QRectF(rect);
+        FluentMotion::configure(m_indicatorAnim, FluentMotionRole::Selection);
         m_indicatorAnim->stop();
         if (m_indicatorAnim->duration() <= 0) {
             m_indicatorRect = m_indicatorTargetRect;
@@ -497,7 +523,7 @@ protected:
         const bool horizontalDocument = !vertical && (m_displayMode == FluentTabWidget::TabDisplayMode::Document);
         QColor bgFill = horizontalDocument ? tokens.neutral.background : tokens.neutral.card;
         if (!isEnabled()) {
-            bgFill = Style::mix(bgFill, colors.hover, 0.35);
+            bgFill = Style::mix(bgFill, tokens.neutral.background, tokens.dark ? 0.48 : 0.35);
         }
         painter.setPen(Qt::NoPen);
         painter.setBrush(bgFill);
@@ -529,9 +555,9 @@ protected:
             const QRect tabR = m_indicatorRect.toRect();
             if (tabR.isValid()) {
                 QRect bg = tabR.adjusted(10, 2, -10, -2);
-                QColor fill = Style::mix(tokens.neutral.card, colors.accent, tokens.dark ? 0.18 : 0.09);
+                QColor fill = Style::mix(tokens.neutral.card, tokens.accent.base, tokens.dark ? 0.18 : 0.09);
                 if (!isEnabled()) {
-                    fill = Style::mix(tokens.neutral.card, colors.hover, 0.35);
+                    fill = Style::mix(tokens.neutral.card, tokens.neutral.background, tokens.dark ? 0.48 : 0.35);
                 }
                 painter.setPen(Qt::NoPen);
                 painter.setBrush(fill);
@@ -567,12 +593,12 @@ protected:
                     stroke = Qt::transparent;
                 }
             } else if (pressed) {
-                fill = document ? Style::mix(tokens.neutral.card, colors.pressed, tokens.dark ? 0.54 : 0.46)
+                fill = document ? Style::mix(tokens.neutral.card, tokens.neutral.fillTertiary, tokens.dark ? 0.54 : 0.46)
                                 : Qt::transparent;
             } else if (hovered) {
                 if (document) {
                     // Subtle animated hover: keep RGB stable and fade alpha to avoid dark flashes.
-                    fill = Style::mix(tokens.neutral.card, colors.hover, tokens.dark ? 0.46 : 0.36);
+                    fill = tokens.neutral.cardHover;
                     fill.setAlphaF(qBound<qreal>(0.0, (tokens.dark ? 0.78 : 0.64) * m_hoverLevel, 1.0));
                 }
             }
@@ -647,7 +673,7 @@ protected:
         // Indicator
         if (count() > 0 && currentIndex() >= 0 && m_indicatorRect.isValid() && (m_indicatorRect.width() > 0.0 || m_indicatorRect.height() > 0.0)) {
             painter.setPen(Qt::NoPen);
-            painter.setBrush(colors.accent);
+            painter.setBrush(tabIndicatorColor(colors, isEnabled()));
 
             if (!vertical && m_displayMode == FluentTabWidget::TabDisplayMode::Underline) {
                 // Fluent underline
@@ -899,6 +925,7 @@ private:
             return;
         }
 
+        FluentMotion::configure(m_hoverAnim, FluentMotionRole::Hover);
         m_hoverAnim->stop();
         if (m_hoverAnim->duration() <= 0) {
             m_hoverLevel = qBound<qreal>(0.0, endValue, 1.0);
@@ -936,8 +963,7 @@ FluentTabWidget::FluentTabWidget(QWidget *parent)
     setTabBar(bar);
 
     m_frameOverlay = new FluentTabFrameOverlay(this);
-    m_frameOverlay->setGeometry(rect());
-    m_frameOverlay->raise();
+    syncFrameOverlay();
 
     applyTheme();
     connect(&ThemeManager::instance(), &ThemeManager::themeChanged, this, &FluentTabWidget::applyTheme);
@@ -953,6 +979,7 @@ bool FluentTabWidget::event(QEvent *event)
     const bool handled = QTabWidget::event(event);
     if (event->type() == QEvent::LayoutRequest || event->type() == QEvent::Show || event->type() == QEvent::Polish
         || event->type() == QEvent::ChildAdded) {
+        syncFrameOverlay();
         scheduleDocumentCornerWidgetPosition();
     }
     return handled;
@@ -963,9 +990,7 @@ void FluentTabWidget::changeEvent(QEvent *event)
     QTabWidget::changeEvent(event);
     if (event->type() == QEvent::EnabledChange) {
         applyTheme();
-        if (m_frameOverlay) {
-            m_frameOverlay->update();
-        }
+        syncFrameOverlay();
     }
     scheduleDocumentCornerWidgetPosition();
 }
@@ -973,10 +998,7 @@ void FluentTabWidget::changeEvent(QEvent *event)
 void FluentTabWidget::resizeEvent(QResizeEvent *event)
 {
     QTabWidget::resizeEvent(event);
-    if (m_frameOverlay) {
-        m_frameOverlay->setGeometry(rect());
-        m_frameOverlay->raise();
-    }
+    syncFrameOverlay();
     scheduleDocumentCornerWidgetPosition();
 }
 
@@ -1006,6 +1028,16 @@ void FluentTabWidget::applyContentMarginToPage(int index)
     if (page->contentsMargins() != margins) {
         page->setContentsMargins(margins);
     }
+}
+
+void FluentTabWidget::syncFrameOverlay()
+{
+    if (!m_frameOverlay) {
+        return;
+    }
+    m_frameOverlay->setGeometry(rect());
+    m_frameOverlay->raise();
+    m_frameOverlay->update();
 }
 
 void FluentTabWidget::tabInserted(int index)
@@ -1073,9 +1105,7 @@ void FluentTabWidget::positionDocumentCornerWidget()
     corner->setGeometry(x, y, corner->width(), corner->height());
     corner->raise();
     corner->show();
-    if (m_frameOverlay) {
-        m_frameOverlay->raise();
-    }
+    syncFrameOverlay();
 }
 
 void FluentTabWidget::paintEvent(QPaintEvent *event)
@@ -1111,7 +1141,9 @@ void FluentTabWidget::paintEvent(QPaintEvent *event)
         const QRectF stripRect(QPointF(documentLeft, header.top()),
                                QPointF(rect().right(), header.bottom() + 1));
         painter.setPen(Qt::NoPen);
-        painter.setBrush(isEnabled() ? stripFill : Style::mix(stripFill, colors.hover, 0.35));
+        painter.setBrush(isEnabled()
+                             ? stripFill
+                             : Style::mix(stripFill, tokens.neutral.background, tokens.dark ? 0.48 : 0.35));
         painter.drawPath(topRoundedRectPath(stripRect.adjusted(0.5, 0.5, -0.5, 0.0), tokens.radius.card));
 
         QRect documentPane = pane;
@@ -1161,7 +1193,7 @@ void FluentTabWidget::setTabDisplayMode(TabDisplayMode mode)
     }
     if (m_frameOverlay) {
         m_frameOverlay->setVisible(mode != TabDisplayMode::Document);
-        m_frameOverlay->update();
+        syncFrameOverlay();
     }
     scheduleDocumentCornerWidgetPosition();
 }

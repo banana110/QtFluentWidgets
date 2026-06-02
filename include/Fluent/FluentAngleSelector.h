@@ -57,6 +57,7 @@ private:
 
     int m_minimum = 0;
     int m_maximum = 359;
+    int m_value = 0;
     bool m_wrapping = true;
 
     FluentLabel *m_label = nullptr;

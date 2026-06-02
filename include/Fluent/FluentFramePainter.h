@@ -59,19 +59,17 @@ inline QColor fluentSurfaceFill(const ThemeColors &colors, const FluentSurfaceSp
         fill = tokens.neutral.layer;
         break;
     case FluentSurfaceLevel::Raised:
-        fill = tokens.dark
-            ? Style::mix(colors.surface, QColor("#FFFFFF"), 0.055)
-            : Style::mix(colors.surface, QColor("#000000"), 0.012);
+        fill = Style::mix(tokens.neutral.card, colors.text, tokens.dark ? 0.055 : 0.012);
         break;
     case FluentSurfaceLevel::Popup:
         fill = tokens.dark
-            ? Style::mix(colors.surface, QColor("#FFFFFF"), 0.075)
-            : colors.surface;
+            ? Style::mix(tokens.neutral.card, colors.text, 0.075)
+            : tokens.neutral.card;
         break;
     case FluentSurfaceLevel::Modal:
         fill = tokens.dark
-            ? Style::mix(colors.surface, QColor("#FFFFFF"), 0.095)
-            : colors.surface;
+            ? Style::mix(tokens.neutral.card, colors.text, 0.095)
+            : tokens.neutral.card;
         break;
     case FluentSurfaceLevel::Card:
     default:
@@ -87,10 +85,10 @@ inline QColor fluentSurfaceFill(const ThemeColors &colors, const FluentSurfaceSp
     }
 
     if (!spec.enabled) {
-        fill = Style::mix(fill, colors.hover, tokens.dark ? 0.20 : 0.36);
+        fill = Style::mix(fill, tokens.neutral.background, tokens.dark ? 0.48 : 0.35);
     } else if (spec.pressed) {
         const qreal amount = qBound<qreal>(0.0, spec.pressLevel, 1.0);
-        fill = Style::mix(fill, colors.pressed, (tokens.dark ? 0.42 : 0.34) * amount);
+        fill = Style::mix(fill, tokens.neutral.fillTertiary, (tokens.dark ? 0.42 : 0.34) * amount);
     } else if (spec.hovered) {
         const qreal amount = qBound<qreal>(0.0, spec.hoverLevel, 1.0);
         fill = Style::mix(fill, tokens.neutral.cardHover, (tokens.dark ? 0.70 : 0.55) * amount);
@@ -209,10 +207,10 @@ struct FluentFrameSpec {
     // If true, clears the entire widget rect to transparent first.
     bool clearToTransparent = true;
 
-    // If invalid, uses ThemeColors::surface.
+    // If invalid, uses the modal Fluent surface token.
     QColor surfaceOverride;
 
-    // If invalid, uses (accentBorderEnabled ? colors.accent : colors.border).
+    // If invalid, uses (accentBorderEnabled ? tokens.accent.base : tokens.neutral.strokeSubtle).
     QColor borderColorOverride;
 
     bool accentBorderEnabled = true;
@@ -225,6 +223,25 @@ struct FluentFrameSpec {
     qreal borderWidth = 1.0;
     qreal borderInset = 0.5; // keep stroke inside the window edges
 };
+
+inline QColor fluentFrameSurface(const ThemeColors &colors, const FluentFrameSpec &spec)
+{
+    FluentSurfaceSpec surface;
+    surface.level = FluentSurfaceLevel::Modal;
+    surface.elevation = FluentElevationLevel::None;
+    surface.surfaceOverride = spec.surfaceOverride;
+    return fluentSurfaceFill(colors, surface);
+}
+
+inline QColor fluentFrameBorder(const ThemeColors &colors, const FluentFrameSpec &spec)
+{
+    if (spec.borderColorOverride.isValid()) {
+        return spec.borderColorOverride;
+    }
+
+    const auto tokens = Theme::tokens(colors);
+    return spec.accentBorderEnabled ? tokens.accent.base : tokens.neutral.strokeSubtle;
+}
 
 inline void paintFluentFrame(QPainter &p, const QRect &widgetRect, const ThemeColors &colors, const FluentFrameSpec &spec)
 {
@@ -246,11 +263,8 @@ inline void paintFluentFrame(QPainter &p, const QRect &widgetRect, const ThemeCo
     QRectF panelRect(widgetRect);
     panelRect.adjust(spec.borderInset, spec.borderInset, -spec.borderInset, -spec.borderInset);
 
-    const QColor surface = spec.surfaceOverride.isValid() ? spec.surfaceOverride : colors.surface;
-
-    const QColor border = spec.borderColorOverride.isValid()
-        ? spec.borderColorOverride
-        : (spec.accentBorderEnabled ? colors.accent : colors.border);
+    const QColor surface = fluentFrameSurface(colors, spec);
+    const QColor border = fluentFrameBorder(colors, spec);
 
     p.setPen(QPen(border, spec.borderWidth));
     p.setBrush(surface);
@@ -275,11 +289,8 @@ inline void paintFluentPanel(QPainter &p, const QRectF &panelRect, const ThemeCo
 
     const qreal radius = spec.maximized ? 0.0 : spec.radius;
 
-    const QColor surface = spec.surfaceOverride.isValid() ? spec.surfaceOverride : colors.surface;
-
-    const QColor border = spec.borderColorOverride.isValid()
-        ? spec.borderColorOverride
-        : (spec.accentBorderEnabled ? colors.accent : colors.border);
+    const QColor surface = fluentFrameSurface(colors, spec);
+    const QColor border = fluentFrameBorder(colors, spec);
 
     p.setPen(QPen(border, spec.borderWidth));
     p.setBrush(surface);

@@ -4,6 +4,7 @@
 #include "Fluent/FluentStyle.h"
 #include "Fluent/FluentTheme.h"
 #include "../FluentPopupUtils.h"
+#include <QAbstractAnimation>
 #include <QApplication>
 #include <QEvent>
 #include <QFontMetrics>
@@ -96,7 +97,42 @@ static QFont adjustedFontSize(QFont font, qreal pointDelta)
 
 static QColor onAccentText(const ThemeColors &colors)
 {
-    return Theme::contrastColor(colors.accent);
+    return Theme::tokens(colors).onAccent;
+}
+
+static QColor calendarDividerColor(const FluentThemeTokens &tokens, int alpha)
+{
+    QColor color = tokens.neutral.strokeSubtle;
+    color.setAlpha(alpha);
+    return color;
+}
+
+static QColor calendarHoverFill(const FluentThemeTokens &tokens, int alpha)
+{
+    QColor color = tokens.neutral.cardHover;
+    color.setAlpha(alpha);
+    return color;
+}
+
+static QColor calendarPressedFill(const FluentThemeTokens &tokens, int alpha)
+{
+    QColor color = tokens.neutral.fillTertiary;
+    color.setAlpha(alpha);
+    return color;
+}
+
+static QColor calendarAccentFill(const FluentThemeTokens &tokens, int alpha)
+{
+    QColor color = tokens.accent.base;
+    color.setAlpha(alpha);
+    return color;
+}
+
+static QColor calendarAccentFillF(const FluentThemeTokens &tokens, qreal alpha)
+{
+    QColor color = tokens.accent.base;
+    color.setAlphaF(qBound<qreal>(0.0, alpha, 1.0));
+    return color;
 }
 } // namespace
 // ── Constructor ──────────────────────────────────────────────────────────
@@ -119,6 +155,17 @@ FluentCalendarPopup::FluentCalendarPopup(QWidget *anchor)
 
     m_border.syncFromTheme();
     connect(&ThemeManager::instance(), &ThemeManager::themeChanged, this, [this]() {
+        FluentMotion::configure(m_openAnim, FluentMotionRole::PopupOpen);
+        FluentMotion::configure(m_modeAnim, FluentMotionRole::Selection);
+        if (isVisible() && m_openAnim && m_openAnim->duration() <= 0) {
+            m_openAnim->stop();
+            m_openProgress = 1.0;
+            Detail::finishPopupOpen(this, m_targetGeom);
+        }
+        if (m_modeAnim && m_modeAnim->state() == QAbstractAnimation::Running && m_modeAnim->duration() <= 0) {
+            m_modeAnim->stop();
+            m_modeProgress = 1.0;
+        }
         if (isVisible()) {
             m_border.onThemeChanged();
         } else {
@@ -200,6 +247,7 @@ QDate FluentCalendarPopup::rangeStart() const { return m_rangeStart; }
 QDate FluentCalendarPopup::rangeEnd()   const { return m_rangeEnd;   }
 void FluentCalendarPopup::popup()
 {
+    m_dismissing = false;
     if (m_selectionMode == SelectionMode::Range) {
         if (!m_pageYear) ensurePageFromSelected();
         m_selectingEnd = false;
@@ -212,6 +260,7 @@ void FluentCalendarPopup::popup()
     }
     positionPopupBelowOrAbove(6);
     m_targetGeom = geometry();
+    FluentMotion::configure(m_openAnim, FluentMotionRole::PopupOpen);
     m_openAnim->stop();
     m_openProgress = 0.0;
     Detail::preparePopupOpen(this, m_targetGeom, m_openSlideOffsetY);
@@ -234,7 +283,9 @@ void FluentCalendarPopup::popup()
 }
 void FluentCalendarPopup::dismiss()
 {
+    if (m_dismissing) return;
     if (!isVisible()) return;
+    m_dismissing = true;
     m_hoverDate = QDate();
     hide();         // hideEvent handles animation/opacity/border/filter cleanup
     emit dismissed();
@@ -484,8 +535,8 @@ void FluentCalendarPopup::paintEvent(QPaintEvent *event)
         paintRangePanelDays  (p, leftPanelX,  m_pageYear,      m_pageMonth,      false);
         paintRangePanelHeader(p, rightPanelX, m_rightPageYear, m_rightPageMonth, true);
         paintRangePanelDays  (p, rightPanelX, m_rightPageYear, m_rightPageMonth, true);
-        QColor div = c.border; div.setAlpha(100);
-        p.setPen(QPen(div, 1.0));
+        const auto tokens = Theme::tokens(c);
+        p.setPen(QPen(calendarDividerColor(tokens, 100), 1.0));
         p.drawLine(QPointF(rightPanelX + 0.5, surface.top() + 12),
                    QPointF(rightPanelX + 0.5, surface.bottom() - 12));
         return;
@@ -507,6 +558,7 @@ void FluentCalendarPopup::paintRangePanelHeader(QPainter &p, int panelX,
     int pageYear, int pageMonth, bool isRight)
 {
     const auto &c = ThemeManager::instance().colors();
+    const auto tokens = Theme::tokens(c);
     const QLocale calendarLocale = locale();
     const QRect surface = PopupSurface::shadowContentRect(rect());
     const QRect content(panelX + kPadding,
@@ -525,13 +577,11 @@ void FluentCalendarPopup::paintRangePanelHeader(QPainter &p, int panelX,
     const QRect navPrev(h.right() - kNavBtn*2 - 6, navY, kNavBtn, kNavBtn);
     const QRect navNext(h.right() - kNavBtn,        navY, kNavBtn, kNavBtn);
     // Bottom divider line
-    QColor line = c.border; line.setAlpha(80);
-    p.setPen(QPen(line, 1.0));
+    p.setPen(QPen(calendarDividerColor(tokens, 80), 1.0));
     p.drawLine(QPointF(h.left(), h.bottom() + 0.5), QPointF(h.right(), h.bottom() + 0.5));
     // Separator between year and month
-    QColor sep = c.border; sep.setAlpha(80);
     const int sx = yearPill.right() + 10, sy = h.y() + (h.height() - 18) / 2;
-    p.setPen(QPen(sep, 1.0));
+    p.setPen(QPen(calendarDividerColor(tokens, 80), 1.0));
     p.drawLine(QPointF(sx + 0.5, sy), QPointF(sx + 0.5, sy + 18));
     // Year / month labels
     p.setFont(f);
@@ -544,8 +594,8 @@ void FluentCalendarPopup::paintRangePanelHeader(QPainter &p, int panelX,
     auto paintNav = [&](const QRect &r, HitPart part, bool right) {
         const bool hov = (m_hoverPart == part), prs = (m_pressPart == part);
         QColor bg = Qt::transparent;
-        if (prs)      { bg = c.pressed; bg.setAlpha(150); }
-        else if (hov) { bg = c.hover;   bg.setAlpha(120); }
+        if (prs)      { bg = calendarPressedFill(tokens, 150); }
+        else if (hov) { bg = calendarHoverFill(tokens, 120); }
         p.setPen(Qt::NoPen); p.setBrush(bg);
         p.drawRoundedRect(QRectF(r).adjusted(0.5,0.5,-0.5,-0.5), 8.0, 8.0);
         if (right) drawChevronRight(p, r.center(), c.subText);
@@ -558,6 +608,7 @@ void FluentCalendarPopup::paintRangePanelDays(QPainter &p, int panelX,
     int pageYear, int pageMonth, bool isRight)
 {
     const auto &c = ThemeManager::instance().colors();
+    const auto tokens = Theme::tokens(c);
     const QLocale calendarLocale = locale();
     const Qt::DayOfWeek firstDayOfWeek = calendarLocale.firstDayOfWeek();
     const QRect surface = PopupSurface::shadowContentRect(rect());
@@ -572,8 +623,8 @@ void FluentCalendarPopup::paintRangePanelDays(QPainter &p, int panelX,
     if (cw <= 0 || ch <= 0) return;
     // Weekend columns
     {
-        QColor wkBg = c.pressed; wkBg.setAlpha(45);
-        p.setPen(Qt::NoPen); p.setBrush(wkBg);
+        p.setPen(Qt::NoPen);
+        p.setBrush(calendarPressedFill(tokens, 45));
         const int totalH = dayNames.height() + cells.height();
         for (int col = 0; col < 7; ++col) {
             if (isWeekendColumn(col, firstDayOfWeek)) {
@@ -614,8 +665,7 @@ void FluentCalendarPopup::paintRangePanelDays(QPainter &p, int panelX,
             if (hasRange) {
                 const qreal bY = rc.y() + 4.0, bH = rc.height() - 8.0;
                 const qreal cx = rc.x() + rc.width() / 2.0;
-                QColor band = c.accent; band.setAlphaF(0.15);
-                p.setPen(Qt::NoPen); p.setBrush(band);
+                p.setPen(Qt::NoPen); p.setBrush(calendarAccentFillF(tokens, 0.15));
                 if (inRange) {
                     p.drawRect(QRectF(rc.x(), bY, rc.width(), bH));
                 } else if (isStart && d != effE) {
@@ -629,17 +679,15 @@ void FluentCalendarPopup::paintRangePanelDays(QPainter &p, int panelX,
             }
             // 2. Cell circle
             if (isStart || isEnd) {
-                p.setPen(Qt::NoPen); p.setBrush(c.accent);
+                p.setPen(Qt::NoPen); p.setBrush(tokens.accent.base);
                 p.drawRoundedRect(rr, 8.0, 8.0);
             } else if (hovered && !inRange) {
-                QColor fill = c.hover; fill.setAlpha(120);
-                p.setPen(Qt::NoPen); p.setBrush(fill);
+                p.setPen(Qt::NoPen); p.setBrush(calendarHoverFill(tokens, 120));
                 p.drawRoundedRect(rr, 8.0, 8.0);
             }
             // 3. Today ring
             if (isToday && !isStart && !isEnd) {
-                QColor ring = c.accent; ring.setAlpha(170);
-                p.setPen(QPen(ring, 1.5)); p.setBrush(Qt::NoBrush);
+                p.setPen(QPen(calendarAccentFill(tokens, 170), 1.5)); p.setBrush(Qt::NoBrush);
                 p.drawRoundedRect(rr, 8.0, 8.0);
             }
             // 4. Text
@@ -657,24 +705,23 @@ void FluentCalendarPopup::paintRangePanelDays(QPainter &p, int panelX,
 void FluentCalendarPopup::paintHeader(QPainter &p)
 {
     const auto &c = ThemeManager::instance().colors();
+    const auto tokens = Theme::tokens(c);
     const QLocale calendarLocale = locale();
     const QRect h = headerRect(), y = yearPillRect(), m = monthPillRect(), t = todayButtonRect();
-    QColor hl = c.border; hl.setAlpha(80);
-    p.setPen(QPen(hl, 1.0));
+    p.setPen(QPen(calendarDividerColor(tokens, 80), 1.0));
     p.drawLine(QPointF(h.left(), h.bottom()+0.5), QPointF(h.right(), h.bottom()+0.5));
-    QColor sep = c.border; sep.setAlpha(90);
     const int sx = y.right()+10, sy = h.y()+(h.height()-18)/2;
-    p.setPen(QPen(sep, 1.0));
+    p.setPen(QPen(calendarDividerColor(tokens, 90), 1.0));
     p.drawLine(QPointF(sx+0.5, sy), QPointF(sx+0.5, sy+18));
     auto paintPill = [&](const QRect &r, HitPart part, const QString &text, bool active) {
         const bool hov = (m_hoverPart==part), prs = (m_pressPart==part);
         QColor bg = Qt::transparent, tc = c.text;
         if (active) {
-            bg = c.accent; bg.setAlpha(220); tc = onAccentText(c);
+            bg = calendarAccentFill(tokens, 220); tc = onAccentText(c);
             if (prs) bg=bg.darker(112); else if (hov) bg=bg.lighter(106);
         } else {
-            if (prs)      { bg=c.pressed; bg.setAlpha(150); }
-            else if (hov) { bg=c.hover;   bg.setAlpha(120); }
+            if (prs)      { bg = calendarPressedFill(tokens, 150); }
+            else if (hov) { bg = calendarHoverFill(tokens, 120); }
         }
         p.setPen(Qt::NoPen); p.setBrush(bg);
         p.drawRoundedRect(QRectF(r).adjusted(0.5,0.5,-0.5,-0.5), 8.0, 8.0);
@@ -686,18 +733,18 @@ void FluentCalendarPopup::paintHeader(QPainter &p)
     if (t.isValid()) {
         const bool hov=(m_hoverPart==HitPart::HeaderToday), prs=(m_pressPart==HitPart::HeaderToday);
         QColor bg=Qt::transparent;
-        if (prs)      { bg=c.pressed; bg.setAlpha(150); }
-        else if (hov) { bg=c.hover;   bg.setAlpha(120); }
+        if (prs)      { bg = calendarPressedFill(tokens, 150); }
+        else if (hov) { bg = calendarHoverFill(tokens, 120); }
         p.setPen(Qt::NoPen); p.setBrush(bg);
         p.drawRoundedRect(QRectF(t).adjusted(0.5,0.5,-0.5,-0.5), 8.0, 8.0);
-        p.setPen(c.accent);
+        p.setPen(tokens.accent.base);
         p.drawText(t, Qt::AlignCenter, m_todayText);
     }
     auto paintNav = [&](const QRect &r, HitPart part, bool right) {
         const bool hov=(m_hoverPart==part), prs=(m_pressPart==part);
         QColor bg=Qt::transparent;
-        if (prs)      { bg=c.pressed; bg.setAlpha(150); }
-        else if (hov) { bg=c.hover;   bg.setAlpha(120); }
+        if (prs)      { bg = calendarPressedFill(tokens, 150); }
+        else if (hov) { bg = calendarHoverFill(tokens, 120); }
         p.setPen(Qt::NoPen); p.setBrush(bg);
         p.drawRoundedRect(QRectF(r).adjusted(0.5,0.5,-0.5,-0.5), 8.0, 8.0);
         if (right) drawChevronRight(p, r.center(), c.subText);
@@ -710,6 +757,7 @@ void FluentCalendarPopup::paintHeader(QPainter &p)
 void FluentCalendarPopup::paintDays(QPainter &p)
 {
     const auto &c = ThemeManager::instance().colors();
+    const auto tokens = Theme::tokens(c);
     const QLocale calendarLocale = locale();
     const Qt::DayOfWeek firstDayOfWeek = calendarLocale.firstDayOfWeek();
     const QRect g = gridRect();
@@ -718,8 +766,7 @@ void FluentCalendarPopup::paintDays(QPainter &p)
     const int cw = cells.width()/7, ch = cells.height()/6;
     if (cw<=0||ch<=0) return;
     {
-        QColor wkBg=c.pressed; wkBg.setAlpha(55);
-        p.setPen(Qt::NoPen); p.setBrush(wkBg);
+        p.setPen(Qt::NoPen); p.setBrush(calendarPressedFill(tokens, 55));
         const int totalH=dayNames.height()+cells.height();
         for (int col = 0; col < 7; ++col) {
             if (isWeekendColumn(col, firstDayOfWeek)) {
@@ -745,9 +792,9 @@ void FluentCalendarPopup::paintDays(QPainter &p)
         const bool inMonth=(d.year()==m_pageYear&&d.month()==m_pageMonth);
         const bool selected=(d==m_selected), isToday=(d==today);
         const bool hovered=(m_hoverPart==HitPart::Cell&&m_hoverIndex==idx);
-        if (selected) { QColor fill=c.accent; fill.setAlpha(210); p.setPen(Qt::NoPen); p.setBrush(fill); p.drawRoundedRect(rr,8.0,8.0); }
-        else if (hovered) { QColor fill=c.hover; fill.setAlpha(120); p.setPen(Qt::NoPen); p.setBrush(fill); p.drawRoundedRect(rr,8.0,8.0); }
-        if (isToday&&!selected) { QColor ring=c.accent; ring.setAlpha(170); p.setPen(QPen(ring,1.5)); p.setBrush(Qt::NoBrush); p.drawRoundedRect(rr,8.0,8.0); }
+        if (selected) { p.setPen(Qt::NoPen); p.setBrush(calendarAccentFill(tokens, 210)); p.drawRoundedRect(rr,8.0,8.0); }
+        else if (hovered) { p.setPen(Qt::NoPen); p.setBrush(calendarHoverFill(tokens, 120)); p.drawRoundedRect(rr,8.0,8.0); }
+        if (isToday&&!selected) { p.setPen(QPen(calendarAccentFill(tokens, 170),1.5)); p.setBrush(Qt::NoBrush); p.drawRoundedRect(rr,8.0,8.0); }
         QColor tc;
         if (!inMonth) tc=c.disabledText;
         else if (selected) tc=onAccentText(c);
@@ -759,6 +806,7 @@ void FluentCalendarPopup::paintDays(QPainter &p)
 void FluentCalendarPopup::paintMonths(QPainter &p)
 {
     const auto &c=ThemeManager::instance().colors();
+    const auto tokens = Theme::tokens(c);
     const QLocale calendarLocale = locale();
     const QRect g=gridRect(); const int cw=g.width()/3, ch=g.height()/4;
     const QDate today=QDate::currentDate();
@@ -769,9 +817,9 @@ void FluentCalendarPopup::paintMonths(QPainter &p)
         const QRectF rr=QRectF(rc).adjusted(8.0,8.0,-8.0,-8.0);
         const bool sel=(i+1)==m_pageMonth, cur=(today.isValid()&&m_pageYear==today.year()&&(i+1)==today.month());
         const bool hov=(m_hoverPart==HitPart::Cell&&m_hoverIndex==i);
-        if (sel) { QColor fill=c.accent; fill.setAlpha(210); p.setPen(Qt::NoPen); p.setBrush(fill); p.drawRoundedRect(rr,10.0,10.0); }
-        else if (hov) { QColor fill=c.hover; fill.setAlpha(120); p.setPen(Qt::NoPen); p.setBrush(fill); p.drawRoundedRect(rr,10.0,10.0); }
-        if (cur&&!sel) { QColor ring=c.accent; ring.setAlpha(170); p.setPen(QPen(ring,1.5)); p.setBrush(Qt::NoBrush); p.drawRoundedRect(rr,10.0,10.0); }
+        if (sel) { p.setPen(Qt::NoPen); p.setBrush(calendarAccentFill(tokens, 210)); p.drawRoundedRect(rr,10.0,10.0); }
+        else if (hov) { p.setPen(Qt::NoPen); p.setBrush(calendarHoverFill(tokens, 120)); p.drawRoundedRect(rr,10.0,10.0); }
+        if (cur&&!sel) { p.setPen(QPen(calendarAccentFill(tokens, 170),1.5)); p.setBrush(Qt::NoBrush); p.drawRoundedRect(rr,10.0,10.0); }
         p.setPen(sel ? onAccentText(c) : c.text);
         p.drawText(rc, Qt::AlignCenter, calendarLocale.standaloneMonthName(i+1, QLocale::ShortFormat));
     }
@@ -780,6 +828,7 @@ void FluentCalendarPopup::paintMonths(QPainter &p)
 void FluentCalendarPopup::paintYears(QPainter &p)
 {
     const auto &c=ThemeManager::instance().colors();
+    const auto tokens = Theme::tokens(c);
     const QRect g=gridRect(); const int cw=g.width()/4, ch=g.height()/4;
     const int ty=QDate::currentDate().year();
     QFont f=adjustedFontSize(font(), 0.2); p.setFont(f);
@@ -790,9 +839,9 @@ void FluentCalendarPopup::paintYears(QPainter &p)
         const int year=m_yearBase+i;
         const bool sel=(year==m_pageYear), cur=(year==ty);
         const bool hov=(m_hoverPart==HitPart::Cell&&m_hoverIndex==i);
-        if (sel) { QColor fill=c.accent; fill.setAlpha(210); p.setPen(Qt::NoPen); p.setBrush(fill); p.drawRoundedRect(rr,10.0,10.0); }
-        else if (hov) { QColor fill=c.hover; fill.setAlpha(120); p.setPen(Qt::NoPen); p.setBrush(fill); p.drawRoundedRect(rr,10.0,10.0); }
-        if (cur&&!sel) { QColor ring=c.accent; ring.setAlpha(170); p.setPen(QPen(ring,1.5)); p.setBrush(Qt::NoBrush); p.drawRoundedRect(rr,10.0,10.0); }
+        if (sel) { p.setPen(Qt::NoPen); p.setBrush(calendarAccentFill(tokens, 210)); p.drawRoundedRect(rr,10.0,10.0); }
+        else if (hov) { p.setPen(Qt::NoPen); p.setBrush(calendarHoverFill(tokens, 120)); p.drawRoundedRect(rr,10.0,10.0); }
+        if (cur&&!sel) { p.setPen(QPen(calendarAccentFill(tokens, 170),1.5)); p.setBrush(Qt::NoBrush); p.drawRoundedRect(rr,10.0,10.0); }
         p.setPen(sel ? onAccentText(c) : c.text);
         p.drawText(rc, Qt::AlignCenter, QString::number(year));
     }
@@ -1008,7 +1057,14 @@ void FluentCalendarPopup::startModeTransition(ViewMode from, ViewMode to)
 {
     Q_UNUSED(to) m_prevMode=from;
     if (!m_modeAnim) { m_modeProgress=1.0; return; }
-    m_modeAnim->stop(); m_modeProgress=0.0;
+    FluentMotion::configure(m_modeAnim, FluentMotionRole::Selection);
+    m_modeAnim->stop();
+    if (m_modeAnim->duration() <= 0) {
+        m_modeProgress = 1.0;
+        update();
+        return;
+    }
+    m_modeProgress=0.0;
     m_modeAnim->setStartValue(0.0); m_modeAnim->setEndValue(1.0); m_modeAnim->start();
 }
 // ── Utilities ────────────────────────────────────────────────────────────

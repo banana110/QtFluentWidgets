@@ -51,8 +51,10 @@ void FluentWidget::paintEvent(QPaintEvent *event)
         return;
     }
 
-    const auto &colors = ThemeManager::instance().colors();
-    const QColor bg = (m_backgroundRole == BackgroundRole::Surface) ? colors.surface : colors.background;
+    const auto &tokens = ThemeManager::instance().tokens();
+    const QColor bg = (m_backgroundRole == BackgroundRole::Surface)
+        ? tokens.neutral.card
+        : tokens.neutral.background;
 
     QPainter p(this);
     if (!p.isActive()) {

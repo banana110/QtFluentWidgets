@@ -5,7 +5,7 @@
 - `FluentDial`（include: `Fluent/FluentDial.h`）
 - `FluentAngleSelector`（include: `Fluent/FluentAngleSelector.h`）
 
-Demo 页面：Angle Controls（`demo/pages/PageAngleControls.cpp`）与 Overview（部分场景会复用）。
+Demo 页面：Angle Controls（`demo/pages/PageAngleControls.cpp`）与 Overview（部分场景会复用）。Angle Controls 页顶部提供 Angle State Matrix，可横向检查 Dial / AngleSelector 的刻度、紧凑形态和 disabled 状态。
 
 ## FluentDial
 
@@ -33,11 +33,14 @@ dial->setMajorTickStep(45);
 - `setTickStep(int)` / `tickStep()`：普通刻度步进（默认 15°）
 - `setMajorTickStep(int)` / `majorTickStep()`：主刻度步进（默认 45°）
 - `setPointerVisible(bool)` / `pointerVisible()`：是否显示指针
+- `hoverLevel()` / `focusLevel()`：只读动效层，便于测试或诊断当前反馈状态
 
 实现语义：
 
-- 这是自绘 `QWidget`，包含 hover/focus 动画层（内部 `QVariantAnimation` 驱动）。
+- 这是自绘 `QWidget`，hover/focus 动画层分别使用 `FluentMotionRole::Hover` / `Focus`；关闭全局动画或把对应时长设为 0 时会即时落到目标状态。
+- `setValue(int)` 会规整到 `0..359`；值发生变化时会发出 `valueChanged(int)`。
 - 鼠标拖拽会根据当前位置换算角度；滚轮可做细粒度调节。
+- 禁用态会弱化 accent 弧、指针、刻度与圆点，避免和可交互状态混淆。
 - 视觉上会同时绘制：
   - 外圈轨道
   - 当前角度 accent 弧
@@ -83,6 +86,7 @@ editor->setSuffix(QStringLiteral("°"));
 
 - 内部使用 `FluentDial + FluentSpinBox + FluentLabel` 组合实现。
 - Dial 与 SpinBox 双向同步，内部通过 `blockSignals(true)` 避免回环触发。
+- `setValue(int)` 触发实际值变化时会发出 `valueChanged(int)`，和子控件交互保持同一语义。
 - wrapping 模式下，值会通过 `normalizeToRange()` 规整到给定范围内；例如默认范围下 `-1 -> 359`、`360 -> 0`。
 - 非 wrapping 模式下会做 `qBound(minimum, value, maximum)` 钳制。
 - 可见性开关适合做变体布局：

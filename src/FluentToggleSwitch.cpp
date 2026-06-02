@@ -3,6 +3,7 @@
 #include "Fluent/FluentStyle.h"
 #include "Fluent/FluentTheme.h"
 
+#include <QAbstractAnimation>
 #include <QEvent>
 #include <QMouseEvent>
 #include <QPainter>
@@ -27,6 +28,7 @@ FluentToggleSwitch::FluentToggleSwitch(QWidget *parent)
 
     applyTheme();
     connect(&ThemeManager::instance(), &ThemeManager::themeChanged, this, &FluentToggleSwitch::applyTheme);
+    syncEnabledState();
 }
 
 FluentToggleSwitch::FluentToggleSwitch(const QString &text, QWidget *parent)
@@ -46,6 +48,7 @@ FluentToggleSwitch::FluentToggleSwitch(const QString &text, QWidget *parent)
 
     applyTheme();
     connect(&ThemeManager::instance(), &ThemeManager::themeChanged, this, &FluentToggleSwitch::applyTheme);
+    syncEnabledState();
 }
 
 bool FluentToggleSwitch::isChecked() const
@@ -60,6 +63,7 @@ void FluentToggleSwitch::setChecked(bool checked)
     }
 
     m_checked = checked;
+    FluentMotion::configure(m_progressAnim, FluentMotionRole::Selection);
     m_progressAnim->stop();
     const qreal target = m_checked ? 1.0 : 0.0;
     if (m_progressAnim->duration() <= 0) {
@@ -132,22 +136,65 @@ void FluentToggleSwitch::changeEvent(QEvent *event)
 {
     QWidget::changeEvent(event);
     if (event->type() == QEvent::EnabledChange) {
+        syncEnabledState();
         applyTheme();
     }
 }
 
 void FluentToggleSwitch::applyTheme()
 {
+    const bool snapProgress = m_progressAnim &&
+        m_progressAnim->state() == QAbstractAnimation::Running &&
+        FluentMotion::duration(FluentMotionRole::Selection) <= 0;
+    const bool snapHover = m_hoverAnim &&
+        m_hoverAnim->state() == QAbstractAnimation::Running &&
+        FluentMotion::duration(FluentMotionRole::Hover) <= 0;
+    const bool snapFocus = m_focusAnim &&
+        m_focusAnim->state() == QAbstractAnimation::Running &&
+        FluentMotion::duration(FluentMotionRole::Focus) <= 0;
+    const qreal progressTarget = m_progressAnim ? m_progressAnim->endValue().toReal() : m_progress;
+    const qreal hoverTarget = m_hoverAnim ? m_hoverAnim->endValue().toReal() : m_hoverLevel;
+    const qreal focusTarget = m_focusAnim ? m_focusAnim->endValue().toReal() : m_focusLevel;
+
     FluentMotion::configure(m_progressAnim, FluentMotionRole::Selection);
     FluentMotion::configure(m_hoverAnim, FluentMotionRole::Hover);
     FluentMotion::configure(m_focusAnim, FluentMotionRole::Focus);
+    if (snapProgress) {
+        m_progressAnim->stop();
+        setProgress(progressTarget);
+    }
+    if (snapHover) {
+        m_hoverAnim->stop();
+        setHoverLevel(hoverTarget);
+    }
+    if (snapFocus) {
+        m_focusAnim->stop();
+        setFocusLevel(focusTarget);
+    }
     update();
+}
+
+void FluentToggleSwitch::syncEnabledState()
+{
+    setCursor(isEnabled() ? Qt::PointingHandCursor : Qt::ArrowCursor);
+    if (!isEnabled()) {
+        if (m_hoverAnim) {
+            m_hoverAnim->stop();
+        }
+        if (m_focusAnim) {
+            m_focusAnim->stop();
+        }
+        m_hoverLevel = 0.0;
+        m_focusLevel = 0.0;
+        update();
+    }
 }
 
 void FluentToggleSwitch::paintEvent(QPaintEvent *event)
 {
     Q_UNUSED(event)
     const auto &colors = ThemeManager::instance().colors();
+    const auto tokens = ThemeManager::instance().tokens();
 
     QPainter painter(this);
     if (!painter.isActive()) {
@@ -168,7 +215,8 @@ void FluentToggleSwitch::paintEvent(QPaintEvent *event)
     // Hover background (full row highlight)
     if (m_hoverLevel > 0.01 && isEnabled()) {
         painter.setPen(Qt::NoPen);
-        QColor hoverBg = Style::withAlpha(colors.hover, static_cast<int>(90 * m_hoverLevel));
+        QColor hoverBg = tokens.neutral.cardHover;
+        hoverBg.setAlphaF(qBound<qreal>(0.0, (tokens.dark ? 0.56 : 0.46) * m_hoverLevel, 1.0));
         painter.setBrush(hoverBg);
         const QRectF hoverRect = QRectF(this->rect()).adjusted(1.0, 2.0, -1.0, -2.0);
         painter.drawRoundedRect(hoverRect, 6.0, 6.0);
@@ -177,16 +225,16 @@ void FluentToggleSwitch::paintEvent(QPaintEvent *event)
     // Track colors
     QColor trackColor;
     if (!isEnabled()) {
-        trackColor = Style::mix(colors.surface, colors.hover, 0.55);
+        trackColor = Style::mix(tokens.neutral.card, tokens.neutral.fillSecondary, tokens.dark ? 0.58 : 0.46);
     } else if (m_checked) {
-        trackColor = colors.accent;
+        trackColor = tokens.accent.base;
     } else {
-        trackColor = Style::mix(colors.border, colors.hover, 0.25);
+        trackColor = Style::mix(tokens.neutral.stroke, tokens.neutral.fillSecondary, tokens.dark ? 0.38 : 0.25);
     }
 
     // Focus ring
     if (isEnabled() && m_focusLevel > 0.01) {
-        QColor focus = colors.focus;
+        QColor focus = tokens.accent.base;
         focus.setAlphaF(0.9 * m_focusLevel);
         painter.setPen(QPen(focus, 1.5, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
         painter.setBrush(Qt::NoBrush);
@@ -208,15 +256,10 @@ void FluentToggleSwitch::paintEvent(QPaintEvent *event)
     const qreal knobMaxX = x + trackWidth - knobPadding - knobSize;
     const qreal knobX = knobMinX + (knobMaxX - knobMinX) * m_progress;
     const qreal knobY = y + (trackHeight - knobSize) / 2.0;
-    
-    // Draw knob with border (Islands style - no shadow for performance)
-    painter.setBrush(Qt::white);
-    painter.setPen(QPen(Style::withAlpha(colors.border, 160), 1.0));
-    painter.drawEllipse(QRectF(knobX, knobY, knobSize, knobSize));
 
     // Draw hover ring
     if (m_hoverLevel > 0.01 && isEnabled()) {
-        QColor hoverRing = colors.accent;
+        QColor hoverRing = tokens.accent.base;
         hoverRing.setAlphaF(m_hoverLevel * 0.3);
         painter.setPen(Qt::NoPen);
         painter.setBrush(hoverRing);
@@ -224,6 +267,26 @@ void FluentToggleSwitch::paintEvent(QPaintEvent *event)
         painter.drawEllipse(QRectF(knobX - expandSize, knobY - expandSize, 
                                    knobSize + expandSize * 2, knobSize + expandSize * 2));
     }
+
+    QColor knobFill;
+    QColor knobBorder;
+    if (!isEnabled()) {
+        knobFill = Style::mix(tokens.neutral.card, tokens.neutral.background, tokens.dark ? 0.48 : 0.34);
+        knobBorder = tokens.neutral.strokeSubtle;
+    } else if (m_checked) {
+        knobFill = tokens.onAccent;
+        knobBorder = Style::withAlpha(tokens.onAccent, 180);
+    } else {
+        knobFill = tokens.dark
+            ? Style::mix(tokens.neutral.cardHover, colors.text, 0.10)
+            : tokens.neutral.layer;
+        knobBorder = tokens.neutral.strokeStrong;
+    }
+
+    // Draw knob with token-derived surface and border.
+    painter.setBrush(knobFill);
+    painter.setPen(QPen(knobBorder, 1.0));
+    painter.drawEllipse(QRectF(knobX, knobY, knobSize, knobSize));
 
     // Draw text label
     if (!m_text.isEmpty()) {
@@ -237,6 +300,10 @@ void FluentToggleSwitch::paintEvent(QPaintEvent *event)
 
 void FluentToggleSwitch::mousePressEvent(QMouseEvent *event)
 {
+    if (!isEnabled()) {
+        QWidget::mousePressEvent(event);
+        return;
+    }
     if (event->button() == Qt::LeftButton) {
         setChecked(!m_checked);
     }
@@ -258,6 +325,7 @@ void FluentToggleSwitch::focusOutEvent(QFocusEvent *event)
 
 void FluentToggleSwitch::startFocusAnimation(qreal endValue)
 {
+    FluentMotion::configure(m_focusAnim, FluentMotionRole::Focus);
     m_focusAnim->stop();
     if (m_focusAnim->duration() <= 0) {
         setFocusLevel(endValue);
@@ -271,6 +339,7 @@ void FluentToggleSwitch::startFocusAnimation(qreal endValue)
 void FluentToggleSwitch::enterEvent(FluentEnterEvent *event)
 {
     QWidget::enterEvent(event);
+    FluentMotion::configure(m_hoverAnim, FluentMotionRole::Hover);
     m_hoverAnim->stop();
     if (m_hoverAnim->duration() <= 0) {
         setHoverLevel(1.0);
@@ -284,6 +353,7 @@ void FluentToggleSwitch::enterEvent(FluentEnterEvent *event)
 void FluentToggleSwitch::leaveEvent(QEvent *event)
 {
     QWidget::leaveEvent(event);
+    FluentMotion::configure(m_hoverAnim, FluentMotionRole::Hover);
     m_hoverAnim->stop();
     if (m_hoverAnim->duration() <= 0) {
         setHoverLevel(0.0);

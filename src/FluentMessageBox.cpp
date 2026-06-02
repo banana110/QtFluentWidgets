@@ -207,8 +207,11 @@ static QString elideMultilineText(const QString &text, const QFont &font, int wi
 
 static QColor messageBoxGlyphColorForFill(const QColor &fill)
 {
-    // Use high-contrast glyph on top of the accent fill.
-    return (fill.lightnessF() > 0.72) ? QColor(0, 0, 0, 220) : QColor(255, 255, 255, 235);
+    // Use the same contrast resolver as accent surfaces; warning orange and
+    // bright custom semantic colors often need dark glyphs.
+    QColor glyph = Theme::contrastColor(fill);
+    glyph.setAlpha(235);
+    return glyph;
 }
 
 static QString svgColor(const QColor &c)
@@ -390,18 +393,18 @@ static void paintMessageBoxGlyph(QPainter &p, const QRectF &bounds, FluentMessag
     p.restore();
 }
 
-static QColor messageBoxIconColor(const ThemeColors &colors, FluentMessageBox::IconType icon)
+static QColor messageBoxIconColor(const FluentThemeTokens &tokens, FluentMessageBox::IconType icon)
 {
     switch (icon) {
     case FluentMessageBox::Warning:
-        return QColor("#F5A623");
+        return tokens.semantic.warning;
     case FluentMessageBox::Error:
-        return colors.error;
+        return tokens.semantic.error;
     case FluentMessageBox::Question:
-        return QColor("#5C6BC0");
+        return tokens.dark ? tokens.accent.light1 : tokens.accent.dark1;
     case FluentMessageBox::Info:
     default:
-        return colors.accent;
+        return tokens.semantic.info;
     }
 }
 
@@ -579,6 +582,7 @@ void FluentMessageBox::buildUi(const QString &message, const QString &detail, Ic
     grid->setColumnStretch(1, 1);
 
     m_iconLabel = new QLabel();
+    m_iconLabel->setObjectName(QStringLiteral("FluentMessageBoxIcon"));
     m_iconLabel->setFixedSize(48, 48);
     m_iconLabel->setAlignment(Qt::AlignCenter);
 
@@ -901,12 +905,14 @@ void FluentMessageBox::applyTheme()
     }
     titleFont.setWeight(QFont::DemiBold);
     m_titleLabel->setFont(titleFont);
-    const QString titleStyle = QStringLiteral("color: palette(window-text);");
+    const auto tokens = ThemeManager::instance().tokens();
+    const QColor detailFill = Style::mix(tokens.neutral.card, tokens.neutral.cardHover, tokens.dark ? 0.42 : 0.30);
+    const QString titleStyle = QStringLiteral("color: %1;").arg(colors.text.name(QColor::HexArgb));
     if (m_titleLabel->styleSheet() != titleStyle) {
         m_titleLabel->setStyleSheet(titleStyle);
     }
 
-    const QString messageStyle = QStringLiteral("color: palette(window-text);");
+    const QString messageStyle = QStringLiteral("color: %1;").arg(colors.text.name(QColor::HexArgb));
     if (m_messageLabel->styleSheet() != messageStyle) {
         m_messageLabel->setStyleSheet(messageStyle);
     }
@@ -914,20 +920,23 @@ void FluentMessageBox::applyTheme()
     if (m_detailEdit) {
         const QString detailStyle = QStringLiteral(
             "QTextEdit {"
-            "  color: palette(window-text);"
-            "  background: palette(light);"
-            "  border: 1px solid palette(mid);"
+            "  color: %1;"
+            "  background: %2;"
+            "  border: 1px solid %3;"
             "  border-radius: 8px;"
             "  padding: 8px 10px;"
             "}"
-        );
+        ).arg(colors.text.name(QColor::HexArgb),
+              detailFill.name(QColor::HexArgb),
+              tokens.neutral.strokeSubtle.name(QColor::HexArgb));
         if (m_detailEdit->styleSheet() != detailStyle) {
             m_detailEdit->setStyleSheet(detailStyle);
         }
     }
 
     if (m_divider) {
-        const QString dividerStyle = QStringLiteral("background: palette(mid);");
+        const QString dividerStyle = QStringLiteral("background: %1;")
+            .arg(tokens.neutral.strokeSubtle.name(QColor::HexArgb));
         if (m_divider->styleSheet() != dividerStyle) {
             m_divider->setStyleSheet(dividerStyle);
         }
@@ -935,14 +944,17 @@ void FluentMessageBox::applyTheme()
 
     if (m_linkLabel) {
         // Base stylesheet already styles #FluentLink, but keep explicit for dialogs.
-        const QString linkStyle = QStringLiteral("color: palette(link);");
+        const QString linkStyle = QStringLiteral("color: %1;").arg(tokens.accent.base.name(QColor::HexArgb));
         if (m_linkLabel->styleSheet() != linkStyle) {
             m_linkLabel->setStyleSheet(linkStyle);
         }
     }
 
     // Icon
-    const QColor accent = messageBoxIconColor(colors, m_icon);
+    const QColor accent = messageBoxIconColor(tokens, m_icon);
+    if (m_iconLabel) {
+        m_iconLabel->setProperty("fluentAccentColor", accent.name(QColor::HexArgb));
+    }
 
     const QSize logicalSize = m_iconLabel ? m_iconLabel->size() : QSize(48, 48);
     qreal dpr = devicePixelRatioF();

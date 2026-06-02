@@ -9,6 +9,7 @@
 #include "Fluent/FluentTheme.h"
 #include "Fluent/FluentToolButton.h"
 
+#include <QAbstractAnimation>
 #include <QAbstractButton>
 #include <QEvent>
 #include <QHBoxLayout>
@@ -374,7 +375,22 @@ bool FluentCard::eventFilter(QObject *watched, QEvent *event)
 
 void FluentCard::applyTheme()
 {
+    const bool hoverRunning = m_hoverAnim && m_hoverAnim->state() == QAbstractAnimation::Running;
+    const QVariant hoverEnd = m_hoverAnim ? m_hoverAnim->endValue() : QVariant();
+    const bool collapseRunning = m_collapseAnim
+        && m_collapseAnim->state() == QAbstractAnimation::Running;
+
     FluentMotion::configure(m_hoverAnim, FluentMotionRole::Hover);
+    if (m_collapseAnim) {
+        FluentMotion::configure(m_collapseAnim, FluentMotionRole::Collapse);
+    }
+    if (hoverRunning && m_hoverAnim->duration() <= 0) {
+        m_hoverAnim->stop();
+        m_hoverLevel = qBound<qreal>(0.0, hoverEnd.toReal(), 1.0);
+    }
+    if (collapseRunning && m_collapseAnim && m_collapseAnim->duration() <= 0) {
+        finishCollapseAnimationImmediately();
+    }
     update();
     updateHeaderUi();
 }
@@ -646,6 +662,9 @@ void FluentCard::applyCollapsedState(bool animated)
         return;
     }
 
+    if (m_collapseAnim) {
+        FluentMotion::configure(m_collapseAnim, FluentMotionRole::Collapse);
+    }
     if (!animated || !m_collapseAnim || m_collapseAnim->duration() <= 0) {
         setProperty(kFlowDisableAnimationProperty, false);
         if (m_collapseAnim) {
@@ -680,6 +699,27 @@ void FluentCard::applyCollapsedState(bool animated)
     m_collapseAnim->start();
 }
 
+void FluentCard::finishCollapseAnimationImmediately()
+{
+    if (!m_collapseAnim || !m_content || !m_contentClip) {
+        return;
+    }
+
+    m_collapseAnim->stop();
+    setProperty(kFlowDisableAnimationProperty, false);
+    releaseContentHeightLock();
+    if (m_collapsed) {
+        m_contentClip->setRevealHeight(0);
+        m_contentClip->setVisible(false);
+    } else {
+        m_contentClip->releaseRevealHeight();
+        m_content->setVisible(true);
+    }
+    updateCollapseIndicatorState(false);
+    updateGeometry();
+    update();
+}
+
 void FluentCard::startHoverAnimation(qreal endValue)
 {
     if (!m_hoverAnim) {
@@ -688,6 +728,7 @@ void FluentCard::startHoverAnimation(qreal endValue)
         return;
     }
 
+    FluentMotion::configure(m_hoverAnim, FluentMotionRole::Hover);
     m_hoverAnim->stop();
     if (m_hoverAnim->duration() <= 0) {
         m_hoverLevel = qBound<qreal>(0.0, endValue, 1.0);

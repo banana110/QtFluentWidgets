@@ -59,7 +59,8 @@ public:
     bool fluentTitleBarEnabled() const;
 
     // Title bar customization (like FluentDialog):
-    // - By default it mirrors windowTitle()/windowIcon().
+    // - By default it mirrors windowTitle()/windowIcon(); icons fall back to
+    //   QApplication::windowIcon() when the window icon is empty.
     // - You can override displayed title/icon without changing the OS-level window title.
     void setFluentTitleBarTitle(const QString &title);
     void clearFluentTitleBarTitle();
@@ -124,6 +125,7 @@ private:
     void syncBorderVisualState();
     void updateFrameHost();
     void adoptNativeMenuBarIfNeeded();
+    int effectiveResizeBorderWidth() const;
 
 #ifdef Q_OS_WIN
     void applyWindowsDwmAttributes();
@@ -167,6 +169,8 @@ private:
     FluentToolButton *m_closeBtn = nullptr;
 
     bool m_resizeEnabled = true;
+    int m_resizeBorderWidth = 8;
+    bool m_resizeBorderWidthExplicit = false;
     FluentResizeHelper *m_resizeHelper = nullptr;
 
     // Frame host: the QMainWindow central widget that paints the surface fill.

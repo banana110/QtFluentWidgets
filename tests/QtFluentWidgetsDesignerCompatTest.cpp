@@ -9,6 +9,7 @@
 
 #include <QAction>
 #include <QApplication>
+#include <QByteArray>
 #include <QMainWindow>
 #include <QMenu>
 #include <QMenuBar>
@@ -19,6 +20,18 @@
 using namespace Fluent;
 
 namespace {
+
+struct DefaultOffscreenPlatform {
+    DefaultOffscreenPlatform()
+    {
+        if (qEnvironmentVariableIsEmpty("QT_QPA_PLATFORM") &&
+            qEnvironmentVariableIntValue("QTFLUENT_DESIGNER_COMPAT_TEST_VISIBLE") == 0) {
+            qputenv("QT_QPA_PLATFORM", QByteArrayLiteral("offscreen"));
+        }
+    }
+};
+
+const DefaultOffscreenPlatform kDefaultOffscreenPlatform;
 
 bool visualModeEnabled()
 {
@@ -165,11 +178,17 @@ private slots:
         // and menus stay as native Qt widgets, so uic still calls
         // FluentMainWindow::setMenuBar(QMenuBar*) before adding menu actions.
         ui.setupUi(window);
+        QPointer<QMenu> menuFileRef = ui.menuFile;
+        QPointer<QMenu> menuViewRef = ui.menuView;
 
         QTRY_VERIFY(window->fluentMenuBar() != nullptr);
         QTRY_COMPARE(window->fluentMenuBar()->actions().size(), 2);
         QVERIFY(window->fluentMenuBar()->actions().contains(ui.menuFile->menuAction()));
         QVERIFY(window->fluentMenuBar()->actions().contains(ui.menuView->menuAction()));
+        QVERIFY(!menuFileRef.isNull());
+        QVERIFY(!menuViewRef.isNull());
+        QVERIFY(qobject_cast<FluentMenu *>(ui.menuFile->menuAction()->menu()) != nullptr);
+        QVERIFY(qobject_cast<FluentMenu *>(ui.menuView->menuAction()->menu()) != nullptr);
 
         // The compat path keeps the source ui->menubar alive and hidden while
         // forwarding its actions into the visible FluentMenuBar.
@@ -183,6 +202,7 @@ private slots:
         menuHelp->setTitle(QStringLiteral("Help"));
         ui.menubar->addAction(menuHelp->menuAction());
         QTRY_VERIFY(window->fluentMenuBar()->actions().contains(menuHelp->menuAction()));
+        QVERIFY(qobject_cast<FluentMenu *>(menuHelp->menuAction()->menu()) != nullptr);
         QVERIFY(ui.menubar->actions().isEmpty());
 
         window->fluentMenuBar()->removeAction(ui.menuView->menuAction());
@@ -199,6 +219,8 @@ private slots:
         QVERIFY(centralRef.isNull());
         QVERIFY(sourceMenuBarRef.isNull());
         QVERIFY(fluentMenuBarRef.isNull());
+        QVERIFY(menuFileRef.isNull());
+        QVERIFY(menuViewRef.isNull());
     }
 };
 

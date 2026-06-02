@@ -117,12 +117,12 @@ include：`Fluent/FluentMotion.h`
 当前已接入：
 
 - `FluentButton` / `FluentToolButton` / `FluentAnimatedButton` 的 hover 与 press；主题或全局动效开关变化后会重新同步 token。
-- `FluentLineEdit` 的 hover 与 focus；关闭全局动画后，下一次 hover/focus 会直接落到最终状态。
+- `FluentLineEdit` / `FluentKeySequenceEdit` / `FluentTextEdit` / `FluentCodeEditor` / `FluentSpinBox` / `FluentDoubleSpinBox` 的 hover、focus 与 stepper 强调；关闭全局动画后，下一次状态变化会直接落到最终状态。
 - `FluentToggleSwitch` / `FluentCheckBox` / `FluentRadioButton` / `FluentSlider` 的 hover、focus 与选中/位置过渡。
 - `FluentProgressBar` / `FluentProgressRing` 的确定进度过渡；关闭全局动画时进度立即跳到目标值，`FluentProgressRing` 的 indeterminate 旋转会暂停。
-- `FluentComboBox` / `FluentAutoSuggestBox` / `FluentMenu` / `FluentMenuBar` / `FluentFlyout` / `FluentCalendarPopup` / `FluentDatePicker` / `FluentTimePicker` 的 popup 打开动画；ComboBox/AutoSuggestBox 的列表 hover/selection 也会随 token 更新。
+- `FluentComboBox` / `FluentAutoSuggestBox` / `FluentMenu` / `FluentMenuBar` / `FluentFlyout` / `FluentCalendarPopup` / `FluentDatePicker` / `FluentTimePicker` 的 popup 打开动画；ComboBox/AutoSuggestBox/Menu 的列表 hover、selection 与 checked indicator 也会随 token 更新。
 - `FluentCard` 的折叠动画，以及 wheel picker 的滚动吸附动画。
-- `FluentNavigationView` 的 pane 宽度、hover 和 selection indicator；`FluentTabWidget` 的 hover/selection；DataViews 的 hover/selection；`FluentScrollBar` 的 reveal/hover；`FluentDateRangePicker` 的 hover；`FluentTeachingTip` 的蒙版淡入淡出；`FluentToast` 的出现/消失和队列移动。
+- `FluentNavigationView` 的 pane 宽度、hover 和 selection indicator；`FluentTabWidget` 的 hover/selection；DataViews 的 hover/selection；`FluentScrollBar` 的 reveal/hover；`FluentSplitter` 的 handle hover；`FluentDateRangePicker` 与 `FluentDial` 的 hover/focus；`FluentTeachingTip` 的蒙版淡入淡出；`FluentToast` 的出现/消失和队列移动。
 - `FluentFlowLayout` 的几何重排动画；显式调用 `setAnimationDuration()` / `setAnimationEasing()` 仍会覆盖默认 token，但全局关闭动效时会即时落位。
 - Demo 主窗口页面切换使用 `FluentMotionRole::Page`，动态页可以直接观察 Page token 的效果。
 
@@ -149,6 +149,8 @@ include：`Fluent/FluentFramePainter.h`
 
 - `paintFluentFrame(...)` 面向“顶层半透明窗口”：当 `FluentFrameSpec::clearToTransparent=true` 时，会先把整个窗口矩形清为透明，避免圆角边缘残影。
 - `paintFluentPanel(...)` 面向“在更大透明窗口中的面板区域”：不会主动清理整窗，只按给定 `panelRect` 绘制。
+- 默认 surface 走 modal Fluent surface token；默认描边在普通状态使用 `neutral.strokeSubtle`，在 accent 描边启用时使用 `accent.base`。`surfaceOverride` / `borderColorOverride` 仍可覆盖这些默认 token。
+- `FluentSurfaceSpec` 的 Raised / Popup / Modal 层级、hover / pressed / disabled 状态均由 `FluentThemeTokens` 派生：hover 使用 `neutral.cardHover`，pressed 使用 `neutral.fillTertiary`，disabled 向 `neutral.background` 收敛，不再直接混合旧 `hover` / `pressed` 色或固定黑白。
 
 ## 最小接入示例（自绘面板 + 强调边框）
 
@@ -194,6 +196,7 @@ private:
 - `FluentFrameSpec`：描述 radius、surface/border override、trace 参数等。
 - `paintFluentFrame(QPainter&, QRect, ThemeColors, FluentFrameSpec)`：绘制顶层窗口 frame。
 - `paintFluentPanel(QPainter&, QRectF, ThemeColors, FluentFrameSpec)`：绘制任意矩形面板。
+- `fluentFrameSurface(...)` / `fluentFrameBorder(...)`：解析当前 frame spec 的默认 token 化 surface 与描边色，便于自定义绘制复用同一语义。
 
 Demo：被 Dialog / MessageBox / Menu 等使用。
 
@@ -214,6 +217,7 @@ include：`Fluent/FluentToolTip.h`
 实现语义：
 
 - 内部会创建一个 `Qt::ToolTip | Qt::FramelessWindowHint | Qt::NoDropShadowWindowHint` 的顶层浮窗，并使用 `paintFluentPanel()` 自绘圆角面板。
+- 面板 surface 使用 `neutral.layer` + `accent.base` 的轻量 tint，描边使用与 `Theme::baseStyleSheet()` 中 `QToolTip` 一致的 `neutral.strokeSubtle` + `accent.base` 轻量混合，文本使用当前 theme text；暗色或自定义 surface/border 下不会回退到旧 `surface/accent/border` 混合。
 - 默认文本宽度会上限到约 `420px`，并根据文本长度自动估算显示时长（大约 0.9s + 每字符 55ms，最终 clamp 到 `1600..8000ms`）。
 - 位置会基于鼠标全局坐标加一个偏移量（约 `+14,+22`），并自动 clamp 到屏幕可用区域；如果底部放不下，会翻到鼠标上方显示。
 - 安装后会统一接管 `QEvent::ToolTip`：读取 widget 的 `toolTip()` / `toolTipDuration()`，并在 `Leave` / `MouseButtonPress` / `Wheel` / `KeyPress` / `FocusOut` / 应用失活时隐藏。

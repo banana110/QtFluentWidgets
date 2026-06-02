@@ -44,6 +44,7 @@ protected:
 
 private:
     void applyTheme();
+    void finishOpacityAnimationsImmediatelyIfReducedMotion();
     void start(int durationMs);
     void dismiss(bool animated);
 

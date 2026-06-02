@@ -4,6 +4,7 @@
 #include "Fluent/FluentLabel.h"
 #include "Fluent/FluentMotion.h"
 #include "Fluent/FluentPopupSurface.h"
+#include "Fluent/FluentTheme.h"
 #include "Fluent/FluentToolButton.h"
 
 #include <QCursor>
@@ -18,7 +19,6 @@
 #include <QPointer>
 #include <QRegion>
 #include <QShowEvent>
-#include <QTimer>
 #include <QVBoxLayout>
 
 namespace Fluent {
@@ -53,6 +53,10 @@ public:
             setGeometry(m_window->rect());
             updateOverlayMask();
         }
+
+        connect(&ThemeManager::instance(), &ThemeManager::themeChanged, this, [this]() {
+            snapOpacityAnimationIfReducedMotion();
+        });
     }
 
     qreal overlayOpacity() const
@@ -74,6 +78,8 @@ public:
     void animateOpacityTo(qreal opacity, FluentMotionRole role)
     {
         const qreal target = qBound<qreal>(0.0, opacity, 1.0);
+        m_opacityAnimRole = role;
+        m_opacityAnimTarget = target;
         if (m_opacityAnim) {
             m_opacityAnim->stop();
             m_opacityAnim->deleteLater();
@@ -82,6 +88,7 @@ public:
         const int duration = FluentMotion::duration(role);
         if (duration <= 0 || qFuzzyCompare(m_opacity, target)) {
             setOverlayOpacity(target);
+            finishOpacityTransition(nullptr);
             return;
         }
 
@@ -91,12 +98,16 @@ public:
         anim->setStartValue(m_opacity);
         anim->setEndValue(target);
         connect(anim, &QPropertyAnimation::finished, this, [this, anim]() {
-            if (m_opacityAnim == anim) {
-                m_opacityAnim = nullptr;
-            }
-            anim->deleteLater();
+            finishOpacityTransition(anim);
         });
         anim->start();
+    }
+
+    void fadeOutAndDelete()
+    {
+        setAttribute(Qt::WA_TransparentForMouseEvents, true);
+        m_deleteWhenOpacitySettles = true;
+        animateOpacityTo(0.0, FluentMotionRole::PopupClose);
     }
 
     void setTarget(QWidget *target)
@@ -240,9 +251,44 @@ private:
         setMask(region);
     }
 
+    void snapOpacityAnimationIfReducedMotion()
+    {
+        if (!m_opacityAnim || FluentMotion::duration(m_opacityAnimRole) > 0) {
+            return;
+        }
+
+        auto *anim = m_opacityAnim.data();
+        m_opacityAnim = nullptr;
+        if (anim) {
+            anim->stop();
+            anim->deleteLater();
+        }
+        setOverlayOpacity(m_opacityAnimTarget);
+        finishOpacityTransition(nullptr);
+    }
+
+    void finishOpacityTransition(QPropertyAnimation *animation)
+    {
+        if (animation && m_opacityAnim == animation) {
+            m_opacityAnim = nullptr;
+        }
+        if (animation) {
+            animation->deleteLater();
+        }
+        if (!m_deleteWhenOpacitySettles || m_opacity > 0.001) {
+            return;
+        }
+        m_deleteWhenOpacitySettles = false;
+        hide();
+        deleteLater();
+    }
+
     QPointer<QWidget> m_window;
     QPointer<QWidget> m_target;
     QPointer<QPropertyAnimation> m_opacityAnim;
+    FluentMotionRole m_opacityAnimRole = FluentMotionRole::PopupOpen;
+    qreal m_opacityAnimTarget = 0.0;
+    bool m_deleteWhenOpacitySettles = false;
     qreal m_opacity = 0.42;
 };
 
@@ -774,18 +820,7 @@ void FluentTeachingTip::teardownMaskOverlay()
         QWidget *overlay = m_maskOverlay;
         m_maskOverlay = nullptr;
         if (auto *typed = qobject_cast<TeachingTipMaskOverlay *>(overlay)) {
-            typed->setAttribute(Qt::WA_TransparentForMouseEvents, true);
-            typed->animateOpacityTo(0.0, FluentMotionRole::PopupClose);
-            const int duration = FluentMotion::duration(FluentMotionRole::PopupClose);
-            if (duration > 0) {
-                QTimer::singleShot(duration + 16, typed, [typed]() {
-                    typed->hide();
-                    typed->deleteLater();
-                });
-            } else {
-                typed->hide();
-                typed->deleteLater();
-            }
+            typed->fadeOutAndDelete();
         } else {
             overlay->hide();
             overlay->deleteLater();

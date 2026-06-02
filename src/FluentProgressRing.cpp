@@ -4,6 +4,7 @@
 #include "Fluent/FluentTheme.h"
 #include "FluentPaintSupport.h"
 
+#include <QAbstractAnimation>
 #include <QEvent>
 #include <QHideEvent>
 #include <QPainter>
@@ -26,6 +27,7 @@ FluentProgressRing::FluentProgressRing(QWidget *parent)
     m_valueAnim = new QPropertyAnimation(this, "displayValue", this);
 
     connect(this, &QProgressBar::valueChanged, this, [this](int newValue) {
+        FluentMotion::configure(m_valueAnim, FluentMotionRole::Selection);
         if (isIndeterminate()) {
             update();
             return;
@@ -120,6 +122,10 @@ void FluentProgressRing::showEvent(QShowEvent *event)
 void FluentProgressRing::timerEvent(QTimerEvent *event)
 {
     if (event->timerId() == m_spinTimer.timerId()) {
+        if (!ThemeManager::instance().animationsEnabled() || !isVisible() || !isEnabled() || !isIndeterminate()) {
+            syncSpinTimer();
+            return;
+        }
         setRotationAngle(m_rotationAngle + 7.5);
         return;
     }
@@ -128,7 +134,16 @@ void FluentProgressRing::timerEvent(QTimerEvent *event)
 
 void FluentProgressRing::applyTheme()
 {
+    const bool snapValue = m_valueAnim &&
+        m_valueAnim->state() == QAbstractAnimation::Running &&
+        FluentMotion::duration(FluentMotionRole::Selection) <= 0;
+    const qreal target = m_valueAnim ? m_valueAnim->endValue().toReal() : m_displayValue;
+
     FluentMotion::configure(m_valueAnim, FluentMotionRole::Selection);
+    if (snapValue) {
+        m_valueAnim->stop();
+        setDisplayValue(target);
+    }
     syncSpinTimer();
     update();
 }
@@ -154,7 +169,7 @@ void FluentProgressRing::paintEvent(QPaintEvent *event)
         return;
     }
 
-    const auto &colors = ThemeManager::instance().colors();
+    const auto tokens = ThemeManager::instance().tokens();
 
     QPainter painter(this);
     if (!painter.isActive()) {
@@ -170,9 +185,15 @@ void FluentProgressRing::paintEvent(QPaintEvent *event)
 
     QRectF ringRect((width() - side) / 2.0, (height() - side) / 2.0, side, side);
 
-    QColor track = colors.border;
-    track.setAlpha(isEnabled() ? 145 : 90);
-    QColor accent = isEnabled() ? colors.accent : colors.disabledText;
+    QColor track = isEnabled()
+        ? Style::mix(tokens.neutral.strokeSubtle, tokens.neutral.fillSecondary, tokens.dark ? 0.36 : 0.28)
+        : tokens.neutral.strokeSubtle;
+    track.setAlpha(isEnabled() ? 168 : 118);
+    QColor accent = tokens.accent.base;
+    if (!isEnabled()) {
+        accent = Style::mix(tokens.neutral.strokeStrong, tokens.accent.base, tokens.dark ? 0.22 : 0.28);
+        accent.setAlpha(172);
+    }
 
     painter.setPen(QPen(track, m_ringWidth, Qt::SolidLine, Qt::RoundCap));
     painter.setBrush(Qt::NoBrush);

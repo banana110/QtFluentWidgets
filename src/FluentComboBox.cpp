@@ -6,6 +6,7 @@
 #include "Fluent/FluentScrollBar.h"
 #include "Fluent/FluentStyle.h"
 #include "Fluent/FluentTheme.h"
+#include "FluentInputVisuals_p.h"
 #include "FluentPaintSupport.h"
 #include "FluentPopupUtils.h"
 #include "FluentViewPaletteSupport.h"
@@ -34,6 +35,8 @@
 namespace Fluent {
 
 constexpr int kFluentComboPopupGap = 5;
+constexpr int kFluentComboItemMinHeight = 36;
+constexpr qreal kFluentComboItemRadius = 5.0;
 
 class FluentComboPopup final : public QWidget
 {
@@ -67,6 +70,10 @@ public:
 
         connect(&ThemeManager::instance(), &ThemeManager::themeChanged, this, [this]() {
             FluentMotion::configure(m_openAnim, FluentMotionRole::PopupOpen);
+            if (isVisible() && m_openAnim && m_openAnim->duration() <= 0) {
+                m_openAnim->stop();
+                Detail::finishPopupOpen(this, m_targetGeom);
+            }
             if (isVisible()) {
                 m_border.onThemeChanged();
                 syncFromCombo();
@@ -357,7 +364,7 @@ private:
                 }
             }
         }
-        return 32;
+        return kFluentComboItemMinHeight;
     }
 
     int visibleItemCount() const
@@ -725,8 +732,23 @@ public:
 
     void applyMotion()
     {
+        const bool hoverRunning = m_hoverAnim && m_hoverAnim->state() == QAbstractAnimation::Running;
+        const bool selectionRunning = m_selAnim && m_selAnim->state() == QAbstractAnimation::Running;
+        const QVariant hoverEnd = m_hoverAnim ? m_hoverAnim->endValue() : QVariant();
+
         FluentMotion::configure(m_hoverAnim, FluentMotionRole::Hover);
         FluentMotion::configure(m_selAnim, FluentMotionRole::Selection);
+        if (hoverRunning && m_hoverAnim->duration() <= 0) {
+            m_hoverAnim->stop();
+            m_hoverLevel = qBound<qreal>(0.0, hoverEnd.toReal(), 1.0);
+            if (viewport()) {
+                viewport()->update();
+            }
+        }
+        if (selectionRunning && m_selAnim->duration() <= 0) {
+            m_selAnim->stop();
+            finishSelectionAnimation();
+        }
     }
 
     void setModel(QAbstractItemModel *model) override
@@ -744,11 +766,12 @@ protected:
     void paintEvent(QPaintEvent *event) override
     {
         const QModelIndex current = currentIndex();
-        const bool paintAnim = m_selAnim && m_selAnim->state() == QAbstractAnimation::Running && m_selRect.isValid() && m_selOpacity > 0.0;
-        const bool paintStatic = current.isValid() && selectionModel() && selectionModel()->isSelected(current);
+        const bool currentEnabled = current.isValid() && current.flags().testFlag(Qt::ItemIsEnabled);
+        const bool paintAnim = currentEnabled && m_selAnim && m_selAnim->state() == QAbstractAnimation::Running && m_selRect.isValid() && m_selOpacity > 0.0;
+        const bool paintStatic = currentEnabled && selectionModel() && selectionModel()->isSelected(current);
 
         if (paintAnim || paintStatic) {
-            const auto &colors = ThemeManager::instance().colors();
+            const auto &tokens = ThemeManager::instance().tokens();
             const QRectF rect = paintAnim ? m_selRect : selectionRectForIndex(current);
             const qreal opacity = paintAnim ? qBound<qreal>(0.0, m_selOpacity, 1.0) : 1.0;
 
@@ -756,13 +779,13 @@ protected:
                 QPainter painter(viewport());
                 painter.setRenderHint(QPainter::Antialiasing, true);
 
-                QColor fill = colors.accent;
-                fill.setAlpha(qBound(0, int(std::lround(40.0 * opacity)), 40));
+                QColor fill = tokens.accent.base;
+                fill.setAlpha(qBound(0, int(std::lround((tokens.dark ? 54.0 : 36.0) * opacity)), 60));
                 painter.setPen(Qt::NoPen);
                 painter.setBrush(fill);
-                painter.drawRoundedRect(rect, 4.0, 4.0);
+                painter.drawRoundedRect(rect, kFluentComboItemRadius, kFluentComboItemRadius);
 
-                QColor indicator = colors.accent;
+                QColor indicator = tokens.accent.base;
                 indicator.setAlpha(qBound(0, int(std::lround(255.0 * opacity)), 255));
                 painter.setBrush(indicator);
                 const qreal indicatorHeight = 16.0;
@@ -885,6 +908,7 @@ private:
         if (!m_hoverAnim) {
             return;
         }
+        FluentMotion::configure(m_hoverAnim, FluentMotionRole::Hover);
         m_hoverAnim->stop();
         if (m_hoverAnim->duration() <= 0) {
             m_hoverLevel = qBound<qreal>(0.0, endValue, 1.0);
@@ -904,6 +928,7 @@ private:
             finishSelectionAnimation();
             return;
         }
+        FluentMotion::configure(m_selAnim, FluentMotionRole::Selection);
         m_selAnim->stop();
         if (m_selAnim->duration() <= 0) {
             finishSelectionAnimation();
@@ -952,9 +977,10 @@ public:
 
     QSize sizeHint(const QStyleOptionViewItem &option, const QModelIndex &index) const override
     {
-        // Increase item height in popup logic
         QSize sz = QStyledItemDelegate::sizeHint(option, index);
-        if (sz.height() < 32) sz.setHeight(32); // Minimum 32px height for Fluent ComboBox items
+        if (sz.height() < kFluentComboItemMinHeight) {
+            sz.setHeight(kFluentComboItemMinHeight);
+        }
         if (m_combo && m_combo->selectionMode() == FluentComboBox::MultiSelection) {
             sz.setWidth(sz.width() + 28); // leave room for checkbox glyph
         }
@@ -968,15 +994,16 @@ public:
         opt.state &= ~QStyle::State_HasFocus; // Remove dotted line
 
         const auto &colors = ThemeManager::instance().colors();
+        const auto &tokens = ThemeManager::instance().tokens();
 
         const bool enabled = opt.state.testFlag(QStyle::State_Enabled);
         const bool multi = m_combo && m_combo->selectionMode() == FluentComboBox::MultiSelection;
         const bool checked = multi && index.data(Qt::CheckStateRole).toInt() == Qt::Checked;
 
         const QRectF itemRect = QRectF(opt.rect).adjusted(4, 2, -4, -2);
-        const bool selected = !multi && opt.state.testFlag(QStyle::State_Selected);
+        const bool selected = enabled && !multi && opt.state.testFlag(QStyle::State_Selected);
         const bool isCurrent = m_view && m_view->currentIndex().isValid() && index == m_view->currentIndex() && !multi;
-        const bool hovered = m_view && index == m_view->hoverIndex();
+        const bool hovered = enabled && m_view && index == m_view->hoverIndex();
 
         painter->save();
         painter->setRenderHint(QPainter::Antialiasing, true);
@@ -984,18 +1011,17 @@ public:
         // Background
         QColor bgColor = Qt::transparent;
         if (selected && !isCurrent) {
-            bgColor = colors.accent;
-            bgColor.setAlpha(40);
+            bgColor = tokens.accent.base;
+            bgColor.setAlpha(tokens.dark ? 54 : 36);
         } else if (hovered) {
-            QColor hover = colors.hover;
-            hover.setAlphaF(0.3 * m_view->hoverLevel());
-            bgColor = hover;
+            bgColor = tokens.neutral.fillSecondary;
+            bgColor.setAlpha(qBound(0, int(std::lround((tokens.dark ? 120.0 : 90.0) * m_view->hoverLevel())), 150));
         }
 
         if (bgColor.alpha() > 0) {
             painter->setPen(Qt::NoPen);
             painter->setBrush(bgColor);
-            painter->drawRoundedRect(itemRect, 4, 4);
+            painter->drawRoundedRect(itemRect, kFluentComboItemRadius, kFluentComboItemRadius);
         }
 
         // Selected indicator
@@ -1008,13 +1034,21 @@ public:
         if (multi) {
             const qreal cbSize = 16.0;
             const QRectF cbRect(x, itemRect.center().y() - cbSize / 2.0, cbSize, cbSize);
-            QColor borderCol = checked ? colors.accent : colors.border;
-            QColor fillCol = checked ? colors.accent : Qt::transparent;
+            const QColor disabledFill =
+                Style::mix(tokens.neutral.card, tokens.neutral.background, tokens.dark ? 0.48 : 0.35);
+            const QColor disabledStroke =
+                Style::mix(tokens.neutral.strokeSubtle, colors.disabledText, tokens.dark ? 0.28 : 0.18);
+            const QColor borderCol = enabled
+                ? (checked ? tokens.accent.base : tokens.neutral.strokeStrong)
+                : disabledStroke;
+            const QColor fillCol = enabled
+                ? (checked ? tokens.accent.base : tokens.neutral.card)
+                : disabledFill;
             painter->setPen(QPen(borderCol, 1.4));
             painter->setBrush(fillCol);
             painter->drawRoundedRect(cbRect, 3.0, 3.0);
             if (checked) {
-                QPen checkPen(colors.background, 2.0);
+                QPen checkPen(enabled ? tokens.onAccent : colors.disabledText, 2.0);
                 checkPen.setCapStyle(Qt::RoundCap);
                 checkPen.setJoinStyle(Qt::RoundJoin);
                 painter->setPen(checkPen);
@@ -1085,7 +1119,9 @@ FluentComboBox::FluentComboBox(QWidget *parent)
 QSize FluentComboBox::sizeHint() const
 {
     QSize sz = QComboBox::sizeHint();
-    if (sz.height() < 32) sz.setHeight(32);
+    if (sz.height() < kFluentComboItemMinHeight) {
+        sz.setHeight(kFluentComboItemMinHeight);
+    }
     return sz;
 }
 qreal FluentComboBox::hoverLevel() const
@@ -1109,9 +1145,17 @@ void FluentComboBox::changeEvent(QEvent *event)
 
 void FluentComboBox::applyTheme()
 {
+    const bool hoverRunning = m_hoverAnim && m_hoverAnim->state() == QAbstractAnimation::Running;
+    const QVariant hoverEnd = m_hoverAnim ? m_hoverAnim->endValue() : QVariant();
+
     FluentMotion::configure(m_hoverAnim, FluentMotionRole::Hover);
+    if (hoverRunning && m_hoverAnim->duration() <= 0) {
+        m_hoverAnim->stop();
+        setHoverLevel(hoverEnd.toReal());
+    }
 
     const auto &colors = ThemeManager::instance().colors();
+    const auto &tokens = ThemeManager::instance().tokens();
     if (view()) {
         if (auto *popupView = dynamic_cast<FluentComboPopupView *>(view())) {
             popupView->applyMotion();
@@ -1141,9 +1185,9 @@ void FluentComboBox::applyTheme()
             "}"
             "QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {"
             "  height: 0px;"
-            "}")
+                "}")
                 .arg(colors.text.name(QColor::HexArgb),
-                     colors.border.name(QColor::HexArgb));
+                     tokens.neutral.stroke.name(QColor::HexArgb));
 
         if (view()->styleSheet() != viewNext) {
             view()->setStyleSheet(viewNext);
@@ -1171,7 +1215,8 @@ void FluentComboBox::paintEvent(QPaintEvent *event)
     painter.setRenderHint(QPainter::Antialiasing, true);
 
     const QRectF rect = QRectF(this->rect());
-    Style::paintControlSurface(painter, rect, colors, m_hoverLevel, hasFocus() ? 1.0 : 0.0, enabled, expanded);
+    Style::paintControlSurface(painter, rect, colors, m_hoverLevel, 0.0, enabled, expanded);
+    InputVisuals::paintFocusRing(painter, rect.adjusted(0.5, 0.5, -0.5, -0.5), colors, enabled && hasFocus() ? 1.0 : 0.0);
 
     const auto m = Style::metrics();
     const QRect textRect = this->rect().adjusted(m.paddingX, 0, -m.iconAreaWidth, 0);
@@ -1189,10 +1234,7 @@ void FluentComboBox::paintEvent(QPaintEvent *event)
     painter.drawText(textRect, Qt::AlignVCenter | Qt::AlignLeft, elided);
 
     const QRect arrowRect(this->rect().right() - m.iconAreaWidth, this->rect().top(), m.iconAreaWidth, this->rect().height());
-    QColor separator = colors.border;
-    separator.setAlpha(80);
-    painter.setPen(QPen(separator, 1));
-    painter.drawLine(QPointF(arrowRect.left() + 0.5, arrowRect.top() + 8), QPointF(arrowRect.left() + 0.5, arrowRect.bottom() - 8));
+    InputVisuals::paintTrailingDivider(painter, arrowRect, colors, enabled);
 
     const QColor iconColor = enabled ? colors.subText : colors.disabledText;
     Style::drawChevronDown(painter, arrowRect.center(), iconColor, 8.0, 1.7);

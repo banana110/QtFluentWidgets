@@ -1,7 +1,9 @@
 #include "Fluent/FluentSlider.h"
 #include "Fluent/FluentMotion.h"
+#include "Fluent/FluentStyle.h"
 #include "Fluent/FluentTheme.h"
 
+#include <QAbstractAnimation>
 #include <QEvent>
 #include <QMouseEvent>
 #include <QPainter>
@@ -9,6 +11,44 @@
 #include <QStyle>
 
 namespace Fluent {
+
+namespace {
+
+struct SliderPaintColors {
+    QColor track;
+    QColor fill;
+    QColor handleFill;
+    QColor handleBorder;
+};
+
+SliderPaintColors sliderPaintColors(qreal hoverLevel, bool enabled)
+{
+    const auto &colors = ThemeManager::instance().colors();
+    const auto tokens = ThemeManager::instance().tokens();
+    const qreal hover = qBound<qreal>(0.0, hoverLevel, 1.0);
+
+    SliderPaintColors result;
+    result.track = Style::mix(tokens.neutral.strokeSubtle,
+                              tokens.neutral.fillTertiary,
+                              tokens.dark ? 0.54 : 0.38);
+    result.fill = tokens.accent.base;
+    result.handleFill = tokens.dark
+        ? Style::mix(tokens.neutral.cardHover, colors.text, 0.10 + 0.04 * hover)
+        : tokens.neutral.layer;
+    result.handleBorder = Style::mix(tokens.neutral.strokeStrong, tokens.accent.base, hover > 0.10 ? 0.58 : 0.0);
+
+    if (!enabled) {
+        result.track = tokens.neutral.strokeSubtle;
+        result.fill = tokens.neutral.strokeStrong;
+        result.fill.setAlpha(145);
+        result.handleFill = Style::mix(tokens.neutral.card, tokens.neutral.background, tokens.dark ? 0.48 : 0.34);
+        result.handleBorder = tokens.neutral.strokeSubtle;
+    }
+
+    return result;
+}
+
+} // namespace
 
 FluentSlider::FluentSlider(Qt::Orientation orientation, QWidget *parent)
     : QSlider(orientation, parent)
@@ -38,6 +78,7 @@ FluentSlider::FluentSlider(Qt::Orientation orientation, QWidget *parent)
             setHandlePos(target);
             return;
         }
+        FluentMotion::configure(m_positionAnim, FluentMotionRole::Selection);
         m_positionAnim->stop();
         if (m_positionAnim->duration() <= 0) {
             setHandlePos(target);
@@ -86,15 +127,32 @@ void FluentSlider::changeEvent(QEvent *event)
 
 void FluentSlider::applyTheme()
 {
+    const bool snapPosition = m_positionAnim &&
+        m_positionAnim->state() == QAbstractAnimation::Running &&
+        FluentMotion::duration(FluentMotionRole::Selection) <= 0;
+    const bool snapHover = m_hoverAnim &&
+        m_hoverAnim->state() == QAbstractAnimation::Running &&
+        FluentMotion::duration(FluentMotionRole::Hover) <= 0;
+    const qreal targetPosition = m_positionAnim ? m_positionAnim->endValue().toReal() : m_handlePos;
+    const qreal targetHover = m_hoverAnim ? m_hoverAnim->endValue().toReal() : m_hoverLevel;
+
     FluentMotion::configure(m_positionAnim, FluentMotionRole::Selection);
     FluentMotion::configure(m_hoverAnim, FluentMotionRole::Hover);
+    if (snapPosition) {
+        m_positionAnim->stop();
+        setHandlePos(targetPosition);
+    }
+    if (snapHover) {
+        m_hoverAnim->stop();
+        setHoverLevel(targetHover);
+    }
     update();
 }
 
 void FluentSlider::paintEvent(QPaintEvent *event)
 {
     Q_UNUSED(event)
-    const auto &colors = ThemeManager::instance().colors();
+    const SliderPaintColors paint = sliderPaintColors(m_hoverLevel, isEnabled());
 
     QPainter painter(this);
     if (!painter.isActive()) {
@@ -118,28 +176,17 @@ void FluentSlider::paintEvent(QPaintEvent *event)
         
         // Track
         painter.setPen(Qt::NoPen);
-        painter.setBrush(colors.border);
+        painter.setBrush(paint.track);
         painter.drawRoundedRect(QRectF(trackLeft, trackY, trackWidth, thickness), radius, radius);
 
         // Fill
         const qreal fillWidth = (trackWidth * m_handlePos);
-        painter.setBrush(colors.accent);
+        painter.setBrush(paint.fill);
         painter.drawRoundedRect(QRectF(trackLeft, trackY, fillWidth, thickness), radius, radius);
 
-        // Handle
-        painter.setBrush(QColor("#FFFFFF"));
-        // Handle border logic:
-        // Outer ring: Accent (visible on hover/press)
-        // Inner circle: Accent filled
-        // Let's stick to simple Fluent style: Solid dot with border
-        
-        QColor handleBorder = colors.border;
-        if (m_hoverLevel > 0.1) handleBorder = colors.accent;
-        
-        painter.setPen(QPen(handleBorder, 1));
-        
-        // Outer white knob
-        painter.setBrush(Qt::white);
+        // Handle: raised control surface with accent feedback on hover.
+        painter.setPen(QPen(paint.handleBorder, 1));
+        painter.setBrush(paint.handleFill);
         QRectF handleRect(handleX, handleY, handleSize, handleSize);
         painter.drawEllipse(handleRect.adjusted(0.5, 0.5, -0.5, -0.5));
         
@@ -147,7 +194,7 @@ void FluentSlider::paintEvent(QPaintEvent *event)
         qreal innerSize = handleSize * 0.6;
         if (m_hoverLevel > 0.01) {
              painter.setPen(Qt::NoPen);
-             painter.setBrush(colors.accent);
+             painter.setBrush(paint.fill);
              QRectF innerRect(
                  handleX + (handleSize - innerSize) / 2.0,
                  handleY + (handleSize - innerSize) / 2.0,
@@ -168,21 +215,18 @@ void FluentSlider::paintEvent(QPaintEvent *event)
 
         // Track
         painter.setPen(Qt::NoPen);
-        painter.setBrush(colors.border);
+        painter.setBrush(paint.track);
         painter.drawRoundedRect(QRectF(trackX, trackTop, thickness, trackHeight), radius, radius);
 
         // Fill
         const qreal fillHeight = (trackHeight * m_handlePos);
-        painter.setBrush(colors.accent);
+        painter.setBrush(paint.fill);
         // Fill from bottom up
         painter.drawRoundedRect(QRectF(trackX, trackBottom - fillHeight, thickness, fillHeight), radius, radius);
 
         // Handle
-        QColor handleBorder = colors.border;
-        if (m_hoverLevel > 0.1) handleBorder = colors.accent;
-        
-        painter.setPen(QPen(handleBorder, 1));
-        painter.setBrush(Qt::white);
+        painter.setPen(QPen(paint.handleBorder, 1));
+        painter.setBrush(paint.handleFill);
         QRectF handleRect(handleX, handleY, handleSize, handleSize);
         painter.drawEllipse(handleRect.adjusted(0.5, 0.5, -0.5, -0.5));
         
@@ -190,7 +234,7 @@ void FluentSlider::paintEvent(QPaintEvent *event)
         qreal innerSize = handleSize * 0.6;
         if (m_hoverLevel > 0.01) {
              painter.setPen(Qt::NoPen);
-             painter.setBrush(colors.accent);
+             painter.setBrush(paint.fill);
              QRectF innerRect(
                  handleX + (handleSize - innerSize) / 2.0,
                  handleY + (handleSize - innerSize) / 2.0,
@@ -327,6 +371,7 @@ void FluentSlider::mouseReleaseEvent(QMouseEvent *event)
 void FluentSlider::enterEvent(FluentEnterEvent *event)
 {
     QSlider::enterEvent(event);
+    FluentMotion::configure(m_hoverAnim, FluentMotionRole::Hover);
     m_hoverAnim->stop();
     if (m_hoverAnim->duration() <= 0) {
         setHoverLevel(1.0);
@@ -340,6 +385,7 @@ void FluentSlider::enterEvent(FluentEnterEvent *event)
 void FluentSlider::leaveEvent(QEvent *event)
 {
     QSlider::leaveEvent(event);
+    FluentMotion::configure(m_hoverAnim, FluentMotionRole::Hover);
     m_hoverAnim->stop();
     if (m_hoverAnim->duration() <= 0) {
         setHoverLevel(0.0);

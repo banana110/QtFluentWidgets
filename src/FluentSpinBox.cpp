@@ -2,7 +2,9 @@
 #include "Fluent/FluentMotion.h"
 #include "Fluent/FluentStyle.h"
 #include "Fluent/FluentTheme.h"
+#include "FluentInputVisuals_p.h"
 
+#include <QAbstractAnimation>
 #include <QCoreApplication>
 #include <QEvent>
 #include <QFocusEvent>
@@ -19,6 +21,16 @@
 namespace Fluent {
 
 namespace {
+constexpr int kEditorFocusRingInset = 2;
+
+static QRect spinEditorGeometry(const QSize &size, int iconAreaWidth)
+{
+    return QRect(kEditorFocusRingInset,
+                 kEditorFocusRingInset,
+                 qMax(0, size.width() - iconAreaWidth - kEditorFocusRingInset),
+                 qMax(0, size.height() - kEditorFocusRingInset * 2));
+}
+
 static int textAdvancePx(const QFontMetrics &fm, const QString &s)
 {
 #if QT_VERSION >= QT_VERSION_CHECK(5, 11, 0)
@@ -78,9 +90,9 @@ FluentSpinBox::FluentSpinBox(QWidget *parent)
     if (m_editor) {
         const auto m = Style::metrics();
         m_editor->setFrame(false);
-        // The editor's geometry already excludes the stepper button area.
-        // Keep only a small right padding so text doesn't get clipped.
-        m_editor->setTextMargins(m.paddingX, 0, m.paddingX, 0);
+        // The editor's geometry leaves the outer focus ring visible.
+        const int editorPadding = qMax(0, m.paddingX - kEditorFocusRingInset);
+        m_editor->setTextMargins(editorPadding, 0, editorPadding, 0);
     }
 
     // Make sure the editor never covers the button area (affects cursor hit-testing).
@@ -88,7 +100,7 @@ FluentSpinBox::FluentSpinBox(QWidget *parent)
         ensureEditor();
         if (m_editor) {
             const auto m = Style::metrics();
-            m_editor->setGeometry(0, 0, qMax(0, width() - m.iconAreaWidth), height());
+            m_editor->setGeometry(spinEditorGeometry(size(), m.iconAreaWidth));
         }
     });
 
@@ -165,19 +177,52 @@ void FluentSpinBox::changeEvent(QEvent *event)
 
 void FluentSpinBox::applyTheme()
 {
+    const bool hoverRunning = m_hoverAnim && m_hoverAnim->state() == QAbstractAnimation::Running;
+    const bool focusRunning = m_focusAnim && m_focusAnim->state() == QAbstractAnimation::Running;
+    const bool stepperRunning = m_stepperAnim && m_stepperAnim->state() == QAbstractAnimation::Running;
+    const QVariant hoverEnd = m_hoverAnim ? m_hoverAnim->endValue() : QVariant();
+    const QVariant focusEnd = m_focusAnim ? m_focusAnim->endValue() : QVariant();
+    const QVariant stepperEnd = m_stepperAnim ? m_stepperAnim->endValue() : QVariant();
+
     FluentMotion::configure(m_hoverAnim, FluentMotionRole::Hover);
     FluentMotion::configure(m_focusAnim, FluentMotionRole::Focus);
     FluentMotion::configure(m_stepperAnim, FluentMotionRole::Press);
+    if (hoverRunning && m_hoverAnim->duration() <= 0) {
+        m_hoverAnim->stop();
+        m_hoverLevel = qBound<qreal>(0.0, hoverEnd.toReal(), 1.0);
+    }
+    if (focusRunning && m_focusAnim->duration() <= 0) {
+        m_focusAnim->stop();
+        m_focusLevel = qBound<qreal>(0.0, focusEnd.toReal(), 1.0);
+    }
+    if (stepperRunning && m_stepperAnim->duration() <= 0) {
+        m_stepperAnim->stop();
+        m_stepperLevel = qBound<qreal>(0.0, stepperEnd.toReal(), 1.0);
+    }
 
     const auto &colors = ThemeManager::instance().colors();
+    const auto &tokens = ThemeManager::instance().tokens();
     ensureEditor();
     if (m_editor) {
         const QColor textColor = isEnabled() ? colors.text : colors.disabledText;
 
         const bool dark = ThemeManager::instance().themeMode() == ThemeManager::ThemeMode::Dark;
-        QColor selectionBg = colors.accent;
+        QColor selectionBg = tokens.accent.base;
         selectionBg.setAlphaF(dark ? 0.35 : 0.22);
 
+        // QAbstractSpinBox paints the editor value from QPalette::Text, so keep it readable.
+        QPalette pal = m_editor->palette();
+        pal.setColor(QPalette::WindowText, textColor);
+        pal.setColor(QPalette::Disabled, QPalette::WindowText, colors.disabledText);
+        pal.setColor(QPalette::Text, textColor);
+        pal.setColor(QPalette::Disabled, QPalette::Text, colors.disabledText);
+        pal.setColor(QPalette::Highlight, selectionBg);
+        pal.setColor(QPalette::HighlightedText, colors.text);
+    #if QT_VERSION >= QT_VERSION_CHECK(5, 12, 0)
+        QColor placeholder = colors.subText;
+        placeholder.setAlphaF(dark ? 0.55 : 0.60);
+        pal.setColor(QPalette::PlaceholderText, placeholder);
+    #endif
         const QString next = QStringLiteral(
             "QLineEdit { background: transparent; color: %1; border: none; "
             "selection-background-color: %2; selection-color: %3; }"
@@ -189,19 +234,6 @@ void FluentSpinBox::applyTheme()
         if (m_editor->styleSheet() != next) {
             m_editor->setStyleSheet(next);
         }
-
-        // Try to make caret follow accent while keeping text color from stylesheet.
-        QPalette pal = m_editor->palette();
-        pal.setColor(QPalette::WindowText, textColor);
-        pal.setColor(QPalette::Disabled, QPalette::WindowText, colors.disabledText);
-        pal.setColor(QPalette::Text, textColor);
-        pal.setColor(QPalette::Highlight, selectionBg);
-        pal.setColor(QPalette::HighlightedText, colors.text);
-    #if QT_VERSION >= QT_VERSION_CHECK(5, 12, 0)
-        QColor placeholder = colors.subText;
-        placeholder.setAlphaF(dark ? 0.55 : 0.60);
-        pal.setColor(QPalette::PlaceholderText, placeholder);
-    #endif
         m_editor->setPalette(pal);
     }
     update();
@@ -222,6 +254,32 @@ void FluentSpinBox::ensureEditor()
 
 bool FluentSpinBox::eventFilter(QObject *watched, QEvent *event)
 {
+    if (watched == m_editor && event->type() == QEvent::FocusIn) {
+        m_focusAnim->stop();
+        if (m_focusAnim->duration() <= 0) {
+            m_focusLevel = 1.0;
+            update();
+            return QSpinBox::eventFilter(watched, event);
+        }
+        m_focusAnim->setStartValue(m_focusLevel);
+        m_focusAnim->setEndValue(1.0);
+        m_focusAnim->start();
+        return QSpinBox::eventFilter(watched, event);
+    }
+
+    if (watched == m_editor && event->type() == QEvent::FocusOut) {
+        m_focusAnim->stop();
+        if (m_focusAnim->duration() <= 0) {
+            m_focusLevel = 0.0;
+            update();
+            return QSpinBox::eventFilter(watched, event);
+        }
+        m_focusAnim->setStartValue(m_focusLevel);
+        m_focusAnim->setEndValue(0.0);
+        m_focusAnim->start();
+        return QSpinBox::eventFilter(watched, event);
+    }
+
     if (watched == m_editor && (event->type() == QEvent::MouseMove ||
                                event->type() == QEvent::MouseButtonPress ||
                                event->type() == QEvent::MouseButtonRelease ||
@@ -283,7 +341,7 @@ void FluentSpinBox::resizeEvent(QResizeEvent *event)
     ensureEditor();
     if (m_editor) {
         const auto m = Style::metrics();
-        m_editor->setGeometry(0, 0, qMax(0, width() - m.iconAreaWidth), height());
+        m_editor->setGeometry(spinEditorGeometry(size(), m.iconAreaWidth));
     }
 }
 
@@ -291,7 +349,8 @@ void FluentSpinBox::paintEvent(QPaintEvent *event)
 {
     Q_UNUSED(event)
     const auto &colors = ThemeManager::instance().colors();
-    const bool dark = ThemeManager::instance().themeMode() == ThemeManager::ThemeMode::Dark;
+    const auto &tokens = ThemeManager::instance().tokens();
+    const bool dark = tokens.dark;
 
     const bool enabled = isEnabled();
     const bool pressed = (m_pressedButton != ButtonPart::None);
@@ -303,7 +362,9 @@ void FluentSpinBox::paintEvent(QPaintEvent *event)
     painter.setRenderHint(QPainter::Antialiasing, true);
 
     const QRectF rect = QRectF(this->rect());
-    Style::paintControlSurface(painter, rect, colors, m_hoverLevel, m_focusLevel, enabled, pressed);
+    Style::paintControlSurface(painter, rect, colors, m_hoverLevel, 0.0, enabled, pressed);
+    const qreal focusLevel = qMax(m_focusLevel, (m_editor && m_editor->hasFocus()) ? 1.0 : 0.0);
+    InputVisuals::paintFocusRing(painter, rect.adjusted(0.5, 0.5, -0.5, -0.5), colors, enabled ? focusLevel : 0.0);
 
     const auto m = Style::metrics();
     const QRect buttonRect(this->width() - m.iconAreaWidth, 0, m.iconAreaWidth, this->height());
@@ -316,7 +377,7 @@ void FluentSpinBox::paintEvent(QPaintEvent *event)
         const QRectF clipRect = QRectF(this->rect()).adjusted(inset, inset, -inset, -inset);
         painter.setClipPath(Style::roundedRectPath(clipRect, qMax<qreal>(0.0, m.radius - inset)));
         painter.setPen(Qt::NoPen);
-        const QColor idleFill = Style::mix(colors.surface, colors.hover, 0.85);
+        const QColor idleFill = Style::mix(tokens.neutral.card, tokens.neutral.cardHover, 0.85);
         painter.setBrush(idleFill);
         const QRectF rf(buttonRect.adjusted(1, 1, -1, -1));
         const qreal corner = qMax<qreal>(0.0, m.radius - inset);
@@ -324,11 +385,7 @@ void FluentSpinBox::paintEvent(QPaintEvent *event)
         painter.restore();
     }
 
-    // Divider
-    QColor divider = colors.border;
-    divider.setAlpha(80);
-    painter.setPen(QPen(divider, 1));
-    painter.drawLine(QPointF(buttonRect.left() + 0.5, buttonRect.top() + 8), QPointF(buttonRect.left() + 0.5, buttonRect.bottom() - 8));
+    InputVisuals::paintTrailingDivider(painter, buttonRect, colors, enabled);
 
     // Button hover/pressed backgrounds (with a small gap)
     const int gap = 2;
@@ -348,9 +405,9 @@ void FluentSpinBox::paintEvent(QPaintEvent *event)
         const qreal baseK = dark ? 0.20 : 0.12;
         const qreal hoverK = dark ? 0.28 : 0.18;
         const qreal pressedK = dark ? 0.40 : 0.26;
-        const QColor base = Style::mix(colors.surface, colors.accent, baseK);
-        const QColor hover = Style::mix(colors.surface, colors.accent, hoverK);
-        const QColor pressedFill = Style::mix(colors.surface, colors.accent, pressedK);
+        const QColor base = Style::mix(tokens.neutral.card, tokens.accent.base, baseK);
+        const QColor hover = Style::mix(tokens.neutral.card, tokens.accent.base, hoverK);
+        const QColor pressedFill = Style::mix(tokens.neutral.card, tokens.accent.base, pressedK);
         const QColor fill = isPressed ? pressedFill : Style::mix(base, hover, t);
         painter.save();
         painter.setRenderHint(QPainter::Antialiasing, true);
@@ -382,22 +439,35 @@ void FluentSpinBox::paintEvent(QPaintEvent *event)
 
 void FluentSpinBox::startStepperAnimation(qreal endValue)
 {
+    endValue = qBound<qreal>(0.0, endValue, 1.0);
     if (!m_stepperAnim) {
         m_stepperLevel = endValue;
         update();
         return;
     }
 
+    FluentMotion::configure(m_stepperAnim, FluentMotionRole::Press);
     m_stepperAnim->stop();
+    if (m_stepperAnim->duration() <= 0) {
+        m_stepperLevel = endValue;
+        update();
+        return;
+    }
     m_stepperAnim->setStartValue(m_stepperLevel);
-    m_stepperAnim->setEndValue(qBound<qreal>(0.0, endValue, 1.0));
+    m_stepperAnim->setEndValue(endValue);
     m_stepperAnim->start();
 }
 
 void FluentSpinBox::enterEvent(FluentEnterEvent *event)
 {
     QSpinBox::enterEvent(event);
+    FluentMotion::configure(m_hoverAnim, FluentMotionRole::Hover);
     m_hoverAnim->stop();
+    if (m_hoverAnim->duration() <= 0) {
+        m_hoverLevel = 1.0;
+        update();
+        return;
+    }
     m_hoverAnim->setStartValue(m_hoverLevel);
     m_hoverAnim->setEndValue(1.0);
     m_hoverAnim->start();
@@ -408,7 +478,13 @@ void FluentSpinBox::leaveEvent(QEvent *event)
     QSpinBox::leaveEvent(event);
     m_hoverButton = ButtonPart::None;
     startStepperAnimation(0.0);
+    FluentMotion::configure(m_hoverAnim, FluentMotionRole::Hover);
     m_hoverAnim->stop();
+    if (m_hoverAnim->duration() <= 0) {
+        m_hoverLevel = 0.0;
+        update();
+        return;
+    }
     m_hoverAnim->setStartValue(m_hoverLevel);
     m_hoverAnim->setEndValue(0.0);
     m_hoverAnim->start();
@@ -417,7 +493,13 @@ void FluentSpinBox::leaveEvent(QEvent *event)
 void FluentSpinBox::focusInEvent(QFocusEvent *event)
 {
     QSpinBox::focusInEvent(event);
+    FluentMotion::configure(m_focusAnim, FluentMotionRole::Focus);
     m_focusAnim->stop();
+    if (m_focusAnim->duration() <= 0) {
+        m_focusLevel = 1.0;
+        update();
+        return;
+    }
     m_focusAnim->setStartValue(m_focusLevel);
     m_focusAnim->setEndValue(1.0);
     m_focusAnim->start();
@@ -426,7 +508,13 @@ void FluentSpinBox::focusInEvent(QFocusEvent *event)
 void FluentSpinBox::focusOutEvent(QFocusEvent *event)
 {
     QSpinBox::focusOutEvent(event);
+    FluentMotion::configure(m_focusAnim, FluentMotionRole::Focus);
     m_focusAnim->stop();
+    if (m_focusAnim->duration() <= 0) {
+        m_focusLevel = 0.0;
+        update();
+        return;
+    }
     m_focusAnim->setStartValue(m_focusLevel);
     m_focusAnim->setEndValue(0.0);
     m_focusAnim->start();
@@ -508,15 +596,16 @@ FluentDoubleSpinBox::FluentDoubleSpinBox(QWidget *parent)
     if (m_editor) {
         const auto m = Style::metrics();
         m_editor->setFrame(false);
-        // The editor's geometry already excludes the stepper button area.
-        m_editor->setTextMargins(m.paddingX, 0, m.paddingX, 0);
+        // The editor's geometry leaves the outer focus ring visible.
+        const int editorPadding = qMax(0, m.paddingX - kEditorFocusRingInset);
+        m_editor->setTextMargins(editorPadding, 0, editorPadding, 0);
     }
 
     QTimer::singleShot(0, this, [this]() {
         ensureEditor();
         if (m_editor) {
             const auto m = Style::metrics();
-            m_editor->setGeometry(0, 0, qMax(0, width() - m.iconAreaWidth), height());
+            m_editor->setGeometry(spinEditorGeometry(size(), m.iconAreaWidth));
         }
     });
 
@@ -590,44 +679,64 @@ void FluentDoubleSpinBox::changeEvent(QEvent *event)
 
 void FluentDoubleSpinBox::applyTheme()
 {
+    const bool hoverRunning = m_hoverAnim && m_hoverAnim->state() == QAbstractAnimation::Running;
+    const bool focusRunning = m_focusAnim && m_focusAnim->state() == QAbstractAnimation::Running;
+    const bool stepperRunning = m_stepperAnim && m_stepperAnim->state() == QAbstractAnimation::Running;
+    const QVariant hoverEnd = m_hoverAnim ? m_hoverAnim->endValue() : QVariant();
+    const QVariant focusEnd = m_focusAnim ? m_focusAnim->endValue() : QVariant();
+    const QVariant stepperEnd = m_stepperAnim ? m_stepperAnim->endValue() : QVariant();
+
     FluentMotion::configure(m_hoverAnim, FluentMotionRole::Hover);
     FluentMotion::configure(m_focusAnim, FluentMotionRole::Focus);
     FluentMotion::configure(m_stepperAnim, FluentMotionRole::Press);
+    if (hoverRunning && m_hoverAnim->duration() <= 0) {
+        m_hoverAnim->stop();
+        m_hoverLevel = qBound<qreal>(0.0, hoverEnd.toReal(), 1.0);
+    }
+    if (focusRunning && m_focusAnim->duration() <= 0) {
+        m_focusAnim->stop();
+        m_focusLevel = qBound<qreal>(0.0, focusEnd.toReal(), 1.0);
+    }
+    if (stepperRunning && m_stepperAnim->duration() <= 0) {
+        m_stepperAnim->stop();
+        m_stepperLevel = qBound<qreal>(0.0, stepperEnd.toReal(), 1.0);
+    }
 
     const auto &colors = ThemeManager::instance().colors();
+    const auto &tokens = ThemeManager::instance().tokens();
     ensureEditor();
     if (m_editor) {
         const QColor textColor = isEnabled() ? colors.text : colors.disabledText;
 
-            const bool dark = ThemeManager::instance().themeMode() == ThemeManager::ThemeMode::Dark;
-            QColor selectionBg = colors.accent;
-            selectionBg.setAlphaF(dark ? 0.35 : 0.22);
+        const bool dark = ThemeManager::instance().themeMode() == ThemeManager::ThemeMode::Dark;
+        QColor selectionBg = tokens.accent.base;
+        selectionBg.setAlphaF(dark ? 0.35 : 0.22);
 
-            const QString next = QStringLiteral(
-                "QLineEdit { background: transparent; color: %1; border: none; "
-                "selection-background-color: %2; selection-color: %3; }"
-                "QLineEdit:disabled { color: %4; }")
-                .arg(textColor.name(QColor::HexArgb),
-                     selectionBg.name(QColor::HexArgb),
-                     colors.text.name(QColor::HexArgb),
-                     colors.disabledText.name(QColor::HexArgb));
-            if (m_editor->styleSheet() != next) {
-                m_editor->setStyleSheet(next);
-            }
-
-            // Try to make caret follow accent while keeping text color from stylesheet.
-            QPalette pal = m_editor->palette();
-            pal.setColor(QPalette::WindowText, textColor);
-            pal.setColor(QPalette::Disabled, QPalette::WindowText, colors.disabledText);
-            pal.setColor(QPalette::Text, textColor);
-            pal.setColor(QPalette::Highlight, selectionBg);
-            pal.setColor(QPalette::HighlightedText, colors.text);
+        // QAbstractSpinBox paints the editor value from QPalette::Text, so keep it readable.
+        QPalette pal = m_editor->palette();
+        pal.setColor(QPalette::WindowText, textColor);
+        pal.setColor(QPalette::Disabled, QPalette::WindowText, colors.disabledText);
+        pal.setColor(QPalette::Text, textColor);
+        pal.setColor(QPalette::Disabled, QPalette::Text, colors.disabledText);
+        pal.setColor(QPalette::Highlight, selectionBg);
+        pal.setColor(QPalette::HighlightedText, colors.text);
 #if QT_VERSION >= QT_VERSION_CHECK(5, 12, 0)
-            QColor placeholder = colors.subText;
-            placeholder.setAlphaF(dark ? 0.55 : 0.60);
-            pal.setColor(QPalette::PlaceholderText, placeholder);
+        QColor placeholder = colors.subText;
+        placeholder.setAlphaF(dark ? 0.55 : 0.60);
+        pal.setColor(QPalette::PlaceholderText, placeholder);
 #endif
-            m_editor->setPalette(pal);
+        const QString next = QStringLiteral(
+            "QLineEdit { background: transparent; color: %1; border: none; "
+            "selection-background-color: %2; selection-color: %3; }"
+            "QLineEdit:disabled { color: %4; }")
+            .arg(textColor.name(QColor::HexArgb),
+                 selectionBg.name(QColor::HexArgb),
+                 colors.text.name(QColor::HexArgb),
+                 colors.disabledText.name(QColor::HexArgb));
+        if (m_editor->styleSheet() != next) {
+            m_editor->setStyleSheet(next);
+        }
+        m_editor->setPalette(pal);
     }
     update();
 }
@@ -647,6 +756,32 @@ void FluentDoubleSpinBox::ensureEditor()
 
 bool FluentDoubleSpinBox::eventFilter(QObject *watched, QEvent *event)
 {
+    if (watched == m_editor && event->type() == QEvent::FocusIn) {
+        m_focusAnim->stop();
+        if (m_focusAnim->duration() <= 0) {
+            m_focusLevel = 1.0;
+            update();
+            return QDoubleSpinBox::eventFilter(watched, event);
+        }
+        m_focusAnim->setStartValue(m_focusLevel);
+        m_focusAnim->setEndValue(1.0);
+        m_focusAnim->start();
+        return QDoubleSpinBox::eventFilter(watched, event);
+    }
+
+    if (watched == m_editor && event->type() == QEvent::FocusOut) {
+        m_focusAnim->stop();
+        if (m_focusAnim->duration() <= 0) {
+            m_focusLevel = 0.0;
+            update();
+            return QDoubleSpinBox::eventFilter(watched, event);
+        }
+        m_focusAnim->setStartValue(m_focusLevel);
+        m_focusAnim->setEndValue(0.0);
+        m_focusAnim->start();
+        return QDoubleSpinBox::eventFilter(watched, event);
+    }
+
     if (watched == m_editor && (event->type() == QEvent::MouseMove ||
                                event->type() == QEvent::MouseButtonPress ||
                                event->type() == QEvent::MouseButtonRelease ||
@@ -704,8 +839,8 @@ void FluentDoubleSpinBox::paintEvent(QPaintEvent *event)
 {
     Q_UNUSED(event)
     const auto &colors = ThemeManager::instance().colors();
-
-    const bool dark = ThemeManager::instance().themeMode() == ThemeManager::ThemeMode::Dark;
+    const auto &tokens = ThemeManager::instance().tokens();
+    const bool dark = tokens.dark;
 
     const bool enabled = isEnabled();
     const bool pressed = (m_pressedButton != ButtonPart::None);
@@ -717,7 +852,9 @@ void FluentDoubleSpinBox::paintEvent(QPaintEvent *event)
     painter.setRenderHint(QPainter::Antialiasing, true);
 
     const QRectF r = QRectF(this->rect());
-    Style::paintControlSurface(painter, r, colors, m_hoverLevel, m_focusLevel, enabled, pressed);
+    Style::paintControlSurface(painter, r, colors, m_hoverLevel, 0.0, enabled, pressed);
+    const qreal focusLevel = qMax(m_focusLevel, (m_editor && m_editor->hasFocus()) ? 1.0 : 0.0);
+    InputVisuals::paintFocusRing(painter, r.adjusted(0.5, 0.5, -0.5, -0.5), colors, enabled ? focusLevel : 0.0);
 
     const auto m = Style::metrics();
     const QRect buttonRect(this->width() - m.iconAreaWidth, 0, m.iconAreaWidth, this->height());
@@ -729,7 +866,7 @@ void FluentDoubleSpinBox::paintEvent(QPaintEvent *event)
         const QRectF clipRect = QRectF(this->rect()).adjusted(inset, inset, -inset, -inset);
         painter.setClipPath(Style::roundedRectPath(clipRect, qMax<qreal>(0.0, m.radius - inset)));
         painter.setPen(Qt::NoPen);
-        const QColor idleFill = Style::mix(colors.surface, colors.hover, 0.85);
+        const QColor idleFill = Style::mix(tokens.neutral.card, tokens.neutral.cardHover, 0.85);
         painter.setBrush(idleFill);
         const QRectF rf(buttonRect.adjusted(1, 1, -1, -1));
         const qreal corner = qMax<qreal>(0.0, m.radius - inset);
@@ -737,10 +874,7 @@ void FluentDoubleSpinBox::paintEvent(QPaintEvent *event)
         painter.restore();
     }
 
-    QColor divider = colors.border;
-    divider.setAlpha(80);
-    painter.setPen(QPen(divider, 1));
-    painter.drawLine(QPointF(buttonRect.left() + 0.5, buttonRect.top() + 8), QPointF(buttonRect.left() + 0.5, buttonRect.bottom() - 8));
+    InputVisuals::paintTrailingDivider(painter, buttonRect, colors, enabled);
 
     const int gap = 2;
     const int halfH = (buttonRect.height() - gap) / 2;
@@ -758,9 +892,9 @@ void FluentDoubleSpinBox::paintEvent(QPaintEvent *event)
         const qreal baseK = dark ? 0.20 : 0.12;
         const qreal hoverK = dark ? 0.28 : 0.18;
         const qreal pressedK = dark ? 0.40 : 0.26;
-        const QColor base = Style::mix(colors.surface, colors.accent, baseK);
-        const QColor hover = Style::mix(colors.surface, colors.accent, hoverK);
-        const QColor pressedFill = Style::mix(colors.surface, colors.accent, pressedK);
+        const QColor base = Style::mix(tokens.neutral.card, tokens.accent.base, baseK);
+        const QColor hover = Style::mix(tokens.neutral.card, tokens.accent.base, hoverK);
+        const QColor pressedFill = Style::mix(tokens.neutral.card, tokens.accent.base, pressedK);
         const QColor fill = isPressed ? pressedFill : Style::mix(base, hover, t);
         painter.save();
         painter.setRenderHint(QPainter::Antialiasing, true);
@@ -789,15 +923,22 @@ void FluentDoubleSpinBox::paintEvent(QPaintEvent *event)
 
 void FluentDoubleSpinBox::startStepperAnimation(qreal endValue)
 {
+    endValue = qBound<qreal>(0.0, endValue, 1.0);
     if (!m_stepperAnim) {
         m_stepperLevel = endValue;
         update();
         return;
     }
 
+    FluentMotion::configure(m_stepperAnim, FluentMotionRole::Press);
     m_stepperAnim->stop();
+    if (m_stepperAnim->duration() <= 0) {
+        m_stepperLevel = endValue;
+        update();
+        return;
+    }
     m_stepperAnim->setStartValue(m_stepperLevel);
-    m_stepperAnim->setEndValue(qBound<qreal>(0.0, endValue, 1.0));
+    m_stepperAnim->setEndValue(endValue);
     m_stepperAnim->start();
 }
 
@@ -807,14 +948,20 @@ void FluentDoubleSpinBox::resizeEvent(QResizeEvent *event)
     ensureEditor();
     if (m_editor) {
         const auto m = Style::metrics();
-        m_editor->setGeometry(0, 0, qMax(0, width() - m.iconAreaWidth), height());
+        m_editor->setGeometry(spinEditorGeometry(size(), m.iconAreaWidth));
     }
 }
 
 void FluentDoubleSpinBox::enterEvent(FluentEnterEvent *event)
 {
     QDoubleSpinBox::enterEvent(event);
+    FluentMotion::configure(m_hoverAnim, FluentMotionRole::Hover);
     m_hoverAnim->stop();
+    if (m_hoverAnim->duration() <= 0) {
+        m_hoverLevel = 1.0;
+        update();
+        return;
+    }
     m_hoverAnim->setStartValue(m_hoverLevel);
     m_hoverAnim->setEndValue(1.0);
     m_hoverAnim->start();
@@ -825,7 +972,13 @@ void FluentDoubleSpinBox::leaveEvent(QEvent *event)
     QDoubleSpinBox::leaveEvent(event);
     m_hoverButton = ButtonPart::None;
     startStepperAnimation(0.0);
+    FluentMotion::configure(m_hoverAnim, FluentMotionRole::Hover);
     m_hoverAnim->stop();
+    if (m_hoverAnim->duration() <= 0) {
+        m_hoverLevel = 0.0;
+        update();
+        return;
+    }
     m_hoverAnim->setStartValue(m_hoverLevel);
     m_hoverAnim->setEndValue(0.0);
     m_hoverAnim->start();
@@ -834,7 +987,13 @@ void FluentDoubleSpinBox::leaveEvent(QEvent *event)
 void FluentDoubleSpinBox::focusInEvent(QFocusEvent *event)
 {
     QDoubleSpinBox::focusInEvent(event);
+    FluentMotion::configure(m_focusAnim, FluentMotionRole::Focus);
     m_focusAnim->stop();
+    if (m_focusAnim->duration() <= 0) {
+        m_focusLevel = 1.0;
+        update();
+        return;
+    }
     m_focusAnim->setStartValue(m_focusLevel);
     m_focusAnim->setEndValue(1.0);
     m_focusAnim->start();
@@ -843,7 +1002,13 @@ void FluentDoubleSpinBox::focusInEvent(QFocusEvent *event)
 void FluentDoubleSpinBox::focusOutEvent(QFocusEvent *event)
 {
     QDoubleSpinBox::focusOutEvent(event);
+    FluentMotion::configure(m_focusAnim, FluentMotionRole::Focus);
     m_focusAnim->stop();
+    if (m_focusAnim->duration() <= 0) {
+        m_focusLevel = 0.0;
+        update();
+        return;
+    }
     m_focusAnim->setStartValue(m_focusLevel);
     m_focusAnim->setEndValue(0.0);
     m_focusAnim->start();

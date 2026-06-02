@@ -6,17 +6,22 @@
 #include "Fluent/FluentMenu.h"
 #include "FluentMenuPopupHost.h"
 
+#include <QAbstractAnimation>
 #include <QActionEvent>
 #include <QApplication>
+#include <QChildEvent>
 #include <QEvent>
+#include <QIcon>
 #include <QMenu>
 #include <QKeyEvent>
 #include <QMouseEvent>
 #include <QPainter>
 #include <QPointer>
 #include <QScreen>
+#include <QScopedValueRollback>
 #include <QStyle>
 #include <QStyleFactory>
+#include <QTimer>
 #include <QToolButton>
 #include <QVariantAnimation>
 #include <QWidget>
@@ -31,6 +36,7 @@ constexpr int kMenuBarItemHPadding = 12;
 constexpr int kMenuBarItemIconTextGap = 6;
 constexpr int kMenuBarItemArrowWidth = 18;
 constexpr int kMenuBarItemPaintInset = 2;
+constexpr const char *kPreserveNativeMenuActionProperty = "_fluentPreserveNativeMenuAction";
 
 QString textWithoutMnemonic(QString text)
 {
@@ -43,6 +49,74 @@ void markActionLayoutDirty(QHash<QAction *, QRect> &rects, QSize &sizeHint, bool
     dirty = true;
     sizeHint = QSize();
     rects.clear();
+}
+
+QAction *cloneMenuActionShell(QAction *source, QObject *parent)
+{
+    auto *clone = new QAction(source ? source->icon() : QIcon(),
+                              source ? source->text() : QString(),
+                              parent);
+    if (!source) {
+        return clone;
+    }
+
+    clone->setEnabled(source->isEnabled());
+    clone->setVisible(source->isVisible());
+    clone->setCheckable(source->isCheckable());
+    clone->setChecked(source->isChecked());
+    clone->setShortcut(source->shortcut());
+    clone->setToolTip(source->toolTip());
+    clone->setStatusTip(source->statusTip());
+    clone->setWhatsThis(source->whatsThis());
+    clone->setData(source->data());
+    return clone;
+}
+
+FluentMenu *convertNativeMenuTreeToFluent(QMenu *source, QWidget *parent)
+{
+    if (!source) {
+        return nullptr;
+    }
+    if (auto *existing = qobject_cast<FluentMenu *>(source)) {
+        return existing;
+    }
+
+    auto *fluent = new FluentMenu(source->title(), parent);
+    fluent->setIcon(source->icon());
+
+    const QList<QAction *> sourceActions = source->actions();
+    for (QAction *action : sourceActions) {
+        if (!action) {
+            continue;
+        }
+
+        QObject *previousParent = action->parent();
+        QPointer<QMenu> nativeSubmenu;
+        QAction *migratedAction = action;
+        if (QMenu *submenu = action->menu(); submenu && !qobject_cast<FluentMenu *>(submenu)) {
+            nativeSubmenu = submenu;
+            if (auto *fluentSubmenu = convertNativeMenuTreeToFluent(submenu, fluent)) {
+                if (action == submenu->menuAction()) {
+                    migratedAction = cloneMenuActionShell(action, fluent);
+                    migratedAction->setMenu(fluentSubmenu);
+                } else {
+                    action->setMenu(fluentSubmenu);
+                }
+            }
+        }
+
+        source->removeAction(action);
+        fluent->addAction(migratedAction);
+        if (migratedAction == action
+            && (previousParent == source || (nativeSubmenu && previousParent == nativeSubmenu.data()))) {
+            action->setParent(fluent);
+        }
+        if (nativeSubmenu) {
+            nativeSubmenu->deleteLater();
+        }
+    }
+
+    return fluent;
 }
 
 }
@@ -83,6 +157,18 @@ FluentMenuBar::FluentMenuBar(QWidget *parent)
 
     applyTheme();
     connect(&ThemeManager::instance(), &ThemeManager::themeChanged, this, &FluentMenuBar::applyTheme);
+}
+
+void FluentMenuBar::childEvent(QChildEvent *event)
+{
+    QMenuBar::childEvent(event);
+    if (event && (event->added() || event->polished()) && !m_extensionSuppressionQueued) {
+        m_extensionSuppressionQueued = true;
+        QTimer::singleShot(0, this, [this] {
+            m_extensionSuppressionQueued = false;
+            ensureMenusFluent();
+        });
+    }
 }
 
 void FluentMenuBar::changeEvent(QEvent *event)
@@ -135,7 +221,8 @@ void FluentMenuBar::actionEvent(QActionEvent *event)
     }
 
     // When actions/menus are added by external code, ensure they're Fluent.
-    if (event->type() == QEvent::ActionAdded || event->type() == QEvent::ActionChanged) {
+    if (!m_convertingMenus
+        && (event->type() == QEvent::ActionAdded || event->type() == QEvent::ActionChanged)) {
         ensureMenusFluent();
     }
 
@@ -144,8 +231,22 @@ void FluentMenuBar::actionEvent(QActionEvent *event)
 
 void FluentMenuBar::applyTheme()
 {
+    const bool hoverRunning = m_hoverAnim && m_hoverAnim->state() == QAbstractAnimation::Running;
+    const bool highlightRunning = m_highlightAnim
+        && m_highlightAnim->state() == QAbstractAnimation::Running;
+    const QVariant hoverEnd = m_hoverAnim ? m_hoverAnim->endValue() : QVariant();
+    const QVariant highlightEnd = m_highlightAnim ? m_highlightAnim->endValue() : QVariant();
+
     FluentMotion::configure(m_hoverAnim, FluentMotionRole::Hover);
     FluentMotion::configure(m_highlightAnim, FluentMotionRole::Selection);
+    if (hoverRunning && m_hoverAnim->duration() <= 0) {
+        m_hoverAnim->stop();
+        m_hoverLevel = qBound<qreal>(0.0, hoverEnd.toReal(), 1.0);
+    }
+    if (highlightRunning && m_highlightAnim->duration() <= 0) {
+        m_highlightAnim->stop();
+        m_highlightRect = highlightEnd.toRect();
+    }
 
     // This widget is fully custom-painted. Avoid QMenuBar style sheets here:
     // polishing a QMenuBar inside the title bar is surprisingly expensive on
@@ -165,6 +266,11 @@ FluentMenu *FluentMenuBar::addFluentMenu(const QString &title)
 
 void FluentMenuBar::ensureMenusFluent()
 {
+    if (m_convertingMenus) {
+        return;
+    }
+
+    QScopedValueRollback<bool> convertingGuard(m_convertingMenus, true);
     bool layoutChanged = false;
     const QList<QAction *> acts = actions();
     for (QAction *a : acts) {
@@ -185,28 +291,39 @@ void FluentMenuBar::ensureMenusFluent()
             continue;
         }
 
-        // Convert native QMenu to FluentMenu while preserving QAction instances.
-        auto *fluent = new FluentMenu(sub->title(), this);
-        fluent->setIcon(sub->icon());
-
-        const QList<QAction *> subActions = sub->actions();
-        for (QAction *sa : subActions) {
-            if (!sa) {
-                continue;
-            }
-            sub->removeAction(sa);
-            fluent->addAction(sa);
-        }
+        // Convert native QMenu to FluentMenu while preserving command QAction instances.
+        auto *fluent = convertNativeMenuTreeToFluent(sub, this);
 
         fluent->setParent(this);
-        a->setMenu(nullptr);
-        m_actionMenus.insert(a, fluent);
+        const bool preserveNativeMenuAction =
+            a == sub->menuAction()
+            && a->property(kPreserveNativeMenuActionProperty).toBool();
+        QAction *menuBarAction = a;
+        if (preserveNativeMenuAction) {
+            if (a->parent() == sub) {
+                a->setParent(this);
+            }
+            a->setMenu(fluent);
+            sub->hide();
+        } else if (a == sub->menuAction()) {
+            menuBarAction = cloneMenuActionShell(a, this);
+            insertAction(a, menuBarAction);
+            removeAction(a);
+            sub->deleteLater();
+        } else {
+            a->setMenu(fluent);
+            sub->deleteLater();
+        }
+        m_actionMenus.insert(menuBarAction, fluent);
         layoutChanged = true;
-        sub->deleteLater();
     }
 
-    // If the built-in overflow/extension toolbutton exists, ensure its popup menu is Fluent too.
-    if (auto *ext = findChild<QToolButton *>(QStringLiteral("qt_menubar_ext_button"))) {
+    // If built-in overflow/extension toolbuttons exist, suppress all of them.
+    const auto extensionButtons = findChildren<QToolButton *>(QStringLiteral("qt_menubar_ext_button"));
+    for (QToolButton *ext : extensionButtons) {
+        if (!ext) {
+            continue;
+        }
         ext->setAutoRaise(true);
         ext->setFocusPolicy(Qt::NoFocus);
         ext->setPopupMode(QToolButton::InstantPopup);
@@ -219,15 +336,7 @@ void FluentMenuBar::ensureMenusFluent()
 
         if (QMenu *m = ext->menu()) {
             if (!qobject_cast<FluentMenu *>(m)) {
-                auto *fluent = new FluentMenu(m->title(), this);
-                const QList<QAction *> ms = m->actions();
-                for (QAction *sa : ms) {
-                    if (!sa) {
-                        continue;
-                    }
-                    m->removeAction(sa);
-                    fluent->addAction(sa);
-                }
+                auto *fluent = convertNativeMenuTreeToFluent(m, this);
                 ext->setMenu(fluent);
                 m->deleteLater();
             }
@@ -479,11 +588,15 @@ void FluentMenuBar::openMenuForAction(QAction *action)
             return;
         }
         m_openPopup = popup;
-        popup->onClosed = [this]() {
-            m_openPopup = nullptr;
-            m_openMenu = nullptr;
-            m_openAction = nullptr;
-            updateHighlightForAction(m_hoverAction, true);
+        QPointer<FluentMenuBar> self(this);
+        popup->onClosed = [self]() {
+            if (!self) {
+                return;
+            }
+            self->m_openPopup = nullptr;
+            self->m_openMenu = nullptr;
+            self->m_openAction = nullptr;
+            self->updateHighlightForAction(self->m_hoverAction, true);
         };
         popup->popupAt(popupPos,
                        nullptr,
@@ -575,6 +688,11 @@ void FluentMenuBar::updateHighlightForAction(QAction *action, bool animate)
     }
 
     m_highlightAnim->stop();
+    if (m_highlightAnim->duration() <= 0) {
+        m_highlightRect = target;
+        update();
+        return;
+    }
     m_highlightAnim->setStartValue(m_highlightRect);
     m_highlightAnim->setEndValue(target);
     m_highlightAnim->start();
@@ -585,6 +703,7 @@ void FluentMenuBar::paintEvent(QPaintEvent *event)
     Q_UNUSED(event)
 
     const auto &colors = ThemeManager::instance().colors();
+    const auto &tokens = ThemeManager::instance().tokens();
     QPainter painter(this);
     if (!painter.isActive()) {
         return;
@@ -592,14 +711,14 @@ void FluentMenuBar::paintEvent(QPaintEvent *event)
     painter.setRenderHint(QPainter::Antialiasing, true);
 
     // Subtle bottom divider so MenuBar doesn't disappear in dark titlebars.
-    QColor divider = colors.border;
-    divider.setAlpha(70);
+    QColor divider = tokens.neutral.strokeSubtle;
+    divider.setAlpha(tokens.dark ? 150 : 120);
     painter.setPen(QPen(divider, 1));
     painter.drawLine(QPointF(0.5, height() - 0.5), QPointF(width() - 0.5, height() - 0.5));
 
     // Fluent-like sliding highlight.
     if (!m_highlightRect.isNull()) {
-        QColor fill = colors.hover;
+        QColor fill = tokens.neutral.fillSecondary;
 
         const bool active = (m_highlightAction != nullptr)
             && (m_highlightAction == m_openAction || m_highlightAction == m_hoverAction);
@@ -673,7 +792,14 @@ QSize FluentMenuBar::minimumSizeHint() const
 
 void FluentMenuBar::startHoverAnimation(qreal endValue)
 {
+    endValue = qBound<qreal>(0.0, endValue, 1.0);
+    FluentMotion::configure(m_hoverAnim, FluentMotionRole::Hover);
     m_hoverAnim->stop();
+    if (m_hoverAnim->duration() <= 0) {
+        m_hoverLevel = endValue;
+        update();
+        return;
+    }
     m_hoverAnim->setStartValue(m_hoverLevel);
     m_hoverAnim->setEndValue(endValue);
     m_hoverAnim->start();

@@ -3,7 +3,9 @@
 #include "Fluent/FluentQtCompat.h"
 #include "Fluent/FluentStyle.h"
 #include "Fluent/FluentTheme.h"
+#include "FluentInputVisuals_p.h"
 
+#include <QAbstractAnimation>
 #include <QEvent>
 #include <QPainter>
 #include <QVariantAnimation>
@@ -99,14 +101,28 @@ void FluentLineEdit::changeEvent(QEvent *event)
 
 void FluentLineEdit::applyTheme()
 {
+    const bool hoverRunning = m_hoverAnim && m_hoverAnim->state() == QAbstractAnimation::Running;
+    const bool focusRunning = m_focusAnim && m_focusAnim->state() == QAbstractAnimation::Running;
+    const QVariant hoverEnd = m_hoverAnim ? m_hoverAnim->endValue() : QVariant();
+    const QVariant focusEnd = m_focusAnim ? m_focusAnim->endValue() : QVariant();
+
     FluentMotion::configure(m_hoverAnim, FluentMotionRole::Hover);
     FluentMotion::configure(m_focusAnim, FluentMotionRole::Focus);
+    if (hoverRunning && m_hoverAnim->duration() <= 0) {
+        m_hoverAnim->stop();
+        m_hoverLevel = qBound<qreal>(0.0, hoverEnd.toReal(), 1.0);
+    }
+    if (focusRunning && m_focusAnim->duration() <= 0) {
+        m_focusAnim->stop();
+        m_focusLevel = qBound<qreal>(0.0, focusEnd.toReal(), 1.0);
+    }
 
     const auto &colors = ThemeManager::instance().colors();
+    const auto &tokens = ThemeManager::instance().tokens();
     const QColor textColor = isEnabled() ? colors.text : colors.disabledText;
 
     const bool dark = ThemeManager::instance().themeMode() == ThemeManager::ThemeMode::Dark;
-    QColor selectionBg = colors.accent;
+    QColor selectionBg = tokens.accent.base;
     selectionBg.setAlphaF(dark ? 0.35 : 0.22);
 
     const QString next = QStringLiteral(
@@ -121,10 +137,10 @@ void FluentLineEdit::applyTheme()
         setStyleSheet(next);
     }
 
-    // Try to make caret follow accent while keeping text color from stylesheet.
+    // QSS owns text color; QPalette::Text is left for the native caret color.
     QPalette pal = palette();
     pal.setColor(QPalette::WindowText, textColor);
-    pal.setColor(QPalette::Text, textColor);
+    pal.setColor(QPalette::Text, isEnabled() ? tokens.accent.base : colors.disabledText);
     pal.setColor(QPalette::Disabled, QPalette::WindowText, colors.disabledText);
     pal.setColor(QPalette::Disabled, QPalette::Text, colors.disabledText);
     pal.setColor(QPalette::Highlight, selectionBg);
@@ -153,9 +169,10 @@ void FluentLineEdit::paintEvent(QPaintEvent *event)
         QRectF(this->rect()),
         colors,
         m_hoverLevel,
-        m_focusLevel,
+        0.0,
         isEnabled(),
         false);
+    InputVisuals::paintFocusRing(painter, QRectF(this->rect()).adjusted(0.5, 0.5, -0.5, -0.5), colors, isEnabled() ? m_focusLevel : 0.0);
 
     QLineEdit::paintEvent(event);
 }
@@ -190,6 +207,7 @@ void FluentLineEdit::focusOutEvent(QFocusEvent *event)
 
 void FluentLineEdit::startHoverAnimation(qreal endValue)
 {
+    FluentMotion::configure(m_hoverAnim, FluentMotionRole::Hover);
     m_hoverAnim->stop();
     if (m_hoverAnim->duration() <= 0) {
         setHoverLevel(endValue);
@@ -202,6 +220,7 @@ void FluentLineEdit::startHoverAnimation(qreal endValue)
 
 void FluentLineEdit::startFocusAnimation(qreal endValue)
 {
+    FluentMotion::configure(m_focusAnim, FluentMotionRole::Focus);
     m_focusAnim->stop();
     if (m_focusAnim->duration() <= 0) {
         setFocusLevel(endValue);

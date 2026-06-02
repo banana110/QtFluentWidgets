@@ -59,10 +59,15 @@ inline PopupPlacementResult placePopupBelowOrAbove(const QRect &anchor,
         || shadowGeometry(aboveContent).top() >= available.top();
 
     result.placedBelow = fitsBelow || !fitsAbove;
-    result.slideOffsetY = result.placedBelow
-        ? -FluentMotion::popupSlideOffset()
-        : FluentMotion::popupSlideOffset();
     result.geometry = shadowGeometry(result.placedBelow ? belowContent : aboveContent);
+
+    const int preferredSlideOffset = FluentMotion::popupSlideOffset();
+    const int clearGap = result.placedBelow
+        ? qMax(0, belowTop - anchor.bottom())
+        : qMax(0, anchor.top() - (aboveTop + contentSize.height()));
+    result.slideOffsetY = result.placedBelow
+        ? -qMin(preferredSlideOffset, clearGap)
+        : qMin(preferredSlideOffset, clearGap);
 
     if (available.isValid()) {
         if (result.geometry.left() < available.left() + horizontalMargin) {

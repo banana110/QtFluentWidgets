@@ -33,11 +33,7 @@ FluentFlowLayout::FluentFlowLayout(QWidget *parent, int margin, int hSpacing, in
 
     QObject::connect(&ThemeManager::instance(), &ThemeManager::themeChanged, this, [this]() {
         if (effectiveAnimationDuration() <= 0) {
-            for (auto it = m_animations.begin(); it != m_animations.end(); ++it) {
-                if (it.value()) {
-                    it.value()->stop();
-                }
-            }
+            snapActiveAnimationsToEnd();
         }
         invalidate();
     });
@@ -275,15 +271,7 @@ void FluentFlowLayout::setAnimationEnabled(bool enabled)
     m_animationEnabled = enabled;
     // Stop any running animations when disabling.
     if (!m_animationEnabled) {
-        if (m_resizeDebounceTimer) {
-            m_resizeDebounceTimer->stop();
-        }
-        m_hasPendingGeometries = false;
-        for (auto it = m_animations.begin(); it != m_animations.end(); ++it) {
-            if (it.value()) {
-                it.value()->stop();
-            }
-        }
+        snapActiveAnimationsToEnd();
     }
     invalidate();
 }
@@ -581,6 +569,36 @@ void FluentFlowLayout::animateToItemGeometries(const QList<QRect> &geometries)
         anim->setEndValue(target);
         anim->start();
         m_animLastRestartMs.insert(w, nowMs);
+    }
+}
+
+void FluentFlowLayout::snapActiveAnimationsToEnd()
+{
+    if (m_resizeDebounceTimer) {
+        m_resizeDebounceTimer->stop();
+    }
+
+    for (auto it = m_animations.begin(); it != m_animations.end(); ++it) {
+        QPropertyAnimation *animation = it.value();
+        if (!animation) {
+            continue;
+        }
+
+        const bool running = animation->state() == QAbstractAnimation::Running;
+        const QVariant end = animation->endValue();
+        animation->stop();
+
+        if (running && end.canConvert<QRect>()) {
+            if (auto *widget = qobject_cast<QWidget *>(animation->targetObject())) {
+                widget->setGeometry(end.toRect());
+            }
+        }
+    }
+
+    if (m_hasPendingGeometries) {
+        applyItemGeometries(m_pendingGeometries);
+        m_pendingGeometries.clear();
+        m_hasPendingGeometries = false;
     }
 }
 

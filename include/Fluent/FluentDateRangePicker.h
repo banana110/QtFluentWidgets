@@ -7,6 +7,7 @@
 
 class QVariantAnimation;
 class QMouseEvent;
+class QFocusEvent;
 
 namespace Fluent {
 
@@ -23,6 +24,7 @@ class FluentDateRangePicker final : public QWidget
 {
     Q_OBJECT
     Q_PROPERTY(qreal hoverLevel READ hoverLevel WRITE setHoverLevel)
+    Q_PROPERTY(qreal focusLevel READ focusLevel WRITE setFocusLevel)
 
 public:
     explicit FluentDateRangePicker(QWidget *parent = nullptr);
@@ -64,6 +66,8 @@ public:
     // ── Animation property ─────────────────────────────────────────────────
     qreal hoverLevel() const;
     void  setHoverLevel(qreal v);
+    qreal focusLevel() const;
+    void  setFocusLevel(qreal v);
 
     QSize sizeHint()        const override;
     QSize minimumSizeHint() const override;
@@ -76,6 +80,8 @@ protected:
     void mousePressEvent(QMouseEvent *event) override;
     void enterEvent(FluentEnterEvent *event) override;
     void leaveEvent(QEvent *event) override;
+    void focusInEvent(QFocusEvent *event) override;
+    void focusOutEvent(QFocusEvent *event) override;
     void changeEvent(QEvent *event) override;
 
 private:
@@ -84,6 +90,7 @@ private:
     void hidePopup();
     bool isPopupVisible() const;
     void startHoverAnimation(qreal endValue);
+    void startFocusAnimation(qreal endValue);
 
     // Build the display string for one side
     QString buildSideText(const QDate &date,
@@ -103,7 +110,9 @@ private:
     QString m_endPlaceholder   = QStringLiteral("–");
 
     qreal              m_hoverLevel = 0.0;
+    qreal              m_focusLevel = 0.0;
     QVariantAnimation *m_hoverAnim  = nullptr;
+    QVariantAnimation *m_focusAnim  = nullptr;
 
     FluentCalendarPopup *m_popup = nullptr;
 };

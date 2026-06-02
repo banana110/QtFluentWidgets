@@ -3,6 +3,7 @@
 #include "DemoCodeEditorSettings.h"
 
 #include "Fluent/FluentAnimatedButton.h"
+#include "Fluent/FluentAnnotatedScrollBar.h"
 #include "Fluent/FluentCard.h"
 #include "Fluent/FluentCodeEditor.h"
 #include "Fluent/FluentLabel.h"
@@ -15,15 +16,30 @@
 #include <QCoreApplication>
 #include <QDir>
 #include <QFileInfo>
+#include <QFrame>
+#include <QHBoxLayout>
 #include <QHash>
 #include <QLocale>
+#include <QResizeEvent>
+#include <QScrollBar>
 #include <QSettings>
+#include <QTimer>
 #include <QTranslator>
 #include <QVBoxLayout>
 
 namespace Demo {
 
 using namespace Fluent;
+
+#if defined(_MSC_VER) && defined(_M_X64)
+// Some Visual Studio/CMake incremental builds can keep page object files that
+// were compiled while makePage returned FluentScrollArea*. The implementation
+// now returns QWidget*, but the actual object is still a FluentScrollArea
+// subclass, so this keeps stale MSVC objects linkable until they are rebuilt.
+#define QTFLUENT_MAKEPAGE_FLUENT_SYMBOL "?makePage@Demo@@YAPEAVFluentScrollArea@Fluent@@AEBV?$function@$$A6AXPEAVQVBoxLayout@@@Z@std@@@Z"
+#define QTFLUENT_MAKEPAGE_QWIDGET_SYMBOL "?makePage@Demo@@YAPEAVQWidget@@AEBV?$function@$$A6AXPEAVQVBoxLayout@@@Z@std@@@Z"
+#pragma comment(linker, "/alternatename:" QTFLUENT_MAKEPAGE_FLUENT_SYMBOL "=" QTFLUENT_MAKEPAGE_QWIDGET_SYMBOL)
+#endif
 
 namespace {
 
@@ -79,6 +95,42 @@ public:
 
         return translations.value(QString::fromUtf8(sourceText));
     }
+};
+
+class DemoAnnotatedScrollArea final : public FluentScrollArea
+{
+public:
+    explicit DemoAnnotatedScrollArea(QWidget *parent = nullptr)
+        : FluentScrollArea(parent)
+    {
+    }
+
+    void setAnnotatedScrollBar(FluentAnnotatedScrollBar *scrollBar)
+    {
+        m_annotatedScrollBar = scrollBar;
+        updateAnnotatedScrollBarGeometry();
+    }
+
+protected:
+    void resizeEvent(QResizeEvent *event) override
+    {
+        FluentScrollArea::resizeEvent(event);
+        updateAnnotatedScrollBarGeometry();
+    }
+
+private:
+    void updateAnnotatedScrollBarGeometry()
+    {
+        if (!m_annotatedScrollBar) {
+            return;
+        }
+
+        const int w = m_annotatedScrollBar->sizeHint().width();
+        m_annotatedScrollBar->setGeometry(width() - w - 10, 12, w, qMax(0, height() - 24));
+        m_annotatedScrollBar->raise();
+    }
+
+    FluentAnnotatedScrollBar *m_annotatedScrollBar = nullptr;
 };
 
 DemoLibraryTranslator s_demoLibraryTranslator;
@@ -201,6 +253,7 @@ QString text(const QString &zh, const QString &en)
 Section makeSection(const QString &title, const QString &subtitle)
 {
     auto *card = new FluentCard();
+    card->setProperty("_demoSectionTitle", title);
     auto *layout = new QVBoxLayout(card);
     layout->setContentsMargins(20, 20, 20, 20);
     layout->setSpacing(10);
@@ -229,6 +282,7 @@ FluentCard *makeCollapsedCard(const QString &title,
                               bool collapsed)
 {
     auto *card = new FluentCard();
+    card->setProperty("_demoSectionTitle", title);
     card->setCollapsible(true);
     card->setTitle(title);
     card->setCollapsed(collapsed);
@@ -279,6 +333,7 @@ FluentCard *makeCollapsedExample(const QString &title,
                                  int codeBlockHeight)
 {
     auto *card = new FluentCard();
+    card->setProperty("_demoSectionTitle", title);
     card->setCollapsible(true);
     card->setTitle(title);
     card->setCollapsed(collapsed);
@@ -296,12 +351,7 @@ FluentCard *makeCollapsedExample(const QString &title,
         body->addWidget(st);
     }
 
-    if (!features.isEmpty()) {
-        auto *ft = new FluentLabel(features);
-        ft->setWordWrap(true);
-        ft->setStyleSheet("font-size: 12px; opacity: 0.9;");
-        body->addWidget(ft);
-    }
+    Q_UNUSED(features)
 
     if (buildDemo) {
         buildDemo(body);
@@ -489,20 +539,108 @@ FluentAnimatedButton *makeAnimatedSearchButton(const QString &text, QWidget *par
     return button;
 }
 
-FluentScrollArea *makePage(const std::function<void(QVBoxLayout *)> &fill)
+QWidget *makePage(const std::function<void(QVBoxLayout *)> &fill)
 {
-    auto *area = new FluentScrollArea();
-    area->setOverlayScrollBarsEnabled(true);
+    auto *area = new DemoAnnotatedScrollArea();
+    area->setObjectName(QStringLiteral("DemoAnnotatedPageArea"));
+    area->setWidgetResizable(true);
+    area->setOverlayScrollBarsEnabled(false);
+    area->setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+    area->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+    area->setFrameShape(QFrame::NoFrame);
 
     auto *content = new FluentWidget();
+    content->setObjectName(QStringLiteral("DemoAnnotatedPageContent"));
     content->setBackgroundRole(FluentWidget::BackgroundRole::WindowBackground);
     area->setWidget(content);
 
     auto *layout = new QVBoxLayout(content);
-    layout->setContentsMargins(24, 24, 24, 24);
-    layout->setSpacing(16);
+    layout->setContentsMargins(24, 24, 136, 24);
+    layout->setSpacing(18);
     fill(layout);
     layout->addStretch(1);
+
+    auto *annotated = new FluentAnnotatedScrollBar(area);
+    annotated->setObjectName(QStringLiteral("DemoPageAnnotatedScrollBar"));
+    annotated->setFixedWidth(116);
+    annotated->setToolTipDuration(1100);
+    annotated->setScrollArea(area);
+    annotated->setVisible(true);
+    area->setAnnotatedScrollBar(annotated);
+
+    auto sectionTitle = [](QWidget *widget) {
+        if (!widget) {
+            return QString();
+        }
+        const QString explicitTitle = widget->property("_demoSectionTitle").toString().trimmed();
+        if (!explicitTitle.isEmpty()) {
+            return explicitTitle;
+        }
+        if (auto *card = qobject_cast<FluentCard *>(widget)) {
+            const QString title = card->title().trimmed();
+            if (!title.isEmpty()) {
+                return title;
+            }
+        }
+        if (auto *label = widget->findChild<FluentLabel *>(QString(), Qt::FindDirectChildrenOnly)) {
+            return label->text().trimmed();
+        }
+        return QString();
+    };
+
+    auto refreshSources = [layout, annotated, area, sectionTitle]() {
+        if (!layout || !annotated || !area || !area->widget()) {
+            return;
+        }
+
+        QVector<FluentAnnotatedScrollBarSource> sources;
+        const QMargins margins = layout->contentsMargins();
+        int fallbackTop = margins.top();
+        for (int i = 0; i < layout->count(); ++i) {
+            QWidget *widget = layout->itemAt(i) ? layout->itemAt(i)->widget() : nullptr;
+            if (!widget || widget->isHidden()) {
+                continue;
+            }
+
+            const QRect geometry = widget->geometry();
+            const int hintHeight = qMax(1, widget->sizeHint().height());
+            const bool hasGeometry = widget->isVisible() && geometry.width() > 0 && geometry.height() > 0;
+
+            QString title = sectionTitle(widget);
+            if (title.isEmpty()) {
+                title = text(QStringLiteral("分段 %1").arg(sources.size() + 1),
+                             QStringLiteral("Section %1").arg(sources.size() + 1));
+            }
+
+            const int sourceStart = hasGeometry ? qMax(0, geometry.top()) : qMax(0, fallbackTop);
+            const int sectionHeight = hasGeometry ? qMax(1, geometry.height()) : hintHeight;
+
+            FluentAnnotatedScrollBarSource source;
+            source.group = title;
+            source.text = title;
+            source.start = sourceStart;
+            source.end = source.start + sectionHeight - 1;
+            sources.append(source);
+            fallbackTop = sourceStart + sectionHeight + layout->spacing() + 1;
+        }
+
+        if (sources.isEmpty()) {
+            annotated->setVisible(true);
+            return;
+        }
+
+        annotated->setSources(sources);
+        annotated->setVisible(sources.size() > 1);
+    };
+
+    QObject::connect(area->verticalScrollBar(), &QScrollBar::rangeChanged, area, [area, refreshSources](int, int) {
+        for (int delay : {0, 16, 48}) {
+            QTimer::singleShot(delay, area, refreshSources);
+        }
+    });
+    for (int delay : {0, 16, 48}) {
+        QTimer::singleShot(delay, area, refreshSources);
+    }
 
     return area;
 }

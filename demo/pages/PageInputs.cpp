@@ -4,7 +4,9 @@
 #include "../DemoCodeEditorSettings.h"
 #include "Fluent/FluentCard.h"
 
+#include <QGridLayout>
 #include <QHBoxLayout>
+#include <QSizePolicy>
 #include <QVBoxLayout>
 
 #include "Fluent/FluentAutoSuggestBox.h"
@@ -29,6 +31,121 @@ QWidget *createInputsPage(FluentMainWindow *window)
                                    DEMO_TEXT("LineEdit / TextEdit / SpinBox（含禁用与占位符展示）", "LineEdit / TextEdit / SpinBox with disabled and placeholder states"));
 
         page->addWidget(s.card);
+
+        // P0 input state matrix
+        {
+            const QString code = QStringLiteral(
+                "auto *edit = new FluentLineEdit();\n"
+                "edit->setPlaceholderText(QStringLiteral(\"Placeholder\"));\n"
+                "auto *filled = new FluentLineEdit();\n"
+                "filled->setText(QStringLiteral(\"Filled value\"));\n"
+                "auto *disabled = new FluentLineEdit();\n"
+                "disabled->setDisabled(true);\n");
+
+            page->addWidget(Demo::makeCollapsedExample(
+                QStringLiteral("P0 Input State Matrix"),
+                DEMO_TEXT("基础输入控件的 placeholder / filled / disabled 横向对比", "Side-by-side placeholder / filled / disabled states for core input controls"),
+                DEMO_TEXT("要点：\n"
+                          "-LineEdit、AutoSuggestBox、SearchBox、ComboBox 在同一行高和密度体系下比较\n"
+                          "-placeholder 与 disabled 的文本强度需要明显区分\n"
+                          "-AutoSuggestBox 与 ComboBox 的 popup 已统一到 Fluent 自绘弹层",
+                          "Highlights:\n"
+                          "-LineEdit, AutoSuggestBox, SearchBox, and ComboBox are compared in one density system\n"
+                          "-Placeholder and disabled text strength should be clearly distinct\n"
+                          "-AutoSuggestBox and ComboBox popups now share Fluent-painted popup behavior"),
+                code,
+                [=](QVBoxLayout *body) {
+                    auto *grid = new QGridLayout();
+                    grid->setContentsMargins(0, 0, 0, 0);
+                    grid->setHorizontalSpacing(14);
+                    grid->setVerticalSpacing(10);
+
+                    auto makeCaption = [](const QString &text, bool strong = false) {
+                        auto *label = new FluentLabel(text);
+                        label->setStyleSheet(strong
+                                                 ? QStringLiteral("font-size: 12px; font-weight: 600; opacity: 0.9;")
+                                                 : QStringLiteral("font-size: 12px; opacity: 0.78;"));
+                        return label;
+                    };
+
+                    auto prepareInput = [](QWidget *widget) {
+                        widget->setMinimumWidth(184);
+                        widget->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Fixed);
+                        return widget;
+                    };
+
+                    grid->addWidget(makeCaption(DEMO_TEXT("控件", "Control"), true), 0, 0);
+                    grid->addWidget(makeCaption(DEMO_TEXT("Placeholder", "Placeholder"), true), 0, 1);
+                    grid->addWidget(makeCaption(DEMO_TEXT("Filled / Selected", "Filled / Selected"), true), 0, 2);
+                    grid->addWidget(makeCaption(DEMO_TEXT("Disabled", "Disabled"), true), 0, 3);
+
+                    auto addRow = [&](int row, const QString &name, QWidget *placeholder, QWidget *filled, QWidget *disabled) {
+                        grid->addWidget(makeCaption(name), row, 0);
+                        grid->addWidget(prepareInput(placeholder), row, 1);
+                        grid->addWidget(prepareInput(filled), row, 2);
+                        grid->addWidget(prepareInput(disabled), row, 3);
+                    };
+
+                    auto *linePlaceholder = new FluentLineEdit();
+                    linePlaceholder->setPlaceholderText(DEMO_TEXT("输入名称", "Enter a name"));
+                    auto *lineFilled = new FluentLineEdit();
+                    lineFilled->setText(DEMO_TEXT("已填写内容", "Filled value"));
+                    auto *lineDisabled = new FluentLineEdit();
+                    lineDisabled->setText(DEMO_TEXT("不可编辑", "Unavailable"));
+                    lineDisabled->setDisabled(true);
+                    addRow(1, QStringLiteral("FluentLineEdit"), linePlaceholder, lineFilled, lineDisabled);
+
+                    const QStringList suggestions = {
+                        QStringLiteral("FluentButton"),
+                        QStringLiteral("FluentComboBox"),
+                        QStringLiteral("FluentNavigationView")
+                    };
+
+                    auto *suggestPlaceholder = new FluentAutoSuggestBox();
+                    suggestPlaceholder->setPlaceholderText(DEMO_TEXT("输入控件名", "Type a control"));
+                    suggestPlaceholder->setSuggestions(suggestions);
+                    auto *suggestFilled = new FluentAutoSuggestBox();
+                    suggestFilled->setSuggestions(suggestions);
+                    suggestFilled->setText(QStringLiteral("FluentButton"));
+                    auto *suggestDisabled = new FluentAutoSuggestBox();
+                    suggestDisabled->setPlaceholderText(DEMO_TEXT("禁用建议", "Disabled suggestions"));
+                    suggestDisabled->setSuggestions(suggestions);
+                    suggestDisabled->setDisabled(true);
+                    addRow(2, QStringLiteral("FluentAutoSuggestBox"), suggestPlaceholder, suggestFilled, suggestDisabled);
+
+                    auto *searchPlaceholder = new FluentSearchBox();
+                    searchPlaceholder->setPlaceholderText(DEMO_TEXT("搜索", "Search"));
+                    searchPlaceholder->setSuggestions(suggestions);
+                    auto *searchFilled = new FluentSearchBox();
+                    searchFilled->setSuggestions(suggestions);
+                    searchFilled->setText(QStringLiteral("Fluent"));
+                    auto *searchDisabled = new FluentSearchBox();
+                    searchDisabled->setPlaceholderText(DEMO_TEXT("禁用搜索", "Disabled search"));
+                    searchDisabled->setDisabled(true);
+                    addRow(3, QStringLiteral("FluentSearchBox"), searchPlaceholder, searchFilled, searchDisabled);
+
+                    auto makeCombo = []() {
+                        auto *combo = new FluentComboBox();
+                        combo->addItem(QStringLiteral("Alpha"));
+                        combo->addItem(QStringLiteral("Beta"));
+                        combo->addItem(QStringLiteral("Gamma"));
+                        return combo;
+                    };
+                    auto *comboPlaceholder = makeCombo();
+                    comboPlaceholder->setCurrentIndex(0);
+                    auto *comboFilled = makeCombo();
+                    comboFilled->setCurrentIndex(1);
+                    auto *comboDisabled = makeCombo();
+                    comboDisabled->setCurrentIndex(2);
+                    comboDisabled->setDisabled(true);
+                    addRow(4, QStringLiteral("FluentComboBox"), comboPlaceholder, comboFilled, comboDisabled);
+
+                    grid->setColumnStretch(4, 1);
+                    body->addLayout(grid);
+                },
+                false,
+                150));
+        }
 
         // LineEdit
         {

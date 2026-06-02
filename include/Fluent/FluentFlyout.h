@@ -46,6 +46,7 @@ protected:
 
 private:
     QPoint placedPosition(const QRect &anchor, const QSize &popupSize, Placement placement) const;
+    void finishOpenAnimationImmediately();
     void startOpenAnimation(const QPoint &finalPos, int slideOffsetY);
     void updateLayoutMargins();
 
@@ -53,6 +54,7 @@ private:
     QMargins m_contentMargins;
     QPointer<QWidget> m_content;
     QVariantAnimation *m_openAnim = nullptr;
+    QRect m_openTargetGeometry;
     FluentBorderEffect m_border;
 };
 

@@ -123,24 +123,27 @@ Auto-format will be skipped or delayed in these cases (to avoid disruption and p
 ### Fluent surface vs. border/focus ring
 
 `FluentCodeEditor` keeps the viewport transparent and paints the Fluent **surface fill** in its own `paintEvent()`.
+The surface, gutter tint, gutter divider, border, current-line highlight, and bracket-match mark are derived from `FluentThemeTokens` (`neutral.card`, `neutral.cardHover`, `neutral.strokeSubtle`, and the accent/semantic ramps), so dark mode and custom accents do not fall back to legacy hover/border colors.
 The border and focus ring are painted by a dedicated overlay widget so they are not overwritten by `QPlainTextEdit` internals.
 
 Hover/focus levels are animated:
 
 - Enter/leave on the viewport drives hover animation.
 - Focus in/out drives focus animation and updates extra selections.
+- `hoverLevel` / `focusLevel` (Q_PROPERTY) are exposed for tests and external state inspection.
+- Hover/focus use `FluentMotionRole::Hover` / `Focus`; disabling global animations jumps directly to the final state.
 
 ### Gutter (line numbers) details
 
 - Gutter width adapts to `blockCount()` digit count and is applied via `setViewportMargins(...)`.
-- The gutter has a subtle tint and a 1px divider line.
+- The gutter has a neutral-token tint and a 1px `neutral.strokeSubtle` divider line.
 - For selections, the gutter highlights the covered block range; if selection ends exactly at a block start, the next block is excluded from the highlight.
 
 ### Bracket matching
 
 - Only supports `()`, `{}`, `[]`.
 - Matching is a simple character scan with depth counting (no lexer): brackets inside strings/comments are not excluded.
-- If no match is found, the bracket is marked with `colors.error`.
+- If no match is found, the bracket is marked with the semantic error token.
 
 ## FluentCppHighlighter
 

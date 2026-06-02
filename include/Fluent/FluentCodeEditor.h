@@ -22,6 +22,8 @@ class FluentCodeEditor : public QPlainTextEdit
     Q_PROPERTY(int autoFormatDebounceMs READ autoFormatDebounceMs WRITE setAutoFormatDebounceMs)
     Q_PROPERTY(bool lineNumbersEnabled READ lineNumbersEnabled WRITE setLineNumbersEnabled)
     Q_PROPERTY(AutoFormatTriggerPolicy autoFormatTriggerPolicy READ autoFormatTriggerPolicy WRITE setAutoFormatTriggerPolicy)
+    Q_PROPERTY(qreal hoverLevel READ hoverLevel WRITE setHoverLevel)
+    Q_PROPERTY(qreal focusLevel READ focusLevel WRITE setFocusLevel)
 public:
     enum class AutoFormatTriggerPolicy {
         DebouncedOnTextChange = 0,
@@ -40,6 +42,12 @@ public:
 
     void setBracketMatchHighlightEnabled(bool enabled);
     bool bracketMatchHighlightEnabled() const;
+
+    qreal hoverLevel() const;
+    void setHoverLevel(qreal value);
+
+    qreal focusLevel() const;
+    void setFocusLevel(qreal value);
 
     // Highlighter
     void setCppHighlightingEnabled(bool enabled);
@@ -147,6 +155,7 @@ private:
     int m_formatStartRevision = 0;
 
     bool m_inPreedit = false;
+    bool m_autoFormatDeferredByPreedit = false;
 
     qreal m_hoverLevel = 0.0;
     qreal m_focusLevel = 0.0;

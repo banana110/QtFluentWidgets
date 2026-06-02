@@ -4,6 +4,7 @@
 #include "Fluent/FluentMenu.h"
 #include "Fluent/FluentStyle.h"
 #include "Fluent/FluentTheme.h"
+#include "FluentButtonVisuals_p.h"
 
 #include <QAction>
 #include <QHBoxLayout>
@@ -99,40 +100,12 @@ protected:
         Q_UNUSED(event)
 
         const auto &colors = ThemeManager::instance().colors();
+        const auto &tokens = ThemeManager::instance().tokens();
         const bool checked = isCheckable() && isChecked();
-
-        QColor base;
-        QColor hover;
-        QColor pressed;
-        QColor border;
-        QColor textColor;
-        const auto tokens = Theme::tokens(colors);
-
-        if (isPrimary()) {
-            base = checked ? tokens.accent.dark1 : tokens.accent.base;
-            hover = tokens.accent.light1;
-            pressed = tokens.accent.dark1;
-            border = Style::mix(tokens.accent.base, tokens.onAccent, 0.18);
-            textColor = tokens.onAccent;
-        } else {
-            const QColor accentTint = Style::mix(colors.surface, colors.accent, 0.12);
-            base = checked ? accentTint : colors.surface;
-            hover = checked ? Style::mix(accentTint, colors.accent, 0.10)
-                            : Style::mix(colors.surface, colors.hover, 0.88);
-            pressed = checked ? Style::mix(accentTint, colors.accent, 0.18)
-                              : Style::mix(colors.surface, colors.pressed, 0.92);
-            border = checked ? Style::mix(colors.border, colors.accent, 0.85) : colors.border;
-            textColor = checked ? Theme::contrastColor(accentTint) : colors.text;
-        }
-
-        QColor fill = Style::mix(base, hover, hoverLevel());
-        fill = Style::mix(fill, pressed, pressLevel());
-
-        if (!isEnabled()) {
-            fill = Style::mix(colors.surface, colors.hover, 0.45);
-            border = Style::mix(colors.border, colors.disabledText, 0.25);
-            textColor = colors.disabledText;
-        }
+        const ButtonVisuals::StateColors state =
+            ButtonVisuals::resolve(colors, tokens, isPrimary(), checked, isEnabled());
+        const QColor fill = ButtonVisuals::fillForState(state, hoverLevel(), pressLevel());
+        const QColor textColor = ButtonVisuals::textForState(state.text, pressLevel(), isEnabled());
 
         QPainter painter(this);
         if (!painter.isActive()) {
@@ -149,12 +122,18 @@ protected:
         painter.setBrush(fill);
         painter.drawPath(segmentFillPath(buttonRect, radius, m_segment));
 
-        painter.setPen(QPen(border, 1.0));
+        painter.setPen(QPen(state.border, 1.0));
         painter.setBrush(Qt::NoBrush);
         painter.drawPath(segmentBorderPath(buttonRect, radius, m_segment));
+        if (state.bottomBorder.alpha() > 0) {
+            painter.save();
+            painter.setClipPath(segmentFillPath(buttonRect, radius, m_segment));
+            ButtonVisuals::paintBottomStroke(painter, buttonRect, radius, state.bottomBorder);
+            painter.restore();
+        }
 
         if (hasFocus() && isEnabled()) {
-            QColor focus = colors.focus;
+            QColor focus = tokens.accent.base;
             focus.setAlpha(230);
             painter.setPen(QPen(focus, 2.0));
             painter.setBrush(Qt::NoBrush);

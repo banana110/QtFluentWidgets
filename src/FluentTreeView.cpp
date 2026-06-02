@@ -49,9 +49,8 @@ protected:
             return baseResult;
         }
 
-        const auto &colors = ThemeManager::instance().colors();
-        QColor sep = colors.border;
-        sep.setAlpha(140);
+        const auto &tokens = ThemeManager::instance().tokens();
+        const QColor sep = tokens.neutral.strokeSubtle;
 
         QPainter painter(viewport());
         if (!painter.isActive()) {
@@ -108,24 +107,25 @@ public:
 
         const auto &colors = ThemeManager::instance().colors();
         
-        // Layout info
-        const QAbstractItemModel *model = index.model();
-        bool isFirst = (index.column() == 0);
-        bool isLast = (model && index.column() == model->columnCount(index.parent()) - 1);
-        
         // TreeView row selection logic:
         // Selection behavior usually is SelectRows.
-        bool isRowSelection = (m_view && m_view->selectionBehavior() == QAbstractItemView::SelectRows);
+        const bool isRowSelection = (m_view && m_view->selectionBehavior() == QAbstractItemView::SelectRows);
+        const bool paintsRowBackground = !isRowSelection || isFirstVisibleColumn(index);
 
         QRectF bgRect = QRectF(opt.rect);
+        if (isRowSelection && m_view && m_view->viewport()) {
+            bgRect.setLeft(0);
+            bgRect.setWidth(m_view->viewport()->width());
+        }
         // Vertical breathing room
-        bgRect.adjust(0, 1, 0, -1);
+        bgRect.adjust(isRowSelection ? 2 : 0, 1, isRowSelection ? -2 : 0, -1);
 
         painter->save();
         painter->setRenderHint(QPainter::Antialiasing, true);
 
         QColor bgColor = Qt::transparent;
         
+        const bool enabled = opt.state.testFlag(QStyle::State_Enabled);
         const bool isSelected = opt.state.testFlag(QStyle::State_Selected);
         bool isHovered = false;
 
@@ -152,8 +152,10 @@ public:
         }
 
         if (isSelected && !isCurrentRow) {
-            bgColor = Detail::fluentItemSelectionFill(colors, 0.86);
-        } else if (isHovered) {
+            bgColor = enabled
+                ? Detail::fluentItemSelectionFill(colors, 0.86)
+                : Detail::fluentItemDisabledSelectionFill(colors, 0.86);
+        } else if (enabled && isHovered) {
              bgColor = Detail::fluentItemHoverFill(colors, m_view->hoverLevel());
         }
 
@@ -163,37 +165,12 @@ public:
             opt.palette.setColor(QPalette::Highlight, Qt::transparent);
         }
 
-        if (bgColor.alpha() > 0) {
+        if (bgColor.alpha() > 0 && paintsRowBackground) {
             painter->setPen(Qt::NoPen);
             painter->setBrush(bgColor);
 
             if (isRowSelection) {
-                // Unified row logic
-                qreal r = 4.0;
-                QPainterPath path;
-                path.setFillRule(Qt::WindingFill);
-
-                if (isFirst && isLast) {
-                    path.addRoundedRect(bgRect.adjusted(2,0,-2,0), r, r);
-                } 
-                else if (isFirst) {
-                    path.addRoundedRect(bgRect.adjusted(2,0,0,0), r, r);
-                    QRectF fixRight = bgRect.adjusted(2,0,0,0);
-                    fixRight.setLeft(fixRight.right() - r);
-                    path.addRect(fixRight);
-                } 
-                else if (isLast) {
-                    path.addRoundedRect(bgRect.adjusted(0,0,-2,0), r, r);
-                    QRectF fixLeft = bgRect.adjusted(0,0,-2,0);
-                    fixLeft.setWidth(r);
-                    path.addRect(fixLeft);
-                } 
-                else {
-                    path.addRect(bgRect);
-                }
-                
-                painter->drawPath(path);
-                
+                painter->drawRoundedRect(bgRect, 4, 4);
             } else {
                 // Single cell
                 painter->drawRoundedRect(bgRect.adjusted(2,0,-2,0), 4, 4);
@@ -237,6 +214,21 @@ public:
     }
 
 private:
+    bool isFirstVisibleColumn(const QModelIndex &index) const
+    {
+        if (!m_view || !index.isValid() || !index.model()) {
+            return true;
+        }
+
+        const int columns = index.model()->columnCount(index.parent());
+        for (int column = 0; column < columns; ++column) {
+            if (!m_view->isColumnHidden(column)) {
+                return index.column() == column;
+            }
+        }
+        return index.column() == 0;
+    }
+
     FluentTreeView *m_view = nullptr;
 };
 
@@ -318,6 +310,12 @@ void FluentTreeView::setModel(QAbstractItemModel *model)
     hookSelectionModel();
 }
 
+void FluentTreeView::setSelectionModel(QItemSelectionModel *selectionModel)
+{
+    QTreeView::setSelectionModel(selectionModel);
+    hookSelectionModel();
+}
+
 void FluentTreeView::paintEvent(QPaintEvent *event)
 {
     {
@@ -333,10 +331,14 @@ void FluentTreeView::paintEvent(QPaintEvent *event)
                 p.setRenderHint(QPainter::Antialiasing, true);
 
                 p.setPen(Qt::NoPen);
-                p.setBrush(Detail::fluentItemSelectionFill(colors, opacity));
+                p.setBrush(isEnabled()
+                               ? Detail::fluentItemSelectionFill(colors, opacity)
+                               : Detail::fluentItemDisabledSelectionFill(colors, opacity));
                 p.drawRoundedRect(r, 4.0, 4.0);
 
-                Detail::paintFluentItemSelectionIndicator(p, r, colors, opacity, 3.0);
+                if (isEnabled()) {
+                    Detail::paintFluentItemSelectionIndicator(p, r, colors, opacity, 3.0);
+                }
             }
         }
     }
@@ -410,8 +412,28 @@ void FluentTreeView::drawBranches(QPainter *painter, const QRect &rect, const QM
 
 void FluentTreeView::applyTheme()
 {
+    const bool hoverRunning = m_hoverAnim && m_hoverAnim->state() == QAbstractAnimation::Running;
+    const bool selectionRunning = m_selAnim && m_selAnim->state() == QAbstractAnimation::Running;
+    const QVariant hoverEnd = m_hoverAnim ? m_hoverAnim->endValue() : QVariant();
+
     FluentMotion::configure(m_hoverAnim, FluentMotionRole::Hover);
     FluentMotion::configure(m_selAnim, FluentMotionRole::Selection);
+    if (hoverRunning && m_hoverAnim->duration() <= 0) {
+        m_hoverAnim->stop();
+        m_hoverLevel = qBound<qreal>(0.0, hoverEnd.toReal(), 1.0);
+        viewport()->update();
+    }
+    if (selectionRunning && m_selAnim->duration() <= 0) {
+        m_selAnim->stop();
+        if (m_selTargetOpacity <= 0.0 || !m_selTargetRect.isValid()) {
+            m_selRect = QRectF();
+            m_selOpacity = 0.0;
+        } else {
+            m_selRect = m_selTargetRect;
+            m_selOpacity = m_selTargetOpacity;
+        }
+        viewport()->update();
+    }
 
     const auto &colors = ThemeManager::instance().colors();
     const QString next = Theme::treeViewStyle(colors);
@@ -424,13 +446,22 @@ void FluentTreeView::applyTheme()
 
 void FluentTreeView::hookSelectionModel()
 {
+    if (m_selectionConnection) {
+        QObject::disconnect(m_selectionConnection);
+        m_selectionConnection = QMetaObject::Connection();
+    }
+
     if (!selectionModel()) {
+        m_selRect = QRectF();
+        m_selStartRect = QRectF();
+        m_selTargetRect = QRectF();
+        m_selOpacity = 0.0;
+        m_selStartOpacity = 0.0;
+        m_selTargetOpacity = 0.0;
         return;
     }
 
-    disconnect(selectionModel(), nullptr, this, nullptr);
-
-    connect(selectionModel(), &QItemSelectionModel::currentChanged, this, [this](const QModelIndex &current, const QModelIndex &previous) {
+    m_selectionConnection = connect(selectionModel(), &QItemSelectionModel::currentChanged, this, [this](const QModelIndex &current, const QModelIndex &previous) {
         startSelectionAnimation(previous, current);
     });
 
@@ -450,26 +481,11 @@ QRectF FluentTreeView::selectionRectForIndex(const QModelIndex &index) const
     }
 
     if (selectionBehavior() == QAbstractItemView::SelectRows) {
-        QRect rowRect;
-        const QAbstractItemModel *m = model();
-        if (!m) {
+        const QRect r = visualRect(index);
+        if (!r.isValid() || !viewport()) {
             return QRectF();
         }
-        const int cols = m->columnCount(index.parent());
-        for (int c = 0; c < cols; ++c) {
-            if (isColumnHidden(c)) {
-                continue;
-            }
-            const QRect r = visualRect(index.sibling(index.row(), c));
-            if (!r.isValid()) {
-                continue;
-            }
-            rowRect = rowRect.isNull() ? r : rowRect.united(r);
-        }
-        if (!rowRect.isValid()) {
-            rowRect = visualRect(index);
-        }
-        return QRectF(rowRect).adjusted(2, 1, -2, -1);
+        return QRectF(0, r.y(), viewport()->width(), r.height()).adjusted(2, 1, -2, -1);
     }
 
     const QRect r = visualRect(index);
@@ -483,6 +499,24 @@ void FluentTreeView::startSelectionAnimation(const QModelIndex &from, const QMod
     const qreal startOpacity = animRunning ? m_selOpacity : (startRect.isValid() ? 1.0 : 0.0);
     const QRectF targetRect = selectionRectForIndex(to);
     const bool targetValid = targetRect.isValid();
+    const auto startSelectionMotion = [this]() {
+        FluentMotion::configure(m_selAnim, FluentMotionRole::Selection);
+        m_selAnim->stop();
+        if (m_selAnim->duration() <= 0) {
+            if (m_selTargetOpacity <= 0.0) {
+                m_selRect = QRectF();
+                m_selOpacity = 0.0;
+            } else {
+                m_selRect = m_selTargetRect;
+                m_selOpacity = 1.0;
+            }
+            viewport()->update();
+            return;
+        }
+        m_selAnim->setStartValue(0.0);
+        m_selAnim->setEndValue(1.0);
+        m_selAnim->start();
+    };
 
     if (!targetValid) {
         if (!startRect.isValid()) {
@@ -497,10 +531,7 @@ void FluentTreeView::startSelectionAnimation(const QModelIndex &from, const QMod
         m_selTargetOpacity = 0.0;
         m_selRect = startRect;
         m_selOpacity = startOpacity;
-        m_selAnim->stop();
-        m_selAnim->setStartValue(0.0);
-        m_selAnim->setEndValue(1.0);
-        m_selAnim->start();
+        startSelectionMotion();
         return;
     }
 
@@ -511,10 +542,7 @@ void FluentTreeView::startSelectionAnimation(const QModelIndex &from, const QMod
         m_selTargetOpacity = 1.0;
         m_selRect = targetRect;
         m_selOpacity = 0.0;
-        m_selAnim->stop();
-        m_selAnim->setStartValue(0.0);
-        m_selAnim->setEndValue(1.0);
-        m_selAnim->start();
+        startSelectionMotion();
         return;
     }
 
@@ -532,14 +560,12 @@ void FluentTreeView::startSelectionAnimation(const QModelIndex &from, const QMod
     m_selRect = startRect;
     m_selOpacity = m_selStartOpacity;
 
-    m_selAnim->stop();
-    m_selAnim->setStartValue(0.0);
-    m_selAnim->setEndValue(1.0);
-    m_selAnim->start();
+    startSelectionMotion();
 }
 
 void FluentTreeView::startHoverAnimation(qreal endValue)
 {
+    FluentMotion::configure(m_hoverAnim, FluentMotionRole::Hover);
     m_hoverAnim->stop();
     if (m_hoverAnim->duration() <= 0) {
         m_hoverLevel = qBound<qreal>(0.0, endValue, 1.0);

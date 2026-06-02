@@ -52,27 +52,11 @@ static QStringList cppTypes()
 FluentCppHighlighter::FluentCppHighlighter(QTextDocument *parent)
     : QSyntaxHighlighter(parent)
 {
-    auto colors = ThemeManager::instance().colors();
-
-    m_keywordFmt.setForeground(colors.accent);
-    m_keywordFmt.setFontWeight(QFont::DemiBold);
-
-    m_typeFmt.setForeground(colors.text);
-    m_typeFmt.setFontWeight(QFont::DemiBold);
-
-    m_numberFmt.setForeground(colors.subText);
-
-    m_stringFmt.setForeground(colors.text);
-
-    m_charFmt.setForeground(colors.text);
-
-    m_commentFmt.setForeground(colors.subText);
-    m_commentFmt.setFontItalic(true);
-
-    m_operatorFmt.setForeground(colors.subText);
-
-    m_preprocessorFmt.setForeground(colors.accent);
-
+    applyThemeFormats();
+    connect(&ThemeManager::instance(), &ThemeManager::themeChanged, this, [this]() {
+        applyThemeFormats();
+        rehighlight();
+    });
     rebuildRulesIfNeeded();
 }
 
@@ -104,6 +88,41 @@ void FluentCppHighlighter::setPreprocessorHighlightEnabled(bool enabled)
 bool FluentCppHighlighter::preprocessorHighlightEnabled() const
 {
     return m_preprocessorHighlightEnabled;
+}
+
+void FluentCppHighlighter::applyThemeFormats()
+{
+    const auto tokens = ThemeManager::instance().tokens();
+    const auto colors = tokens.legacyColors;
+
+    m_keywordFmt = QTextCharFormat();
+    m_keywordFmt.setForeground(tokens.accent.base);
+    m_keywordFmt.setFontWeight(QFont::DemiBold);
+
+    m_typeFmt = QTextCharFormat();
+    m_typeFmt.setForeground(colors.text);
+    m_typeFmt.setFontWeight(QFont::DemiBold);
+
+    m_numberFmt = QTextCharFormat();
+    m_numberFmt.setForeground(colors.subText);
+
+    m_stringFmt = QTextCharFormat();
+    m_stringFmt.setForeground(colors.text);
+
+    m_charFmt = QTextCharFormat();
+    m_charFmt.setForeground(colors.text);
+
+    m_commentFmt = QTextCharFormat();
+    m_commentFmt.setForeground(colors.subText);
+    m_commentFmt.setFontItalic(true);
+
+    m_operatorFmt = QTextCharFormat();
+    m_operatorFmt.setForeground(colors.subText);
+
+    m_preprocessorFmt = QTextCharFormat();
+    m_preprocessorFmt.setForeground(tokens.accent.base);
+
+    m_rulesBuilt = false;
 }
 
 void FluentCppHighlighter::rebuildRulesIfNeeded()

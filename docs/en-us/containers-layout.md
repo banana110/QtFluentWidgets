@@ -123,7 +123,7 @@ flow->addWidget(title);
 Geometry animations (implementation semantics):
 
 - When `animationEnabled` is true, it animates each child widget's `geometry` using `QPropertyAnimation`.
-- Default animation: `FluentMotionRole::Layout` (currently ~140ms, `OutCubic`).
+- Default animation: the current `FluentMotionRole::Layout` duration and easing.
 - Explicit `setAnimationDuration()` / `setAnimationEasing()` overrides the token.
 - Reduced motion: disabling global animations or setting the `Layout` duration to 0 makes geometry changes snap into place instead of creating/running `geometry` animations.
 - Animations are cached per widget (persistent `QPropertyAnimation` instances) to reduce churn during resize.
@@ -134,7 +134,7 @@ Geometry animations (implementation semantics):
 Animate while resizing:
 
 - `animateWhileResizing=true`: every relayout animates to the new target geometries.
-- `animateWhileResizing=false`: applies geometry immediately for responsiveness (batched with parent updates disabled), then plays a single animation to the final layout after a debounce delay (default ~90ms).
+- `animateWhileResizing=false`: applies geometry immediately for responsiveness (batched with parent updates disabled) and debounces the final target geometry; because children are already at the settled layout, the debounce pass does not create redundant per-step `geometry` animations.
 
 Avoid fighting child height animations:
 
@@ -154,10 +154,10 @@ Implementation notes:
 - Defaults: `setChildrenCollapsible(false)` and `setHandleWidth(8)` (wide enough to grab).
 - `createHandle()` returns a custom `QSplitterHandle` implementation:
 	- enables mouse tracking and sets a split cursor (`SplitHCursor` / `SplitVCursor`)
-	- hover animation: `QVariantAnimation` (~120ms, `OutCubic`) drives `hoverLevel`
+	- hover animation: `QVariantAnimation` uses `FluentMotionRole::Hover` to drive `hoverLevel`; disabling global animations or setting the Hover duration to 0 completes it immediately
 	- painting:
-		- always-on separator line using `colors.border`, alpha increases with hover, with ~6px inset
-		- on hover it draws a small pill (semi-transparent `colors.hover`) and three center grip dots (`colors.subText`) for a Win11-like affordance
+		- always-on separator line using `tokens.neutral.strokeSubtle`, alpha increases with hover, with ~6px inset
+		- on hover it draws a small pill (semi-transparent `tokens.neutral.cardHover`) and three center grip dots (`tokens.neutral.strokeStrong`) for a Win11-like affordance
 - The splitter background is kept transparent (`QSplitter { background: transparent; }`); visuals come from the handle.
 
 Key APIs:
@@ -209,7 +209,7 @@ FluentScrollBar: painting & interaction (implementation semantics)
 
 - Fixed thickness (~10px; fixed width for vertical / fixed height for horizontal).
 - Paints a pill thumb and deliberately avoids `WA_TranslucentBackground` (on some backends, translucent child widgets can show black artifacts).
-- Thumb colors are derived from background luminance (chooses a light or dark thumb with different alpha for normal/hover/pressed).
+- Thumb colors are derived from the current `FluentThemeTokens::neutral` ramp, then opacity is applied for normal/hover/pressed states so dark and custom themes do not fall back to fixed black/white thumbs.
 - Overlay mode:
 	- `revealLevel` fades in/out; below a small threshold it simply doesn't paint.
 	- Reveal is driven by viewport interactions (Enter/MouseMove/Wheel) and the same ~700ms hide timer.
@@ -241,8 +241,9 @@ Implementation notes:
 
 - The widget does not own or lay out the scrollable content. It only observes the linked scrollbar's `value` / `range` changes and paints labels for the configured ranges.
 - In sources mode, visible labels are grouped by `group`, while the tooltip and `currentSourceChanged(...)` prefer the current source's `text`.
-- The active range is resolved by checking which configured range overlaps the current visible interval `[value, value + pageStep)` the most, so the last section can still become active near the bottom of long pages.
+- At the top/bottom edge, the active range is pinned to the first/last configured section. While scrolling through the middle, it is resolved by checking which configured range overlaps the current visible interval `[value, value + pageStep)` the most, so the last section can still become active near the bottom of long pages.
 - Clicking a label jumps to the corresponding section. Clicking the rail jumps to the matching scroll position, and the thumb also supports direct dragging.
+- The rail, thumb, connectors, hover label, and active label are derived from the current theme tokens: thumb/active use the accent ramp, rail/connectors use neutral stroke, and hover labels use neutral cardHover.
 - While scrolling, it uses `FluentToolTip::showText(...)` to display the current range on the right side.
 - Typical setup: hide the internal vertical scrollbar of `FluentScrollArea` and keep `FluentAnnotatedScrollBar` as the external navigation rail.
 
@@ -292,10 +293,11 @@ Implementation notes (key behavior):
 - Internally replaces the `QTabBar` with a custom `FluentTabBar`:
 	- `setDocumentMode(true)`, `setDrawBase(false)`, `setExpanding(false)`, `ElideRight`, enables scroll buttons, and uses mouse tracking.
 	- Handles hover/press states itself and custom-paints feedback.
-	- The selection indicator is a `QVariantAnimation` (~240ms, `InOutCubic`) that interpolates an `indicatorRect`:
+	- The selection indicator is a `QVariantAnimation` using `FluentMotionRole::Selection` to interpolate an `indicatorRect`:
 		- Horizontal tabs default to `TabDisplayMode::Underline`: a 3px accent underline at the bottom (with side inset), without a rounded selected background.
 		- Horizontal tabs can switch to `TabDisplayMode::Document`: selected tabs are painted like Windows File Explorer tabs, useful for document/tabbed workflows. This mode does not use Qt's native close buttons; it paints a close glyph that matches the window close button so the native square close button does not leak into the Fluent surface.
 		- Vertical navigation (West/East): a 3px accent indicator bar on the left/right that smoothly slides with the current tab, plus a subtle selected background block (Win11 Settings feel).
+	- Tab hover/press, selected backgrounds, disabled fills, and indicators are derived from `FluentThemeTokens` (`neutral.card`, `cardHover`, `fillTertiary`, `strokeSubtle`, and `accent.base`), so document and vertical tabs avoid legacy hover/accent fallbacks; disabled indicators use `disabledText` instead of retaining the enabled accent.
 
 - Frame overlay: creates a transparent `FluentTabFrameOverlay` on top (`WA_TransparentForMouseEvents`) to:
 	- paint a 1px rounded border
@@ -328,7 +330,7 @@ Implementation notes:
 
 - Paint-only container: uses `FluentSurfaceSpec` for the Card surface, radius and border instead of a widget-level stylesheet.
 - Default `setContentsMargins(14, 38, 14, 14)` to reserve room for the title and optional check indicator.
-- The title is painted by the control and follows Theme colors; `setCheckable(true)` keeps the native `QGroupBox` checked semantics and paints the checkbox indicator.
+- The title is painted by the control and follows Theme colors; `setCheckable(true)` keeps the native `QGroupBox` checked semantics, enabled checked uses `accent.base` / `onAccent` for the custom checkbox indicator, and disabled checked keeps the neutral disabled surface with a `disabledText` checkmark, so platform-native indicator colors no longer leak into the control.
 - Theme coupling:
 	- `ThemeManager::themeChanged` and `EnabledChange` trigger repaint.
 	- Surface, border and disabled colors come from Theme tokens, matching `FluentCard` / `FluentCommandBar` visual layers.
@@ -350,8 +352,8 @@ Implementation notes:
 - Sets `WA_StyledBackground` but uses custom painting (`setAutoFillBackground(false)` + `paintEvent()`).
 - `BackgroundRole` semantics:
 	- `Transparent`: `paintEvent()` returns immediately (draws nothing).
-	- `Surface`: fills with `colors.surface`.
-	- `WindowBackground`: fills with `colors.background`.
+	- `Surface`: fills with `tokens.neutral.card`.
+	- `WindowBackground`: fills with `tokens.neutral.background`.
 - Theme changes / Enabled changes trigger `update()`; it does not use a stylesheet for the background (paint-only container).
 
 Key APIs:

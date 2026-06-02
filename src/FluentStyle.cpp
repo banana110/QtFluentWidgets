@@ -205,16 +205,20 @@ void Style::paintControlSurface(
 
     const auto m = metrics();
 
-    QColor fill = colors.surface;
+    const auto tokens = Theme::tokens(colors);
+
+    QColor fill = tokens.neutral.card;
     if (!enabled) {
-        fill = mix(colors.surface, colors.hover, 0.35);
+        fill = mix(tokens.neutral.card, tokens.neutral.background, tokens.dark ? 0.48 : 0.35);
     } else if (pressed) {
-        fill = mix(colors.surface, colors.pressed, 0.65);
+        fill = mix(tokens.neutral.card, tokens.neutral.fillTertiary, tokens.dark ? 0.42 : 0.34);
     } else if (hoverLevel > 0.0) {
-        fill = mix(colors.surface, colors.hover, 0.45 * hoverLevel);
+        const QColor hover = mix(tokens.neutral.card, tokens.neutral.cardHover, tokens.dark ? 0.70 : 0.55);
+        fill = mix(fill, hover, hoverLevel);
     }
 
-    const QColor stroke = enabled ? colors.border : mix(colors.border, colors.disabledText, 0.35);
+    const QColor stroke = enabled ? tokens.neutral.strokeSubtle
+                                  : mix(tokens.neutral.strokeSubtle, colors.disabledText, tokens.dark ? 0.28 : 0.18);
 
     p.save();
     p.setRenderHint(QPainter::Antialiasing, true);
@@ -235,7 +239,7 @@ void Style::paintControlSurface(
     p.drawPath(roundedRectPath(r, m.radius));
 
     if (enabled && focusLevel > 0.0) {
-        QColor focus = colors.focus;
+        QColor focus = tokens.accent.base;
         focus.setAlphaF(0.9 * focusLevel);
         p.setPen(QPen(focus, 2.0));
         p.setBrush(Qt::NoBrush);

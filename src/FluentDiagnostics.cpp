@@ -49,7 +49,11 @@ static bool isKnownNoisyWarning(const QString &msg)
     return msg.contains(QStringLiteral("QWidget::paintEngine: Should no longer be called"))
         || msg.contains(QStringLiteral("QPainter::begin: Paint device returned engine == 0"))
         || msg.contains(QStringLiteral("QFont::setPointSize: Point size <= 0"))
-        || msg.contains(QStringLiteral("QFont::setPointSizeF: Point size <= 0"));
+        || msg.contains(QStringLiteral("QFont::setPointSizeF: Point size <= 0"))
+        || msg.contains(QStringLiteral("This plugin does not support raise()"))
+        || msg.contains(QStringLiteral("This plugin does not support setting window opacity"))
+        || msg.contains(QStringLiteral("This plugin does not support setting window masks"))
+        || msg.contains(QStringLiteral("This plugin does not support grabbing the keyboard"));
 }
 
 static QtMessageHandler g_prevHandler = nullptr;

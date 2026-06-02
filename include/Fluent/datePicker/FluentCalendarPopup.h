@@ -166,6 +166,7 @@ private:
 	int     m_hoverIndex = -1;
 	int     m_pressIndex = -1;
 	QString m_todayText;
+	bool m_dismissing = false;
 };
 
 } // namespace Fluent

@@ -61,7 +61,7 @@ QString demoLottieResourcePath(const QString &fileName);
 bool loadDemoLottieResource(Fluent::FluentLottieWidget *widget, const QString &fileName);
 Fluent::FluentAnimatedButton *makeAnimatedSearchButton(const QString &text, QWidget *parent = nullptr);
 
-Fluent::FluentScrollArea *makePage(const std::function<void(QVBoxLayout *)> &fill);
+QWidget *makePage(const std::function<void(QVBoxLayout *)> &fill);
 QWidget *makeSidebarCard(QWidget *inner);
 
 } // namespace Demo

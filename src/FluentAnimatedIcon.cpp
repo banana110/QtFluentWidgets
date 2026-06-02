@@ -129,11 +129,6 @@ int FluentAnimatedIcon::resolvedStateFrame(const QString &previousState, const Q
         return markerFrame(transitionEnd);
     }
 
-    const QString transitionStart = transition + QStringLiteral("_Start");
-    if (hasMarker(transitionStart)) {
-        return markerFrame(transitionStart);
-    }
-
     if (hasMarker(transition)) {
         return markerFrame(transition);
     }

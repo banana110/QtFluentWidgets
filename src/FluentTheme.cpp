@@ -3,13 +3,28 @@
 #include "Fluent/FluentDiagnostics.h"
 #include "Fluent/FluentStyle.h"
 #include "Fluent/FluentToolTip.h"
+#include "FluentButtonVisuals_p.h"
 
 #include <QApplication>
 #include <QDebug>
+#include <QLocale>
 #include <QTimer>
 #include <QWidget>
 #include <QtMath>
 #include <QtGlobal>
+
+namespace {
+
+void ensureFluentThemeResourcesInitialized()
+{
+  static const bool initialized = []() {
+    Q_INIT_RESOURCE(fluent_icons);
+    return true;
+  }();
+  Q_UNUSED(initialized);
+}
+
+} // namespace
 
 namespace Fluent {
 
@@ -34,6 +49,15 @@ qreal contrastRatio(const QColor &a, const QColor &b)
   const qreal lighter = qMax(la, lb);
   const qreal darker = qMin(la, lb);
   return (lighter + 0.05) / (darker + 0.05);
+}
+
+QString fluentFontFamily()
+{
+  const QLocale locale;
+  if (locale.language() == QLocale::Chinese) {
+    return QStringLiteral("'Microsoft YaHei UI', 'Microsoft YaHei', 'Segoe UI', 'Noto Sans CJK SC', sans-serif");
+  }
+  return QStringLiteral("'Segoe UI', 'Microsoft YaHei UI', 'Microsoft YaHei', 'Noto Sans CJK SC', sans-serif");
 }
 
 } // namespace
@@ -184,16 +208,35 @@ FluentThemeTokens Theme::tokens(const ThemeColors &colors)
 
 QString Theme::baseStyleSheet(const ThemeColors &colors) {
   const auto themeTokens = tokens(colors);
-  Q_UNUSED(colors);
+  const QColor tooltipFill = Style::mix(themeTokens.neutral.layer,
+                                        themeTokens.accent.base,
+                                        themeTokens.dark ? 0.16 : 0.07);
+  const QColor tooltipBorder = Style::mix(themeTokens.neutral.strokeSubtle,
+                                          themeTokens.accent.base,
+                                          themeTokens.dark ? 0.20 : 0.12);
+  const QColor scrollHandle = Style::withAlpha(themeTokens.neutral.strokeStrong,
+                                               themeTokens.dark ? 132 : 116);
+  const QColor scrollHandleHover = Style::withAlpha(
+      Style::mix(themeTokens.neutral.strokeStrong, colors.text, themeTokens.dark ? 0.16 : 0.10),
+      themeTokens.dark ? 168 : 148);
+  const QColor scrollHandlePressed = Style::withAlpha(
+      Style::mix(themeTokens.neutral.strokeStrong, colors.text, themeTokens.dark ? 0.26 : 0.18),
+      themeTokens.dark ? 204 : 180);
 
   return QString(
              "QWidget {"
-             "  font-family: 'Segoe UI', 'Microsoft YaHei UI', 'Microsoft "
-             "YaHei', sans-serif;"
+             "  font-family: __QTFLUENT_FONT_FAMILY__;"
              "  font-size: %1px;"
+             "}"
+             "QWidget:window, QMainWindow, QDialog {"
+             "  background: %8;"
+             "  color: %6;"
              "}"
              "QLabel {"
              "  background: transparent;"
+             "}"
+             "QLabel#FluentLink {"
+             "  color: %9;"
              "}"
              /* Fluent Design Scrollbar - Win11-like overlay (appears on hover) */
              "QScrollBar::handle {"
@@ -212,13 +255,13 @@ QString Theme::baseStyleSheet(const ThemeColors &colors) {
              "  margin: 2px;"
              "}"
              "QAbstractScrollArea:hover QScrollBar::handle:vertical {"
-             "  background-color: rgba(128,128,128,0.45);"
+             "  background-color: %2;"
              "}"
              "QScrollBar::handle:vertical:hover {"
-             "  background-color: rgba(128,128,128,0.62);"
+             "  background-color: %3;"
              "}"
              "QScrollBar::handle:vertical:pressed {"
-             "  background-color: rgba(128,128,128,0.76);"
+             "  background-color: %4;"
              "}"
              "QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {"
              "  height: 0px;"
@@ -239,13 +282,13 @@ QString Theme::baseStyleSheet(const ThemeColors &colors) {
              "  margin: 2px;"
              "}"
              "QAbstractScrollArea:hover QScrollBar::handle:horizontal {"
-             "  background-color: rgba(128,128,128,0.45);"
+             "  background-color: %2;"
              "}"
              "QScrollBar::handle:horizontal:hover {"
-             "  background-color: rgba(128,128,128,0.62);"
+             "  background-color: %3;"
              "}"
              "QScrollBar::handle:horizontal:pressed {"
-             "  background-color: rgba(128,128,128,0.76);"
+             "  background-color: %4;"
              "}"
              "QScrollBar::add-line:horizontal, QScrollBar::sub-line:horizontal "
              "{"
@@ -258,110 +301,187 @@ QString Theme::baseStyleSheet(const ThemeColors &colors) {
              "  background: none;"
              "}"
              "QToolTip {"
-             "  background: palette(tool-tip-base);"
-             "  color: palette(tool-tip-text);"
-             "  border: 1px solid rgba(128,128,128,0.55);"
+             "  background: %5;"
+             "  color: %6;"
+             "  border: 1px solid %7;"
              "  padding: 7px 10px;"
              "  border-radius: 8px;"
              "  font-size: 12px;"
              "  font-weight: 500;"
              "}")
-      .arg(themeTokens.typography.body);
+      .arg(themeTokens.typography.body)
+      .arg(scrollHandle.name(QColor::HexArgb),
+           scrollHandleHover.name(QColor::HexArgb),
+           scrollHandlePressed.name(QColor::HexArgb))
+      .arg(tooltipFill.name(QColor::HexArgb),
+           colors.text.name(QColor::HexArgb),
+           tooltipBorder.name(QColor::HexArgb))
+      .arg(themeTokens.neutral.background.name(QColor::HexArgb),
+           themeTokens.accent.base.name(QColor::HexArgb))
+      .replace(QStringLiteral("__QTFLUENT_FONT_FAMILY__"), fluentFontFamily());
 }
 
 QString Theme::buttonStyle(const ThemeColors &colors, bool primary) {
   const auto themeTokens = tokens(colors);
-  const QString background = primary ? themeTokens.accent.base.name(QColor::HexArgb)
-                                     : colors.surface.name(QColor::HexArgb);
-  const QString textColor = primary ? themeTokens.onAccent.name(QColor::HexArgb)
-                                    : colors.text.name(QColor::HexArgb);
-  const QString borderColor = primary ? Style::mix(themeTokens.accent.base, themeTokens.onAccent, 0.18).name(QColor::HexArgb)
-                                      : colors.border.name(QColor::HexArgb);
-  const QString hover = primary ? themeTokens.accent.light1.name(QColor::HexArgb)
-                                : Style::mix(colors.surface, colors.hover, 0.88).name(QColor::HexArgb);
-  const QString pressed = primary ? themeTokens.accent.dark1.name(QColor::HexArgb)
-                                  : Style::mix(colors.surface, colors.pressed, 0.92).name(QColor::HexArgb);
+  const auto enabled = ButtonVisuals::resolve(colors, themeTokens, primary, false, true);
+  const auto disabled = ButtonVisuals::resolve(colors, themeTokens, primary, false, false);
+  const QString background = enabled.base.name(QColor::HexArgb);
+  const QString textColor = enabled.text.name(QColor::HexArgb);
+  const QString borderColor = enabled.border.name(QColor::HexArgb);
+  const QString bottomBorderColor = enabled.bottomBorder.name(QColor::HexArgb);
+  const QString hover = enabled.hover.name(QColor::HexArgb);
+  const QString pressed = enabled.pressed.name(QColor::HexArgb);
+  const QString pressedText = ButtonVisuals::textForState(enabled.text, 1.0, true).name(QColor::HexArgb);
   return QString("QPushButton {"
                  "  background: %1;"
                  "  color: %2;"
                  "  border: 1px solid %3;"
-                 "  border-radius: 6px;"
+                 "  border-bottom-color: %4;"
+                 "  border-radius: %5px;"
                  "  padding: 6px 14px;"
                  "}"
                  "QPushButton:hover {"
-                 "  background: %4;"
+                 "  background: %6;"
                  "}"
                  "QPushButton:pressed {"
-                 "  background: %5;"
+                 "  background: %7;"
+                 "  color: %8;"
                  "}"
                  "QPushButton:disabled {"
-                 "  background: %6;"
-                 "  color: %7;"
-                 "  border-color: %8;"
+                 "  background: %9;"
+                 "  color: %10;"
+                 "  border-color: %11;"
                  "}")
       .arg(background)
       .arg(textColor)
       .arg(borderColor)
+      .arg(bottomBorderColor)
+      .arg(themeTokens.radius.control)
       .arg(hover)
       .arg(pressed)
-      .arg(Style::mix(colors.surface, colors.hover, 0.45).name(QColor::HexArgb))
-      .arg(colors.disabledText.name(QColor::HexArgb))
-      .arg(Style::mix(colors.border, colors.disabledText, 0.25).name(QColor::HexArgb));
+      .arg(pressedText)
+      .arg(disabled.base.name(QColor::HexArgb))
+      .arg(disabled.text.name(QColor::HexArgb))
+      .arg(disabled.border.name(QColor::HexArgb));
 }
 
 QString Theme::labelStyle(const ThemeColors &colors) {
-  Q_UNUSED(colors);
   return QString("QLabel {"
-                 "  color: palette(window-text);"
-                 "}");
+                 "  color: %1;"
+                 "}")
+      .arg(colors.text.name(QColor::HexArgb));
 }
 
 QString Theme::lineEditStyle(const ThemeColors &colors) {
-  Q_UNUSED(colors);
+  const auto themeTokens = tokens(colors);
+  const QColor fill = themeTokens.neutral.card;
+  const QColor hover = Style::mix(fill, themeTokens.neutral.cardHover, themeTokens.dark ? 0.70 : 0.55);
+  const QColor disabledFill = Style::mix(fill, themeTokens.neutral.background, themeTokens.dark ? 0.48 : 0.35);
+  const QColor disabledStroke = Style::mix(themeTokens.neutral.strokeSubtle, colors.disabledText, themeTokens.dark ? 0.28 : 0.18);
+  QColor selectionFill = themeTokens.accent.base;
+  selectionFill.setAlphaF(themeTokens.dark ? 0.35 : 0.22);
   return QString("QLineEdit {"
-                 "  background: palette(base);"
-                 "  color: palette(text);"
-                 "  border: 1px solid palette(mid);"
-                 "  border-radius: 6px;"
+                 "  background: %1;"
+                 "  color: %2;"
+                 "  border: 1px solid %3;"
+                 "  border-radius: %4px;"
                  "  padding: 6px 10px;"
+                 "  selection-background-color: %5;"
+                 "  selection-color: %2;"
+                 "}"
+                 "QLineEdit:hover {"
+                 "  background: %6;"
+                 "  border-color: %7;"
                  "}"
                  "QLineEdit:focus {"
-                 "  border: 1px solid palette(highlight);"
+                 "  border: 2px solid %8;"
+                 "  padding: 5px 9px;"
                  "}"
                  "QLineEdit:disabled {"
-                 "  color: palette(mid);"
-                 "  background: palette(light);"
-                 "}");
+                 "  color: %9;"
+                 "  background: %10;"
+                 "  border-color: %11;"
+                 "}")
+      .arg(fill.name(QColor::HexArgb),
+           colors.text.name(QColor::HexArgb),
+           themeTokens.neutral.strokeSubtle.name(QColor::HexArgb))
+      .arg(themeTokens.radius.control)
+      .arg(selectionFill.name(QColor::HexArgb),
+           hover.name(QColor::HexArgb),
+           themeTokens.neutral.stroke.name(QColor::HexArgb),
+           themeTokens.accent.base.name(QColor::HexArgb),
+           colors.disabledText.name(QColor::HexArgb),
+           disabledFill.name(QColor::HexArgb),
+           disabledStroke.name(QColor::HexArgb));
 }
 
 QString Theme::textEditStyle(const ThemeColors &colors) {
-  Q_UNUSED(colors);
+  const auto themeTokens = tokens(colors);
+  const QColor fill = themeTokens.neutral.card;
+  const QColor hover = Style::mix(fill, themeTokens.neutral.cardHover, themeTokens.dark ? 0.70 : 0.55);
+  const QColor disabledFill = Style::mix(fill, themeTokens.neutral.background, themeTokens.dark ? 0.48 : 0.35);
+  const QColor disabledStroke = Style::mix(themeTokens.neutral.strokeSubtle, colors.disabledText, themeTokens.dark ? 0.28 : 0.18);
+  QColor selectionFill = themeTokens.accent.base;
+  selectionFill.setAlphaF(themeTokens.dark ? 0.35 : 0.22);
   return QString("QTextEdit {"
-                 "  background: palette(base);"
-                 "  color: palette(text);"
-                 "  border: 1px solid palette(mid);"
-                 "  border-radius: 6px;"
+                 "  background: %1;"
+                 "  color: %2;"
+                 "  border: 1px solid %3;"
+                 "  border-radius: %4px;"
                  "  padding: 6px 10px;"
+                 "  selection-background-color: %5;"
+                 "  selection-color: %2;"
+                 "}"
+                 "QTextEdit:hover {"
+                 "  background: %6;"
+                 "  border-color: %7;"
                  "}"
                  "QTextEdit:focus {"
-                 "  border: 1px solid palette(highlight);"
-                 "}");
+                 "  border: 2px solid %8;"
+                 "  padding: 5px 9px;"
+                 "}"
+                 "QTextEdit:disabled {"
+                 "  color: %9;"
+                 "  background: %10;"
+                 "  border-color: %11;"
+                 "}")
+      .arg(fill.name(QColor::HexArgb),
+           colors.text.name(QColor::HexArgb),
+           themeTokens.neutral.strokeSubtle.name(QColor::HexArgb))
+      .arg(themeTokens.radius.control)
+      .arg(selectionFill.name(QColor::HexArgb),
+           hover.name(QColor::HexArgb),
+           themeTokens.neutral.stroke.name(QColor::HexArgb),
+           themeTokens.accent.base.name(QColor::HexArgb),
+           colors.disabledText.name(QColor::HexArgb),
+           disabledFill.name(QColor::HexArgb),
+           disabledStroke.name(QColor::HexArgb));
 }
 
 QString Theme::dateTimeStyle(const ThemeColors &colors) {
-  Q_UNUSED(colors);
+  const auto themeTokens = tokens(colors);
+  const QColor fill = themeTokens.neutral.card;
+  const QColor hover = Style::mix(fill, themeTokens.neutral.cardHover, themeTokens.dark ? 0.70 : 0.55);
+  const QColor disabledFill = Style::mix(fill, themeTokens.neutral.background, themeTokens.dark ? 0.48 : 0.35);
+  const QColor disabledStroke = Style::mix(themeTokens.neutral.strokeSubtle, colors.disabledText, themeTokens.dark ? 0.28 : 0.18);
   return QString("QDateEdit, QTimeEdit {"
-                 "  background: palette(base);"
-                 "  color: palette(text);"
-                 "  border: 1px solid palette(mid);"
-                 "  border-radius: 6px;"
+                 "  background: %1;"
+                 "  color: %2;"
+                 "  border: 1px solid %3;"
+                 "  border-radius: %4px;"
                  "  padding: 6px 10px;"
                  "}"
                  "QDateEdit:hover, QTimeEdit:hover {"
-                 "  border-color: palette(highlight);"
+                 "  border-color: %5;"
                  "}"
                  "QDateEdit:focus, QTimeEdit:focus {"
-                 "  border: 2px solid palette(highlight);"
+                 "  border: 2px solid %6;"
+                 "  padding: 5px 9px;"
+                 "}"
+                 "QDateEdit:disabled, QTimeEdit:disabled {"
+                 "  background: %7;"
+                 "  color: %8;"
+                 "  border-color: %9;"
                  "}"
                  "QDateEdit::up-button, QTimeEdit::up-button,"
                  "QDateEdit::down-button, QTimeEdit::down-button {"
@@ -378,30 +498,43 @@ QString Theme::dateTimeStyle(const ThemeColors &colors) {
                  "}"
                  "QDateEdit::up-button:hover, QTimeEdit::up-button:hover,"
                  "QDateEdit::down-button:hover, QTimeEdit::down-button:hover {"
-                 "  background: palette(light);"
+                 "  background: %10;"
                  "  border-radius: 3px;"
                  "}"
                  "QCalendarWidget QWidget {"
-                 "  background: palette(base);"
-                 "  color: palette(text);"
-                 "}");
+                 "  background: %1;"
+                 "  color: %2;"
+                 "}")
+      .arg(fill.name(QColor::HexArgb),
+           colors.text.name(QColor::HexArgb),
+           themeTokens.neutral.strokeSubtle.name(QColor::HexArgb))
+      .arg(themeTokens.radius.control)
+      .arg(themeTokens.neutral.stroke.name(QColor::HexArgb),
+           themeTokens.accent.base.name(QColor::HexArgb),
+           disabledFill.name(QColor::HexArgb),
+           colors.disabledText.name(QColor::HexArgb),
+           disabledStroke.name(QColor::HexArgb),
+           hover.name(QColor::HexArgb));
 }
 
 QString Theme::calendarPopupStyle(const ThemeColors &colors) {
-  Q_UNUSED(colors);
+  const auto themeTokens = tokens(colors);
+  const QColor fill = themeTokens.neutral.card;
+  const QColor hover = Style::mix(fill, themeTokens.neutral.cardHover, themeTokens.dark ? 0.70 : 0.55);
+  const QColor pressed = Style::mix(fill, themeTokens.neutral.fillTertiary, themeTokens.dark ? 0.42 : 0.34);
   return QString("QCalendarWidget {"
-                 "  background: palette(base);"
-                 "  border: 1px solid palette(mid);"
-                 "  border-radius: 8px;"
+                 "  background: %1;"
+                 "  border: 1px solid %2;"
+                 "  border-radius: %3px;"
                  "}"
                  "QCalendarWidget QWidget {"
-                 "  background: palette(base);"
-                 "  color: palette(text);"
+                 "  background: %1;"
+                 "  color: %4;"
                  "}"
                  "QCalendarWidget QAbstractItemView:enabled {"
-                 "  background: palette(base);"
-                 "  selection-background-color: palette(highlight);"
-                 "  selection-color: palette(highlighted-text);"
+                 "  background: %1;"
+                 "  selection-background-color: %5;"
+                 "  selection-color: %6;"
                  "  border: none;"
                  "  outline: none;"
                  "}"
@@ -410,16 +543,16 @@ QString Theme::calendarPopupStyle(const ThemeColors &colors) {
                  "  border-radius: 4px;"
                  "}"
                  "QCalendarWidget QAbstractItemView::item:hover {"
-                 "  background: palette(light);"
+                 "  background: %7;"
                  "}"
                  "QCalendarWidget QAbstractItemView::item:selected {"
-                 "  background: palette(highlight);"
-                 "  color: palette(highlighted-text);"
+                 "  background: %5;"
+                 "  color: %6;"
                  "  font-weight: 600;"
                  "}"
                  "QCalendarWidget QHeaderView::section {"
-                 "  background: palette(base);"
-                 "  color: palette(mid);"
+                 "  background: %1;"
+                 "  color: %8;"
                  "  padding: 8px;"
                  "  border: none;"
                  "  font-weight: 600;"
@@ -429,14 +562,14 @@ QString Theme::calendarPopupStyle(const ThemeColors &colors) {
                  "  border: none;"
                  "  border-radius: 4px;"
                  "  padding: 6px;"
-                 "  color: palette(text);"
+                 "  color: %4;"
                  "  icon-size: 16px;"
                  "}"
                  "QCalendarWidget QToolButton:hover {"
-                 "  background: palette(light);"
+                 "  background: %7;"
                  "}"
                  "QCalendarWidget QToolButton:pressed {"
-                 "  background: palette(dark);"
+                 "  background: %9;"
                  "}"
                  "QCalendarWidget QToolButton#qt_calendar_prevmonth,"
                  "QCalendarWidget QToolButton#qt_calendar_nextmonth {"
@@ -454,11 +587,13 @@ QString Theme::calendarPopupStyle(const ThemeColors &colors) {
                  "  width: 0px;"
                  "}"
                  "QCalendarWidget QSpinBox {"
-                 "  border: 1px solid palette(mid);"
+                 "  border: 1px solid %2;"
                  "  border-radius: 4px;"
                  "  padding: 4px 8px;"
-                 "  background: palette(base);"
-                 "  selection-background-color: palette(highlight);"
+                 "  background: %1;"
+                 "  color: %4;"
+                 "  selection-background-color: %5;"
+                 "  selection-color: %6;"
                  "}"
                  "QCalendarWidget QSpinBox::up-button,"
                  "QCalendarWidget QSpinBox::down-button {"
@@ -470,81 +605,172 @@ QString Theme::calendarPopupStyle(const ThemeColors &colors) {
                  "}"
                  "QCalendarWidget QSpinBox::up-button:hover,"
                  "QCalendarWidget QSpinBox::down-button:hover {"
-                 "  background: palette(light);"
+                 "  background: %7;"
                  "}"
                  "QCalendarWidget QAbstractItemView::item:focus {"
-                 "  border: 2px solid palette(highlight);"
+                 "  border: 2px solid %10;"
                  "  background: transparent;"
-                 "}");
+                 "}")
+      .arg(fill.name(QColor::HexArgb),
+           themeTokens.neutral.stroke.name(QColor::HexArgb))
+      .arg(themeTokens.radius.overlay)
+      .arg(colors.text.name(QColor::HexArgb),
+           themeTokens.accent.base.name(QColor::HexArgb),
+           themeTokens.onAccent.name(QColor::HexArgb),
+           hover.name(QColor::HexArgb),
+           colors.subText.name(QColor::HexArgb),
+           pressed.name(QColor::HexArgb),
+           themeTokens.accent.base.name(QColor::HexArgb));
 }
 
 QString Theme::checkBoxStyle(const ThemeColors &colors) {
-  Q_UNUSED(colors);
+  ensureFluentThemeResourcesInitialized();
+  const auto themeTokens = tokens(colors);
+  const QColor fill = themeTokens.neutral.card;
+  const QColor hover = Style::mix(fill, themeTokens.neutral.cardHover, themeTokens.dark ? 0.70 : 0.55);
+  const QColor disabledFill = Style::mix(fill, themeTokens.neutral.background, themeTokens.dark ? 0.48 : 0.35);
+  const QColor disabledStroke = Style::mix(themeTokens.neutral.strokeSubtle, colors.disabledText, themeTokens.dark ? 0.28 : 0.18);
+  const QString checkmarkIcon = themeTokens.onAccent.lightness() > 128
+      ? QStringLiteral(":/Fluent/icons/checkmark-white.svg")
+      : QStringLiteral(":/Fluent/icons/checkmark.svg");
   return QString("QCheckBox {"
                  "  spacing: 8px;"
-                 "  color: palette(window-text);"
+                 "  color: %1;"
+                 "}"
+                 "QCheckBox:disabled {"
+                 "  color: %2;"
                  "}"
                  "QCheckBox::indicator {"
                  "  width: 18px;"
                  "  height: 18px;"
                  "  border-radius: 4px;"
-                 "  border: 1px solid palette(mid);"
-                 "  background: palette(base);"
+                 "  border: 1px solid %3;"
+                 "  background: %4;"
+                 "}"
+                 "QCheckBox::indicator:hover {"
+                 "  background: %5;"
+                 "  border-color: %6;"
                  "}"
                  "QCheckBox::indicator:checked {"
-                 "  background: palette(highlight);"
-                 "  border-color: palette(highlight);"
-                 "  image: "
-                 "url(:/qt-project.org/styles/commonstyle/images/"
-                 "checkbox_checked.png);"
+                 "  background: %7;"
+                 "  border-color: %7;"
+                 "  image: url(%10);"
                  "}"
                  "QCheckBox::indicator:disabled {"
-                 "  background: palette(light);"
-                 "  border-color: palette(mid);"
-                 "}");
+                 "  background: %8;"
+                 "  border-color: %9;"
+                 "}"
+                 "QCheckBox::indicator:checked:disabled {"
+                 "  image: none;"
+                 "}")
+      .arg(colors.text.name(QColor::HexArgb),
+           colors.disabledText.name(QColor::HexArgb),
+           themeTokens.neutral.strokeSubtle.name(QColor::HexArgb),
+           fill.name(QColor::HexArgb),
+           hover.name(QColor::HexArgb),
+           themeTokens.neutral.stroke.name(QColor::HexArgb),
+           themeTokens.accent.base.name(QColor::HexArgb),
+           disabledFill.name(QColor::HexArgb),
+           disabledStroke.name(QColor::HexArgb),
+           checkmarkIcon);
 }
 
 QString Theme::radioButtonStyle(const ThemeColors &colors) {
-  Q_UNUSED(colors);
+  const auto themeTokens = tokens(colors);
+  const QColor fill = themeTokens.neutral.card;
+  const QColor hover = Style::mix(fill, themeTokens.neutral.cardHover, themeTokens.dark ? 0.70 : 0.55);
+  const QColor disabledFill = Style::mix(fill, themeTokens.neutral.background, themeTokens.dark ? 0.48 : 0.35);
+  const QColor disabledStroke = Style::mix(themeTokens.neutral.strokeSubtle, colors.disabledText, themeTokens.dark ? 0.28 : 0.18);
+  const QString checkedFill =
+      QStringLiteral("qradialgradient(cx:0.5, cy:0.5, radius:0.5, fx:0.5, fy:0.5, stop:0 %1, stop:0.56 %1, stop:0.57 %2, stop:1 %2)")
+          .arg(themeTokens.accent.base.name(QColor::HexArgb),
+               fill.name(QColor::HexArgb));
+  const QString disabledCheckedFill =
+      QStringLiteral("qradialgradient(cx:0.5, cy:0.5, radius:0.5, fx:0.5, fy:0.5, stop:0 %1, stop:0.56 %1, stop:0.57 %2, stop:1 %2)")
+          .arg(colors.disabledText.name(QColor::HexArgb),
+               disabledFill.name(QColor::HexArgb));
   return QString("QRadioButton {"
                  "  spacing: 8px;"
-                 "  color: palette(window-text);"
+                 "  color: %1;"
+                 "}"
+                 "QRadioButton:disabled {"
+                 "  color: %2;"
                  "}"
                  "QRadioButton::indicator {"
                  "  width: 18px;"
                  "  height: 18px;"
                  "  border-radius: 9px;"
-                 "  border: 1px solid palette(mid);"
-                 "  background: palette(base);"
+                 "  border: 1px solid %3;"
+                 "  background: %4;"
+                 "}"
+                 "QRadioButton::indicator:hover {"
+                 "  background: %5;"
+                 "  border-color: %6;"
                  "}"
                  "QRadioButton::indicator:checked {"
-                 "  background: palette(highlight);"
-                 "  border-color: palette(highlight);"
-                 "}");
+                 "  background: %10;"
+                 "  border-color: %7;"
+                 "}"
+                 "QRadioButton::indicator:disabled {"
+                 "  background: %8;"
+                 "  border-color: %9;"
+                 "}"
+                 "QRadioButton::indicator:checked:disabled {"
+                 "  background: %11;"
+                 "  border-color: %9;"
+                 "}")
+      .arg(colors.text.name(QColor::HexArgb),
+           colors.disabledText.name(QColor::HexArgb),
+           themeTokens.neutral.strokeSubtle.name(QColor::HexArgb),
+           fill.name(QColor::HexArgb),
+           hover.name(QColor::HexArgb),
+           themeTokens.neutral.stroke.name(QColor::HexArgb),
+           themeTokens.accent.base.name(QColor::HexArgb),
+           disabledFill.name(QColor::HexArgb),
+           disabledStroke.name(QColor::HexArgb),
+           checkedFill,
+           disabledCheckedFill);
 }
 
 QString Theme::toggleSwitchStyle(const ThemeColors &colors) {
-  Q_UNUSED(colors);
+  const auto themeTokens = tokens(colors);
+  const QColor unchecked = Style::mix(themeTokens.neutral.strokeSubtle, themeTokens.neutral.cardHover, themeTokens.dark ? 0.36 : 0.26);
+  const QColor uncheckedHover = Style::mix(unchecked, themeTokens.neutral.strokeStrong, themeTokens.dark ? 0.30 : 0.18);
+  const QColor checkedPressed = themeTokens.dark ? themeTokens.accent.light1 : themeTokens.accent.dark1;
+  const QColor disabledFill = Style::mix(themeTokens.neutral.card, themeTokens.neutral.background, themeTokens.dark ? 0.48 : 0.35);
+  const QColor disabledStroke = Style::mix(themeTokens.neutral.strokeSubtle, colors.disabledText, themeTokens.dark ? 0.28 : 0.18);
   return QString("QCheckBox {"
                  "  spacing: 10px;"
-                 "  color: palette(window-text);"
+                 "  color: %1;"
+                 "}"
+                 "QCheckBox:disabled {"
+                 "  color: %2;"
                  "}"
                  "QCheckBox::indicator {"
                  "  width: 36px;"
                  "  height: 20px;"
                  "  border-radius: 10px;"
-                 "  background: palette(mid);"
-                 "  border: 1px solid palette(mid);"
+                 "  background: %3;"
+                 "  border: 1px solid %4;"
+                 "}"
+                 "QCheckBox::indicator:hover {"
+                 "  background: %5;"
+                 "  border-color: %6;"
                  "}"
                  "QCheckBox::indicator:checked {"
-                 "  background: palette(highlight);"
-                 "  border-color: palette(highlight);"
+                 "  background: %7;"
+                 "  border-color: %7;"
                  "}"
                  "QCheckBox::indicator:unchecked {"
-                 "  background: palette(mid);"
+                 "  background: %3;"
                  "}"
                  "QCheckBox::indicator:checked:pressed {"
-                 "  background: palette(shadow);"
+                 "  background: %8;"
+                 "  border-color: %8;"
+                 "}"
+                 "QCheckBox::indicator:disabled {"
+                 "  background: %9;"
+                 "  border-color: %10;"
                  "}"
                  "QCheckBox::indicator:checked {"
                  "  image: none;"
@@ -554,56 +780,109 @@ QString Theme::toggleSwitchStyle(const ThemeColors &colors) {
                  "}"
                  "QCheckBox::indicator::before {"
                  "  content: '';"
-                 "}");
+                 "}")
+      .arg(colors.text.name(QColor::HexArgb),
+           colors.disabledText.name(QColor::HexArgb),
+           unchecked.name(QColor::HexArgb),
+           themeTokens.neutral.strokeSubtle.name(QColor::HexArgb),
+           uncheckedHover.name(QColor::HexArgb),
+           themeTokens.neutral.stroke.name(QColor::HexArgb),
+           themeTokens.accent.base.name(QColor::HexArgb),
+           checkedPressed.name(QColor::HexArgb),
+           disabledFill.name(QColor::HexArgb),
+           disabledStroke.name(QColor::HexArgb));
 }
 
 QString Theme::comboBoxStyle(const ThemeColors &colors) {
+  const auto themeTokens = tokens(colors);
+  const QColor fill = themeTokens.neutral.card;
+  const QColor hover = Style::mix(fill, themeTokens.neutral.cardHover, themeTokens.dark ? 0.70 : 0.55);
+  const QColor pressed = Style::mix(fill, themeTokens.neutral.fillTertiary, themeTokens.dark ? 0.42 : 0.34);
+  const QColor disabledFill = Style::mix(fill, themeTokens.neutral.background, themeTokens.dark ? 0.48 : 0.35);
+  const QColor disabledStroke = Style::mix(themeTokens.neutral.strokeSubtle, colors.disabledText, themeTokens.dark ? 0.28 : 0.18);
+  QColor selectionFill = themeTokens.accent.base;
+  selectionFill.setAlpha(themeTokens.dark ? 54 : 36);
+  const QColor itemHover = Style::withAlpha(themeTokens.neutral.fillSecondary, themeTokens.dark ? 120 : 90);
   return QString("QComboBox {"
                  "  background: %1;"
                  "  color: %2;"
                  "  border: 1px solid %3;"
-                 "  border-radius: 6px;"
+                 "  border-radius: %4px;"
                  "  padding: 6px 30px 6px 10px;"
                  "}"
                  "QComboBox:hover {"
-                 "  border-color: %4;"
+                 "  background: %5;"
+                 "  border-color: %6;"
+                 "}"
+                 "QComboBox:pressed, QComboBox:on {"
+                 "  background: %7;"
+                 "}"
+                 "QComboBox:focus {"
+                 "  border: 2px solid %8;"
+                 "  padding: 5px 29px 5px 9px;"
+                 "}"
+                 "QComboBox:disabled {"
+                 "  background: %9;"
+                 "  color: %10;"
+                 "  border-color: %11;"
                  "}"
                  "QComboBox::drop-down {"
                  "  subcontrol-origin: padding;"
                  "  subcontrol-position: center right;"
                  "  width: 24px;"
                  "  border: none;"
-                 "  border-top-right-radius: 6px;"
-                 "  border-bottom-right-radius: 6px;"
+                 "  border-top-right-radius: %4px;"
+                 "  border-bottom-right-radius: %4px;"
                  "}"
                  "QComboBox QAbstractItemView {"
                  "  background: %1;"
                  "  color: %2;"
                  "  border: 1px solid %3;"
-                 "  border-radius: 6px;"
-                 "  selection-background-color: %5;"
+                 "  border-radius: %12px;"
+                 "  selection-background-color: %13;"
                  "  outline: none;"
-                 "  padding: 4px;"
+                 "  padding: 6px;"
                  "}"
                  "QComboBox QAbstractItemView::item {"
-                 "  padding: 6px 10px;"
-                 "  border-radius: 4px;"
+                 "  min-height: 36px;"
+                 "  padding: 0px 10px;"
+                 "  border-radius: 5px;"
                  "}"
                  "QComboBox QAbstractItemView::item:hover {"
-                 "  background: %5;"
+                 "  background: %14;"
+                 "}"
+                 "QComboBox QAbstractItemView::item:selected {"
+                 "  background: %13;"
                  "}")
-      .arg(colors.surface.name(QColor::HexArgb),
+      .arg(fill.name(QColor::HexArgb),
            colors.text.name(QColor::HexArgb),
-           colors.border.name(QColor::HexArgb),
-           colors.accent.name(QColor::HexArgb),
-           colors.hover.name(QColor::HexArgb));
+           themeTokens.neutral.strokeSubtle.name(QColor::HexArgb))
+      .arg(themeTokens.radius.control)
+      .arg(hover.name(QColor::HexArgb),
+           themeTokens.neutral.stroke.name(QColor::HexArgb),
+           pressed.name(QColor::HexArgb),
+           themeTokens.accent.base.name(QColor::HexArgb),
+           disabledFill.name(QColor::HexArgb),
+           colors.disabledText.name(QColor::HexArgb),
+           disabledStroke.name(QColor::HexArgb))
+      .arg(themeTokens.radius.overlay)
+      .arg(selectionFill.name(QColor::HexArgb),
+           itemHover.name(QColor::HexArgb));
 }
 
 QString Theme::sliderStyle(const ThemeColors &colors) {
-  Q_UNUSED(colors);
+  const auto themeTokens = tokens(colors);
+  const QColor track = Style::mix(themeTokens.neutral.strokeSubtle, themeTokens.neutral.cardHover, themeTokens.dark ? 0.36 : 0.26);
+  const QColor handle = themeTokens.dark
+      ? Style::mix(themeTokens.neutral.card, colors.text, 0.72)
+      : themeTokens.neutral.card;
   return QString("QSlider::groove:horizontal {"
                  "  height: 6px;"
-                 "  background: palette(mid);"
+                 "  background: %1;"
+                 "  border-radius: 3px;"
+                 "}"
+                 "QSlider::sub-page:horizontal {"
+                 "  background: %2;"
                  "  border-radius: 3px;"
                  "}"
                  "QSlider::handle:horizontal {"
@@ -611,54 +890,138 @@ QString Theme::sliderStyle(const ThemeColors &colors) {
                  "  height: 16px;"
                  "  margin: -6px 0;"
                  "  border-radius: 8px;"
-                 "  background: palette(highlight);"
-                 "}");
+                 "  background: %3;"
+                 "  border: 1px solid %4;"
+                 "}"
+                 "QSlider::handle:horizontal:hover {"
+                 "  border-color: %2;"
+                 "}")
+      .arg(track.name(QColor::HexArgb),
+           themeTokens.accent.base.name(QColor::HexArgb),
+           handle.name(QColor::HexArgb),
+           themeTokens.neutral.stroke.name(QColor::HexArgb));
 }
 
 QString Theme::progressBarStyle(const ThemeColors &colors) {
-  Q_UNUSED(colors);
+  const auto themeTokens = tokens(colors);
+  const QColor track = Style::mix(themeTokens.neutral.strokeSubtle, themeTokens.neutral.cardHover, themeTokens.dark ? 0.36 : 0.26);
+  const QColor disabledTrack = themeTokens.neutral.strokeSubtle;
+  QColor disabledFill = Style::mix(themeTokens.neutral.strokeStrong,
+                                   themeTokens.accent.base,
+                                   themeTokens.dark ? 0.22 : 0.28);
+  disabledFill.setAlpha(172);
   return QString("QProgressBar {"
-                 "  border: 1px solid palette(mid);"
-                 "  border-radius: 6px;"
+                 "  border: 1px solid %1;"
+                 "  border-radius: %2px;"
                  "  text-align: center;"
-                 "  background: palette(base);"
+                 "  background: %3;"
+                 "  color: %4;"
                  "}"
                  "QProgressBar::chunk {"
-                 "  background: palette(highlight);"
-                 "  border-radius: 6px;"
-                 "}");
+                 "  background: %5;"
+                 "  border-radius: %2px;"
+                 "}"
+                 "QProgressBar:disabled {"
+                 "  color: %6;"
+                 "  background: %7;"
+                 "  border-color: %7;"
+                 "}"
+                 "QProgressBar::chunk:disabled,"
+                 "QProgressBar:disabled::chunk {"
+                 "  background: %8;"
+                 "}")
+      .arg(track.name(QColor::HexArgb))
+      .arg(themeTokens.radius.control)
+      .arg(themeTokens.neutral.card.name(QColor::HexArgb),
+           colors.text.name(QColor::HexArgb),
+           themeTokens.accent.base.name(QColor::HexArgb),
+           colors.disabledText.name(QColor::HexArgb),
+           disabledTrack.name(QColor::HexArgb),
+           disabledFill.name(QColor::HexArgb));
 }
 
 QString Theme::spinBoxStyle(const ThemeColors &colors) {
-  Q_UNUSED(colors);
+  const auto themeTokens = tokens(colors);
+  const QColor fill = themeTokens.neutral.card;
+  const QColor hover = Style::mix(fill, themeTokens.neutral.cardHover, themeTokens.dark ? 0.70 : 0.55);
+  const QColor disabledFill = Style::mix(fill, themeTokens.neutral.background, themeTokens.dark ? 0.48 : 0.35);
+  const QColor disabledStroke = Style::mix(themeTokens.neutral.strokeSubtle, colors.disabledText, themeTokens.dark ? 0.28 : 0.18);
   return QString("QSpinBox, QDoubleSpinBox {"
-                 "  background: palette(base);"
-                 "  color: palette(text);"
-                 "  border: 1px solid palette(mid);"
-                 "  border-radius: 6px;"
+                 "  background: %1;"
+                 "  color: %2;"
+                 "  border: 1px solid %3;"
+                 "  border-radius: %4px;"
                  "  padding: 6px 10px;"
                  "}"
                  "QSpinBox:hover, QDoubleSpinBox:hover {"
-                 "  border-color: palette(highlight);"
-                 "}");
+                 "  background: %5;"
+                 "  border-color: %6;"
+                 "}"
+                 "QSpinBox:focus, QDoubleSpinBox:focus {"
+                 "  border: 2px solid %7;"
+                 "  padding: 5px 9px;"
+                 "}"
+                 "QSpinBox:disabled, QDoubleSpinBox:disabled {"
+                 "  background: %8;"
+                 "  color: %9;"
+                 "  border-color: %10;"
+                 "}")
+      .arg(fill.name(QColor::HexArgb),
+           colors.text.name(QColor::HexArgb),
+           themeTokens.neutral.strokeSubtle.name(QColor::HexArgb))
+      .arg(themeTokens.radius.control)
+      .arg(hover.name(QColor::HexArgb),
+           themeTokens.neutral.stroke.name(QColor::HexArgb),
+           themeTokens.accent.base.name(QColor::HexArgb),
+           disabledFill.name(QColor::HexArgb),
+           colors.disabledText.name(QColor::HexArgb),
+           disabledStroke.name(QColor::HexArgb));
 }
 
 QString Theme::toolButtonStyle(const ThemeColors &colors) {
-  Q_UNUSED(colors);
+  const auto themeTokens = tokens(colors);
+  const QColor fill = themeTokens.neutral.card;
+  const QColor hover = Style::mix(fill, themeTokens.neutral.cardHover, themeTokens.dark ? 0.70 : 0.55);
+  const QColor pressed = Style::mix(fill, themeTokens.neutral.fillTertiary, themeTokens.dark ? 0.42 : 0.34);
+  const QColor disabledFill = Style::mix(fill, themeTokens.neutral.background, themeTokens.dark ? 0.48 : 0.35);
+  const QColor disabledStroke = Style::mix(themeTokens.neutral.strokeSubtle, colors.disabledText, themeTokens.dark ? 0.28 : 0.18);
   return QString("QToolButton {"
-                 "  background: palette(button);"
-                 "  color: palette(button-text);"
-                 "  border: 1px solid palette(mid);"
-                 "  border-radius: 6px;"
+                 "  background: %1;"
+                 "  color: %2;"
+                 "  border: 1px solid %3;"
+                 "  border-radius: %4px;"
                  "  padding: 6px 12px;"
                  "}"
                  "QToolButton:hover {"
-                 "  background: palette(light);"
-                 "}");
+                 "  background: %5;"
+                 "  border-color: %6;"
+                 "}"
+                 "QToolButton:pressed, QToolButton:checked {"
+                 "  background: %7;"
+                 "  border-color: %8;"
+                 "}"
+                 "QToolButton:disabled {"
+                 "  background: %9;"
+                 "  color: %10;"
+                 "  border-color: %11;"
+                 "}")
+      .arg(fill.name(QColor::HexArgb),
+           colors.text.name(QColor::HexArgb),
+           themeTokens.neutral.strokeSubtle.name(QColor::HexArgb))
+      .arg(themeTokens.radius.control)
+      .arg(hover.name(QColor::HexArgb),
+           themeTokens.neutral.stroke.name(QColor::HexArgb),
+           pressed.name(QColor::HexArgb),
+           themeTokens.accent.base.name(QColor::HexArgb),
+           disabledFill.name(QColor::HexArgb),
+           colors.disabledText.name(QColor::HexArgb),
+           disabledStroke.name(QColor::HexArgb));
 }
 
 QString Theme::tabWidgetStyle(const ThemeColors &colors) {
-  Q_UNUSED(colors);
+  const auto themeTokens = tokens(colors);
+  const QColor hover = Style::mix(themeTokens.neutral.card, themeTokens.neutral.cardHover, themeTokens.dark ? 0.70 : 0.55);
+  const QColor pressed = Style::mix(themeTokens.neutral.card, themeTokens.neutral.fillTertiary, themeTokens.dark ? 0.42 : 0.34);
   return QString("QTabWidget::pane {"
                  "  border: none;"
                  "  background: transparent;"
@@ -677,11 +1040,21 @@ QString Theme::tabWidgetStyle(const ThemeColors &colors) {
                  "  margin: 6px 6px;"
                  "}"
                  "QTabBar QToolButton:hover {"
-                 "  background: palette(light);"
+                 "  background: %1;"
                  "}"
                  "QTabBar QToolButton:pressed {"
-                 "  background: palette(dark);"
-                 "}");
+                 "  background: %2;"
+                 "}"
+                 "QTabBar::tab {"
+                 "  color: %3;"
+                 "}"
+                 "QTabBar::tab:disabled {"
+                 "  color: %4;"
+                 "}")
+      .arg(hover.name(QColor::HexArgb),
+           pressed.name(QColor::HexArgb),
+           colors.text.name(QColor::HexArgb),
+           colors.disabledText.name(QColor::HexArgb));
 }
 
 QString Theme::listViewStyle(const ThemeColors &colors) {
@@ -712,10 +1085,10 @@ QString Theme::listViewStyle(const ThemeColors &colors) {
                  "QListView::item:selected {"
                  "  background: transparent;"
                  "}")
-      .arg(colors.surface.name(QColor::HexArgb),
+      .arg(themeTokens.neutral.card.name(QColor::HexArgb),
            colors.text.name(QColor::HexArgb),
            themeTokens.neutral.strokeSubtle.name(QColor::HexArgb),
-           colors.accent.name(QColor::HexArgb),
+           themeTokens.accent.base.name(QColor::HexArgb),
            Style::mix(themeTokens.neutral.card, themeTokens.neutral.fillSecondary, themeTokens.dark ? 0.30 : 0.46).name(QColor::HexArgb),
            colors.disabledText.name(QColor::HexArgb),
            Style::mix(themeTokens.neutral.strokeSubtle, colors.disabledText, themeTokens.dark ? 0.18 : 0.12).name(QColor::HexArgb));
@@ -763,11 +1136,11 @@ QString Theme::tableViewStyle(const ThemeColors &colors) {
                  "QTableView::item:selected, QTableWidget::item:selected {"
                  "  background: transparent;"
                  "}")
-      .arg(colors.surface.name(QColor::HexArgb),
+      .arg(themeTokens.neutral.card.name(QColor::HexArgb),
            colors.text.name(QColor::HexArgb),
            themeTokens.neutral.strokeSubtle.name(QColor::HexArgb),
            themeTokens.neutral.layer.name(QColor::HexArgb),
-           colors.accent.name(QColor::HexArgb),
+           themeTokens.accent.base.name(QColor::HexArgb),
            Style::mix(themeTokens.neutral.card, themeTokens.neutral.fillSecondary, themeTokens.dark ? 0.30 : 0.46).name(QColor::HexArgb),
            colors.disabledText.name(QColor::HexArgb),
            Style::mix(themeTokens.neutral.strokeSubtle, colors.disabledText, themeTokens.dark ? 0.18 : 0.12).name(QColor::HexArgb));
@@ -820,124 +1193,179 @@ QString Theme::treeViewStyle(const ThemeColors &colors) {
                  "  padding: 6px 8px;"
                  "  font-weight: 600;"
                  "}")
-      .arg(colors.surface.name(QColor::HexArgb),
+      .arg(themeTokens.neutral.card.name(QColor::HexArgb),
            colors.text.name(QColor::HexArgb),
            themeTokens.neutral.strokeSubtle.name(QColor::HexArgb),
            themeTokens.neutral.layer.name(QColor::HexArgb),
-           colors.accent.name(QColor::HexArgb),
+           themeTokens.accent.base.name(QColor::HexArgb),
            Style::mix(themeTokens.neutral.card, themeTokens.neutral.fillSecondary, themeTokens.dark ? 0.30 : 0.46).name(QColor::HexArgb),
            colors.disabledText.name(QColor::HexArgb),
            Style::mix(themeTokens.neutral.strokeSubtle, colors.disabledText, themeTokens.dark ? 0.18 : 0.12).name(QColor::HexArgb));
 }
 
 QString Theme::groupBoxStyle(const ThemeColors &colors) {
-  Q_UNUSED(colors);
+  const auto themeTokens = tokens(colors);
+  const QColor disabledFill = Style::mix(themeTokens.neutral.card, themeTokens.neutral.background, themeTokens.dark ? 0.48 : 0.35);
+  const QColor disabledStroke = Style::mix(themeTokens.neutral.strokeSubtle, colors.disabledText, themeTokens.dark ? 0.28 : 0.18);
   return QString("QGroupBox {"
-                 "  background: palette(base);"
-                 "  border: 1px solid palette(mid);"
-                 "  border-radius: 10px;"
+                 "  background: %1;"
+                 "  border: 1px solid %2;"
+                 "  border-radius: %3px;"
                  "  margin-top: 14px;"
                  "  padding: 10px;"
                  "  padding-top: 14px;"
                  "}"
                  "QGroupBox:disabled {"
-                 "  background: palette(light);"
-                 "  color: palette(mid);"
+                 "  background: %4;"
+                 "  color: %5;"
+                 "  border-color: %6;"
                  "}"
                  "QGroupBox::title {"
                  "  subcontrol-origin: margin;"
                  "  left: 12px;"
                  "  padding: 0 6px;"
-                 "  color: palette(text);"
-                 "  background: palette(base);"
-                 "}");
+                 "  color: %7;"
+                 "  background: %1;"
+                 "}")
+      .arg(themeTokens.neutral.card.name(QColor::HexArgb),
+           themeTokens.neutral.strokeSubtle.name(QColor::HexArgb))
+      .arg(themeTokens.radius.card)
+      .arg(disabledFill.name(QColor::HexArgb),
+           colors.disabledText.name(QColor::HexArgb),
+           disabledStroke.name(QColor::HexArgb),
+           colors.text.name(QColor::HexArgb));
 }
 
 QString Theme::menuBarStyle(const ThemeColors &colors) {
-  Q_UNUSED(colors);
+  const auto themeTokens = tokens(colors);
+  const QColor fill = themeTokens.neutral.card;
+  const QColor hover =
+      Style::mix(fill, themeTokens.neutral.cardHover, themeTokens.dark ? 0.70 : 0.55);
+  const QColor pressed =
+      Style::mix(fill, themeTokens.neutral.fillTertiary, themeTokens.dark ? 0.44 : 0.38);
   return QString("QMenuBar {"
-                 "  background: palette(button);"
-                 "  color: palette(button-text);"
-                 "  border-bottom: 1px solid palette(mid);"
+                 "  background: %1;"
+                 "  color: %2;"
+                 "  border-bottom: 1px solid %3;"
                  "}"
                  "QMenuBar::item {"
                  "  padding: 6px 12px;"
                  "  background: transparent;"
                  "}"
                  "QMenuBar::item:selected {"
-                 "  background: palette(light);"
+                 "  background: %4;"
                  "  border-radius: 4px;"
-                 "}");
+                 "}"
+                 "QMenuBar::item:pressed {"
+                 "  background: %5;"
+                 "  border-radius: 4px;"
+                 "}"
+                 "QMenuBar::item:disabled {"
+                 "  color: %6;"
+                 "}")
+      .arg(fill.name(QColor::HexArgb),
+           colors.text.name(QColor::HexArgb),
+           themeTokens.neutral.strokeSubtle.name(QColor::HexArgb),
+           hover.name(QColor::HexArgb),
+           pressed.name(QColor::HexArgb),
+           colors.disabledText.name(QColor::HexArgb));
 }
 
 QString Theme::toolBarStyle(const ThemeColors &colors) {
-  Q_UNUSED(colors);
+  const auto themeTokens = tokens(colors);
+  const QColor separator = themeTokens.neutral.strokeSubtle;
+  const QColor fill = themeTokens.neutral.card;
+  const QColor hover =
+      Style::mix(fill, themeTokens.neutral.cardHover, themeTokens.dark ? 0.70 : 0.55);
   return QString("QToolBar {"
-                 "  background: palette(button);"
-                 "  border-bottom: 1px solid palette(mid);"
+                 "  background: %1;"
+                 "  color: %2;"
+                 "  border-bottom: 1px solid %3;"
                  "  spacing: 6px;"
                  "}"
                  "QToolBar::separator {"
-                 "  background: palette(mid);"
+                 "  background: %3;"
                  "  width: 1px;"
                  "  margin: 4px 6px;"
                  "}"
                  "QToolButton {"
-                 "  background: palette(button);"
-                 "  color: palette(button-text);"
-                 "  border: 1px solid palette(mid);"
+                 "  background: transparent;"
+                 "  color: %2;"
+                 "  border: 1px solid transparent;"
                  "  border-radius: 6px;"
                  "  padding: 6px 10px;"
                  "}"
                  "QToolButton:hover {"
-                 "  background: palette(light);"
-                 "}");
+                 "  background: %4;"
+                 "  border-color: %3;"
+                 "}")
+      .arg(fill.name(QColor::HexArgb),
+           colors.text.name(QColor::HexArgb),
+           separator.name(QColor::HexArgb),
+           hover.name(QColor::HexArgb));
 }
 
 QString Theme::statusBarStyle(const ThemeColors &colors) {
-  Q_UNUSED(colors);
+  const auto themeTokens = tokens(colors);
   return QString("QStatusBar {"
-                 "  background: palette(button);"
-                 "  color: palette(button-text);"
-                 "  border-top: 1px solid palette(mid);"
+                 "  background: %1;"
+                 "  color: %2;"
+                 "  border-top: 1px solid %3;"
                  "  min-height: 28px;"
                  "}"
                  "QStatusBar::item {"
                  "  border: none;"
                  "}"
                  "QStatusBar QLabel {"
-                 "  color: palette(button-text);"
+                 "  color: %2;"
                  "  padding: 2px 8px;"
-                 "}");
+                 "}")
+      .arg(themeTokens.neutral.card.name(QColor::HexArgb),
+           colors.text.name(QColor::HexArgb),
+           themeTokens.neutral.strokeSubtle.name(QColor::HexArgb));
 }
 
 QString Theme::dialogStyle(const ThemeColors &colors) {
-  Q_UNUSED(colors);
+  const auto themeTokens = tokens(colors);
+  const QColor modalFill = themeTokens.dark
+      ? Style::mix(themeTokens.neutral.card, colors.text, 0.095)
+      : themeTokens.neutral.card;
   return QString("QDialog {"
-                 "  background: palette(base);"
-                 "  color: palette(text);"
-                 "  border: 1px solid palette(mid);"
-                 "  border-radius: 10px;"
+                 "  background: %1;"
+                 "  color: %2;"
+                 "  border: 1px solid %3;"
+                 "  border-radius: %4px;"
                  "}"
                  "QDialog QWidget {"
                  "  background: transparent;"
                  "}"
                  "QDialog QLabel {"
-                 "  color: palette(text);"
-                 "}");
+                 "  color: %2;"
+                 "}")
+      .arg(modalFill.name(QColor::HexArgb),
+           colors.text.name(QColor::HexArgb),
+           themeTokens.neutral.stroke.name(QColor::HexArgb))
+      .arg(themeTokens.radius.window);
 }
 
 QString Theme::cardStyle(const ThemeColors &colors) {
-  Q_UNUSED(colors);
+  const auto themeTokens = tokens(colors);
+  const QColor disabledFill = Style::mix(themeTokens.neutral.card, themeTokens.neutral.background, themeTokens.dark ? 0.48 : 0.35);
+  const QColor disabledStroke = Style::mix(themeTokens.neutral.strokeSubtle, colors.disabledText, themeTokens.dark ? 0.28 : 0.18);
   return QString("QWidget#FluentCard {"
-                 "  background: palette(base);"
-                 "  border: 1px solid palette(mid);"
-                 "  border-radius: 10px;"
+                 "  background: %1;"
+                 "  border: 1px solid %2;"
+                 "  border-radius: %3px;"
                  "}"
                  "QWidget#FluentCard:disabled {"
-                 "  background: palette(light);"
-                 "  border-color: palette(mid);"
-                 "}");
+                 "  background: %4;"
+                 "  border-color: %5;"
+                 "}")
+      .arg(themeTokens.neutral.card.name(QColor::HexArgb),
+           themeTokens.neutral.strokeSubtle.name(QColor::HexArgb))
+      .arg(themeTokens.radius.card)
+      .arg(disabledFill.name(QColor::HexArgb),
+           disabledStroke.name(QColor::HexArgb));
 }
 
 ThemeManager &ThemeManager::instance() {

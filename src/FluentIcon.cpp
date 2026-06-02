@@ -12,12 +12,27 @@
 #include <QSvgRenderer>
 #include <QtGlobal>
 
+namespace {
+
+void ensureFluentIconResourcesInitialized()
+{
+    static const bool initialized = []() {
+        Q_INIT_RESOURCE(fluent_icons);
+        return true;
+    }();
+    Q_UNUSED(initialized);
+}
+
+} // namespace
+
 namespace Fluent {
 
 namespace {
 
 QByteArray rawSvgData(FluentIconType type)
 {
+    ensureFluentIconResourcesInitialized();
+
     static QHash<int, QByteArray> cache;
     const int key = static_cast<int>(type);
     const auto it = cache.constFind(key);
@@ -953,13 +968,13 @@ QColor FluentIcon::resolveColor(const FluentIconOptions &options, QIcon::Mode mo
         return color;
     }
 
-    if (!options.autoTheme) {
-        return mode == QIcon::Disabled ? QColor(0, 0, 0, 115) : QColor("#000000");
-    }
-
     const auto &manager = ThemeManager::instance();
     const auto &colors = manager.colors();
     const auto &tokens = manager.tokens();
+
+    if (!options.autoTheme) {
+        return mode == QIcon::Disabled ? colors.disabledText : colors.text;
+    }
 
     if (mode == QIcon::Disabled) {
         return colors.disabledText;

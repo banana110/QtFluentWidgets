@@ -109,12 +109,14 @@ QObject::connect(nav, &Fluent::FluentNavigationView::itemInvoked,
 - Left 模式下，正文点击和箭头点击是分开的：正文负责选中/进入，箭头只负责展开或收起父项。
 - 同一时刻只保留一个展开分组，减少多组同时展开时的视觉干扰。
 - `setSelectedKey()` 选中子项时，Left 模式会自动展开其父分组；Top 模式则保持父项高亮。
+- 在 Left / LeftCompact 模式中，`setSelectedKey()` 会把目标行滚入主内容视口；手动滚动时，选中指示器会被裁剪在滚动区域内，不会覆盖底部 footer。
 - 对于带子项的父项，如果 `selectsOnInvoked = false`：
     - Left 模式正文点击只展开或收起子项。
     - LeftCompact / Top 模式正文点击只打开 flyout，不会修改 `selectedKey`。
 - 对于叶子项，如果 `selectsOnInvoked = false`，点击仍会发出 `itemInvoked`，但不会改变当前选中态。
 - 返回按钮只发出 `backRequested()`，不会内置修改 `selectedKey`。应用层应维护自己的返回栈，并在收到信号后调用 `setSelectedKey(previousKey)`；Containers demo 展示了一个最小返回栈实现。
 - 动效使用 `FluentMotionRole::Navigation` / `Hover` / `Selection`：pane 宽度、行 hover 和选中指示器会随全局 motion token 更新；关闭全局动画时，宽度和选中条会直接落到目标位置。
+- 外观质感使用 `FluentThemeTokens`：pane surface 来自 `neutral.card`，hover 行来自 `neutral.cardHover`，分隔线来自 `neutral.strokeSubtle`，选中背景和 Left/Top 指示器来自 `accent.base` 的 token 派生色；禁用态 pane 与 selected 行会退到 neutral disabled fill，指示器与图标/文本使用 `disabledText`，不保留启用态 accent；自定义 hover/border 或亮色 accent 时不会回退到旧色路径。
 
 ## Header、自适应与信号
 

@@ -3,6 +3,10 @@
 #include <QWidget>
 
 class QHBoxLayout;
+class QBoxLayout;
+class QGraphicsOpacityEffect;
+class QParallelAnimationGroup;
+class QShowEvent;
 
 namespace Fluent {
 
@@ -27,6 +31,7 @@ public:
     Q_PROPERTY(QString message READ message WRITE setMessage)
     Q_PROPERTY(bool closable READ isClosable WRITE setClosable)
     Q_PROPERTY(QString actionText READ actionText WRITE setActionText)
+    Q_PROPERTY(bool compact READ isCompact WRITE setCompact)
 
 public:
     explicit FluentInfoBar(QWidget *parent = nullptr);
@@ -47,6 +52,9 @@ public:
     QString actionText() const;
     void setActionText(const QString &text);
 
+    bool isCompact() const;
+    void setCompact(bool compact);
+
 signals:
     void actionTriggered();
     void closed();
@@ -54,9 +62,14 @@ signals:
 protected:
     void changeEvent(QEvent *event) override;
     void paintEvent(QPaintEvent *event) override;
+    void showEvent(QShowEvent *event) override;
 
 private:
     void applyTheme();
+    void dismiss();
+    void finishDismissImmediately();
+    void restoreDismissGeometry();
+    void updateLayoutMode();
     void updateContent();
 
     Severity m_severity = Severity::Info;
@@ -64,13 +77,22 @@ private:
     QString m_message;
     QString m_actionText;
     bool m_closable = true;
+    bool m_compact = false;
 
     QHBoxLayout *m_layout = nullptr;
+    QBoxLayout *m_textLayout = nullptr;
     QWidget *m_icon = nullptr;
     FluentLabel *m_titleLabel = nullptr;
     FluentLabel *m_messageLabel = nullptr;
     FluentButton *m_actionButton = nullptr;
     FluentToolButton *m_closeButton = nullptr;
+    QGraphicsOpacityEffect *m_opacityEffect = nullptr;
+    QParallelAnimationGroup *m_dismissGroup = nullptr;
+
+    bool m_dismissInProgress = false;
+    bool m_hasDismissGeometry = false;
+    int m_preDismissMinimumHeight = 0;
+    int m_preDismissMaximumHeight = QWIDGETSIZE_MAX;
 };
 
 } // namespace Fluent

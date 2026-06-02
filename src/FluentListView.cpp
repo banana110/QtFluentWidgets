@@ -46,12 +46,15 @@ public:
         // Background Painting
         QColor bgColor = Qt::transparent;
 
+        const bool enabled = opt.state.testFlag(QStyle::State_Enabled);
         const bool selected = opt.state.testFlag(QStyle::State_Selected);
         const bool isCurrent = (m_view && m_view->currentIndex().isValid() && index == m_view->currentIndex());
 
         if (selected && !isCurrent) {
-            bgColor = Detail::fluentItemSelectionFill(colors, 0.86);
-        } else if (m_view && index == m_view->hoverIndex()) {
+            bgColor = enabled
+                ? Detail::fluentItemSelectionFill(colors, 0.86)
+                : Detail::fluentItemDisabledSelectionFill(colors, 0.86);
+        } else if (enabled && m_view && index == m_view->hoverIndex()) {
              bgColor = Detail::fluentItemHoverFill(colors, m_view->hoverLevel());
         }
 
@@ -187,6 +190,12 @@ void FluentListView::setModel(QAbstractItemModel *model)
     hookSelectionModel();
 }
 
+void FluentListView::setSelectionModel(QItemSelectionModel *selectionModel)
+{
+    QListView::setSelectionModel(selectionModel);
+    hookSelectionModel();
+}
+
 void FluentListView::paintEvent(QPaintEvent *event)
 {
     // Paint animated selection background first (so text stays crisp).
@@ -203,10 +212,14 @@ void FluentListView::paintEvent(QPaintEvent *event)
                 p.setRenderHint(QPainter::Antialiasing, true);
 
                 p.setPen(Qt::NoPen);
-                p.setBrush(Detail::fluentItemSelectionFill(colors, opacity));
+                p.setBrush(isEnabled()
+                               ? Detail::fluentItemSelectionFill(colors, opacity)
+                               : Detail::fluentItemDisabledSelectionFill(colors, opacity));
                 p.drawRoundedRect(r, 4.0, 4.0);
 
-                Detail::paintFluentItemSelectionIndicator(p, r, colors, opacity);
+                if (isEnabled()) {
+                    Detail::paintFluentItemSelectionIndicator(p, r, colors, opacity);
+                }
             }
         }
     }
@@ -233,8 +246,28 @@ void FluentListView::leaveEvent(QEvent *event)
 
 void FluentListView::applyTheme()
 {
+    const bool hoverRunning = m_hoverAnim && m_hoverAnim->state() == QAbstractAnimation::Running;
+    const bool selectionRunning = m_selAnim && m_selAnim->state() == QAbstractAnimation::Running;
+    const QVariant hoverEnd = m_hoverAnim ? m_hoverAnim->endValue() : QVariant();
+
     FluentMotion::configure(m_hoverAnim, FluentMotionRole::Hover);
     FluentMotion::configure(m_selAnim, FluentMotionRole::Selection);
+    if (hoverRunning && m_hoverAnim->duration() <= 0) {
+        m_hoverAnim->stop();
+        m_hoverLevel = qBound<qreal>(0.0, hoverEnd.toReal(), 1.0);
+        viewport()->update();
+    }
+    if (selectionRunning && m_selAnim->duration() <= 0) {
+        m_selAnim->stop();
+        if (m_selTargetOpacity <= 0.0 || !m_selTargetRect.isValid()) {
+            m_selRect = QRectF();
+            m_selOpacity = 0.0;
+        } else {
+            m_selRect = m_selTargetRect;
+            m_selOpacity = m_selTargetOpacity;
+        }
+        viewport()->update();
+    }
 
     const auto &colors = ThemeManager::instance().colors();
     const QString next = Theme::listViewStyle(colors);
@@ -246,22 +279,32 @@ void FluentListView::applyTheme()
 
 void FluentListView::hookSelectionModel()
 {
+    if (m_selectionConnection) {
+        QObject::disconnect(m_selectionConnection);
+        m_selectionConnection = QMetaObject::Connection();
+    }
+
     if (!selectionModel()) {
+        m_selRect = QRectF();
+        m_selStartRect = QRectF();
+        m_selTargetRect = QRectF();
+        m_selOpacity = 0.0;
+        m_selStartOpacity = 0.0;
+        m_selTargetOpacity = 0.0;
         return;
     }
 
-    // Avoid duplicate connections.
-    disconnect(selectionModel(), nullptr, this, nullptr);
-
-    connect(selectionModel(), &QItemSelectionModel::currentChanged, this, [this](const QModelIndex &current, const QModelIndex &previous) {
+    m_selectionConnection = connect(selectionModel(), &QItemSelectionModel::currentChanged, this, [this](const QModelIndex &current, const QModelIndex &previous) {
         startSelectionAnimation(previous, current);
     });
 
-    // Keep initial position in sync.
     const QModelIndex cur = currentIndex();
     m_selRect = selectionRectForIndex(cur);
     m_selStartRect = m_selRect;
     m_selTargetRect = m_selRect;
+    m_selOpacity = m_selRect.isValid() ? 1.0 : 0.0;
+    m_selStartOpacity = m_selOpacity;
+    m_selTargetOpacity = m_selOpacity;
 }
 
 QRectF FluentListView::selectionRectForIndex(const QModelIndex &index) const
@@ -284,6 +327,24 @@ void FluentListView::startSelectionAnimation(const QModelIndex &from, const QMod
     const qreal startOpacity = animRunning ? m_selOpacity : (startRect.isValid() ? 1.0 : 0.0);
     const QRectF targetRect = selectionRectForIndex(to);
     const bool targetValid = targetRect.isValid();
+    const auto startSelectionMotion = [this]() {
+        FluentMotion::configure(m_selAnim, FluentMotionRole::Selection);
+        m_selAnim->stop();
+        if (m_selAnim->duration() <= 0) {
+            if (m_selTargetOpacity <= 0.0) {
+                m_selRect = QRectF();
+                m_selOpacity = 0.0;
+            } else {
+                m_selRect = m_selTargetRect;
+                m_selOpacity = 1.0;
+            }
+            viewport()->update();
+            return;
+        }
+        m_selAnim->setStartValue(0.0);
+        m_selAnim->setEndValue(1.0);
+        m_selAnim->start();
+    };
 
     // Fade out when selection clears.
     if (!targetValid) {
@@ -299,10 +360,7 @@ void FluentListView::startSelectionAnimation(const QModelIndex &from, const QMod
         m_selTargetOpacity = 0.0;
         m_selRect = startRect;
         m_selOpacity = startOpacity;
-        m_selAnim->stop();
-        m_selAnim->setStartValue(0.0);
-        m_selAnim->setEndValue(1.0);
-        m_selAnim->start();
+        startSelectionMotion();
         return;
     }
 
@@ -314,10 +372,7 @@ void FluentListView::startSelectionAnimation(const QModelIndex &from, const QMod
         m_selTargetOpacity = 1.0;
         m_selRect = targetRect;
         m_selOpacity = 0.0;
-        m_selAnim->stop();
-        m_selAnim->setStartValue(0.0);
-        m_selAnim->setEndValue(1.0);
-        m_selAnim->start();
+        startSelectionMotion();
         return;
     }
 
@@ -336,14 +391,12 @@ void FluentListView::startSelectionAnimation(const QModelIndex &from, const QMod
     m_selRect = startRect;
     m_selOpacity = m_selStartOpacity;
 
-    m_selAnim->stop();
-    m_selAnim->setStartValue(0.0);
-    m_selAnim->setEndValue(1.0);
-    m_selAnim->start();
+    startSelectionMotion();
 }
 
 void FluentListView::startHoverAnimation(qreal endValue)
 {
+    FluentMotion::configure(m_hoverAnim, FluentMotionRole::Hover);
     m_hoverAnim->stop();
     if (m_hoverAnim->duration() <= 0) {
         m_hoverLevel = qBound<qreal>(0.0, endValue, 1.0);

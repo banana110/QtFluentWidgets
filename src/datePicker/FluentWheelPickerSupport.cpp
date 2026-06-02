@@ -7,6 +7,7 @@
 #include "../FluentPaintSupport.h"
 #include "../FluentPopupUtils.h"
 
+#include <QAbstractAnimation>
 #include <QApplication>
 #include <QCursor>
 #include <QHideEvent>
@@ -14,6 +15,7 @@
 #include <QListWidgetItem>
 #include <QMouseEvent>
 #include <QPainter>
+#include <QResizeEvent>
 #include <QScreen>
 #include <QScrollBar>
 #include <QShowEvent>
@@ -150,6 +152,28 @@ FluentWheelPickerColumn::FluentWheelPickerColumn(QWidget *parent)
 
         m_syncingFromScroll = true;
         verticalScrollBar()->setValue(value.toInt());
+        m_syncingFromScroll = false;
+        syncCurrentFromScroll();
+        if (viewport()) {
+            viewport()->update();
+        }
+    });
+    connect(&ThemeManager::instance(), &ThemeManager::themeChanged, this, [this]() {
+        if (!m_scrollAnim) {
+            return;
+        }
+
+        const bool shouldSnap = m_scrollAnim->state() == QAbstractAnimation::Running &&
+            FluentMotion::duration(FluentMotionRole::WheelSnap) <= 0;
+        const int target = m_scrollAnim->endValue().toInt();
+        FluentMotion::configure(m_scrollAnim, FluentMotionRole::WheelSnap);
+        if (!shouldSnap || !verticalScrollBar()) {
+            return;
+        }
+
+        m_scrollAnim->stop();
+        m_syncingFromScroll = true;
+        verticalScrollBar()->setValue(target);
         m_syncingFromScroll = false;
         syncCurrentFromScroll();
         if (viewport()) {
@@ -305,10 +329,10 @@ void FluentWheelPickerColumn::paintEvent(QPaintEvent *event)
             QPainter painter(viewport());
             painter.setRenderHint(QPainter::Antialiasing, true);
 
-            const auto &colors = ThemeManager::instance().colors();
-            QColor fill = colors.accent;
+            const auto &tokens = ThemeManager::instance().tokens();
+            QColor fill = tokens.accent.base;
             fill.setAlpha(44);
-            QColor outline = colors.accent;
+            QColor outline = tokens.accent.base;
             outline.setAlpha(72);
 
             painter.setPen(QPen(outline, 1));
@@ -318,6 +342,15 @@ void FluentWheelPickerColumn::paintEvent(QPaintEvent *event)
     }
 
     QListWidget::paintEvent(event);
+}
+
+void FluentWheelPickerColumn::resizeEvent(QResizeEvent *event)
+{
+    const QVariant value = currentValue();
+    QListWidget::resizeEvent(event);
+    if (value.isValid()) {
+        setCurrentValue(value);
+    }
 }
 
 void FluentWheelPickerColumn::wheelEvent(QWheelEvent *event)
@@ -576,6 +609,7 @@ void FluentWheelPickerColumn::scrollToRowCentered(int row, bool animated)
     }
 
     if (m_scrollAnim) {
+        FluentMotion::configure(m_scrollAnim, FluentMotionRole::WheelSnap);
         m_scrollAnim->stop();
         const int distance = qAbs(target - verticalScrollBar()->value());
         const int baseDuration = FluentMotion::duration(FluentMotionRole::WheelSnap);
@@ -621,6 +655,11 @@ FluentWheelPickerPopup::FluentWheelPickerPopup(QWidget *anchor)
     });
 
     connect(&ThemeManager::instance(), &ThemeManager::themeChanged, this, [this]() {
+        FluentMotion::configure(m_openAnim, FluentMotionRole::PopupOpen);
+        if (isVisible() && m_openAnim && m_openAnim->duration() <= 0) {
+            m_openAnim->stop();
+            finishPopupOpen(this, m_targetGeom);
+        }
         if (isVisible()) {
             m_border.onThemeChanged();
         } else {
@@ -702,6 +741,8 @@ void FluentWheelPickerPopup::popup()
 
     positionPopupBelowOrAbove();
 
+    FluentMotion::configure(m_openAnim, FluentMotionRole::PopupOpen);
+    m_openSlideOffsetY = -FluentMotion::popupSlideOffset();
     m_openAnim->stop();
     preparePopupOpen(this, m_targetGeom, m_openSlideOffsetY);
 
@@ -885,6 +926,7 @@ void FluentWheelPickerPopup::paintEvent(QPaintEvent *event)
     Q_UNUSED(event)
 
     const auto &colors = ThemeManager::instance().colors();
+    const auto &tokens = ThemeManager::instance().tokens();
     {
         QPainter clear(this);
         if (!clear.isActive()) {
@@ -906,7 +948,7 @@ void FluentWheelPickerPopup::paintEvent(QPaintEvent *event)
     painter.setClipPath(PopupSurface::shadowContentClipPath(rect()));
 
     const QRect columnsRect = columnAreaRect();
-    QColor divider = colors.border;
+    QColor divider = tokens.neutral.strokeSubtle;
     divider.setAlpha(96);
     painter.setPen(QPen(divider, 1));
 
@@ -932,7 +974,7 @@ void FluentWheelPickerPopup::paintEvent(QPaintEvent *event)
             return;
         }
 
-        QColor fill = Style::mix(colors.surface, colors.accent, pressed ? 0.18 : 0.10);
+        QColor fill = Style::mix(tokens.neutral.cardHover, tokens.accent.base, pressed ? 0.18 : 0.10);
         painter.setPen(Qt::NoPen);
         painter.setBrush(fill);
         painter.drawRect(actionRect.adjusted(1, 1, -1, 0));
@@ -1102,6 +1144,16 @@ void FluentWheelPickerPopup::relayoutColumns()
     const int totalWidth = std::accumulate(m_columnWidths.begin(), m_columnWidths.end(), 0) + qMax(0, columnCount() - 1);
     int x = columnsRect.left() + qMax(0, (columnsRect.width() - totalWidth) / 2);
 
+    QVector<QVariant> currentValues;
+    currentValues.reserve(columnCount());
+    for (int i = 0; i < columnCount(); ++i) {
+        if (FluentWheelPickerColumn *column = columnAt(i)) {
+            currentValues.push_back(column->currentValue());
+        } else {
+            currentValues.push_back(QVariant());
+        }
+    }
+
     for (int i = 0; i < columnCount(); ++i) {
         FluentWheelPickerColumn *column = columnAt(i);
         if (!column) {
@@ -1109,6 +1161,13 @@ void FluentWheelPickerPopup::relayoutColumns()
         }
         column->setGeometry(x, columnsRect.top(), m_columnWidths.at(i), columnsRect.height());
         x += m_columnWidths.at(i) + 1;
+    }
+
+    for (int i = 0; i < currentValues.size(); ++i) {
+        FluentWheelPickerColumn *column = columnAt(i);
+        if (column && currentValues.at(i).isValid()) {
+            column->setCurrentValue(currentValues.at(i));
+        }
     }
 }
 

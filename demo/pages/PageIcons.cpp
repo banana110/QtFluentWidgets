@@ -7,12 +7,14 @@
 #if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
 #include <QEnterEvent>
 #endif
+#include <QGridLayout>
 #include <QHBoxLayout>
 #include <QMouseEvent>
 #include <QPainter>
 #include <QPainterPath>
 #include <QVector>
 #include <QVBoxLayout>
+#include <utility>
 
 #include "Fluent/FluentCard.h"
 #include "Fluent/FluentFlowLayout.h"
@@ -33,6 +35,106 @@ struct IconSample {
     const char *enumName;
     QString title;
     QString description;
+};
+
+enum class IconTone {
+    Normal,
+    Accent,
+    OnAccent,
+    Disabled,
+};
+
+class IconStateCell final : public QWidget
+{
+public:
+    IconStateCell(FluentIconType type,
+                  IconTone tone,
+                  QString title,
+                  QString caption,
+                  QWidget *parent = nullptr)
+        : QWidget(parent)
+        , m_type(type)
+        , m_tone(tone)
+        , m_title(std::move(title))
+        , m_caption(std::move(caption))
+    {
+        setFixedSize(146, 100);
+    }
+
+protected:
+    void paintEvent(QPaintEvent *event) override
+    {
+        Q_UNUSED(event)
+
+        const auto &tokens = ThemeManager::instance().tokens();
+        const auto &colors = ThemeManager::instance().colors();
+
+        QPainter p(this);
+        p.setRenderHint(QPainter::Antialiasing, true);
+
+        const QRectF frame = rect().adjusted(0.5, 0.5, -0.5, -0.5);
+        QPainterPath panel;
+        panel.addRoundedRect(frame, tokens.radius.control, tokens.radius.control);
+
+        QColor fill = tokens.neutral.card;
+        QColor border = tokens.neutral.strokeSubtle;
+        if (m_tone == IconTone::Disabled) {
+            fill = tokens.neutral.fillTertiary;
+            border = tokens.neutral.stroke;
+        }
+
+        p.fillPath(panel, fill);
+        p.setPen(QPen(border, 1.0));
+        p.drawPath(panel);
+
+        FluentIconOptions options;
+        options.autoTheme = false;
+        options.color = colors.text;
+        QIcon::Mode mode = QIcon::Normal;
+
+        QRectF iconRect((width() - 30) / 2.0, 14, 30, 30);
+        if (m_tone == IconTone::Accent) {
+            options.color = colors.accent;
+        } else if (m_tone == IconTone::OnAccent) {
+            const QRectF chip((width() - 46) / 2.0, 10, 46, 38);
+            QPainterPath chipPath;
+            chipPath.addRoundedRect(chip, tokens.radius.control, tokens.radius.control);
+            p.fillPath(chipPath, tokens.accent.base);
+            p.setPen(QPen(Style::mix(tokens.accent.base, tokens.onAccent, 0.24), 1.0));
+            p.drawPath(chipPath);
+            options.color = tokens.onAccent;
+            iconRect = QRectF((width() - 26) / 2.0, 16, 26, 26);
+        } else if (m_tone == IconTone::Disabled) {
+            options.color = colors.disabledText;
+            options.opacity = 0.72;
+            mode = QIcon::Disabled;
+        }
+
+        FluentIcon::paintIcon(&p, m_type, iconRect, options, mode);
+
+        p.setPen(m_tone == IconTone::Disabled ? colors.disabledText : colors.text);
+        QFont titleFont = font();
+        titleFont.setPointSize(10);
+        titleFont.setWeight(QFont::DemiBold);
+        p.setFont(titleFont);
+        p.drawText(QRectF(8, 55, width() - 16, 18),
+                   Qt::AlignHCenter | Qt::AlignVCenter,
+                   m_title);
+
+        p.setPen(m_tone == IconTone::Disabled ? colors.disabledText : colors.subText);
+        QFont captionFont = font();
+        captionFont.setPointSize(8);
+        p.setFont(captionFont);
+        p.drawText(QRectF(8, 74, width() - 16, 16),
+                   Qt::AlignHCenter | Qt::AlignVCenter,
+                   m_caption);
+    }
+
+private:
+    FluentIconType m_type;
+    IconTone m_tone;
+    QString m_title;
+    QString m_caption;
 };
 
 class IconTile final : public QWidget
@@ -216,6 +318,75 @@ QWidget *createIconsPage()
         hint->setWordWrap(true);
         hint->setStyleSheet(QStringLiteral("font-size: 12px; opacity: 0.88;"));
         s.body->addWidget(hint);
+
+        {
+            const QString code = QStringLiteral(
+                "FluentIconOptions accent;\n"
+                "accent.autoTheme = false;\n"
+                "accent.color = ThemeManager::instance().colors().accent;\n"
+                "FluentIcon::paintIcon(&painter, FluentIconType::Save, rect, accent);\n"
+                "\n"
+                "FluentIconOptions onAccent;\n"
+                "onAccent.autoTheme = false;\n"
+                "onAccent.color = ThemeManager::instance().tokens().onAccent;\n"
+                "FluentIcon::paintIcon(&painter, FluentIconType::Checkmark, rect, onAccent);\n");
+
+            page->addWidget(Demo::makeCollapsedExample(
+                QStringLiteral("Icon State Matrix"),
+                DEMO_TEXT("normal / accent / onAccent / disabled 图标色横向对比",
+                          "Side-by-side normal / accent / onAccent / disabled icon colors"),
+                DEMO_TEXT("要点：\n"
+                          "-normal 使用主题文本色，accent 使用当前强调色\n"
+                          "-onAccent 用于 Primary 按钮、强调底色或状态底色上的图标\n"
+                          "-disabled 保持可见但明显降权，避免误读为可交互",
+                          "Highlights:\n"
+                          "-Normal uses the theme text color; accent uses the active accent color\n"
+                          "-onAccent is for icons placed on primary, accent, or semantic filled surfaces\n"
+                          "-Disabled stays visible while clearly reading as non-interactive"),
+                code,
+                [](QVBoxLayout *body) {
+                    auto *grid = new QGridLayout();
+                    grid->setContentsMargins(0, 0, 0, 0);
+                    grid->setHorizontalSpacing(12);
+                    grid->setVerticalSpacing(10);
+
+                    auto makeCaption = [](const QString &text, bool strong = false) {
+                        auto *label = new FluentLabel(text);
+                        label->setWordWrap(true);
+                        label->setStyleSheet(strong
+                                                 ? QStringLiteral("font-size: 12px; font-weight: 600; opacity: 0.9;")
+                                                 : QStringLiteral("font-size: 12px; opacity: 0.78;"));
+                        return label;
+                    };
+
+                    grid->addWidget(makeCaption(DEMO_TEXT("语义", "Semantic"), true), 0, 0);
+                    grid->addWidget(makeCaption(DEMO_TEXT("常用操作", "Common action"), true), 0, 1);
+                    grid->addWidget(makeCaption(DEMO_TEXT("状态提示", "Status"), true), 0, 2);
+                    grid->addWidget(makeCaption(DEMO_TEXT("导航/命令", "Navigation / command"), true), 0, 3);
+
+                    auto addRow = [&](int row,
+                                      const QString &name,
+                                      IconTone tone,
+                                      const QString &caption) {
+                        grid->addWidget(makeCaption(name), row, 0);
+                        grid->addWidget(new IconStateCell(FluentIconType::Save, tone, QStringLiteral("Save"), caption), row, 1);
+                        grid->addWidget(new IconStateCell(FluentIconType::Info, tone, QStringLiteral("Info"), caption), row, 2);
+                        grid->addWidget(new IconStateCell(FluentIconType::Settings, tone, QStringLiteral("Settings"), caption), row, 3);
+                    };
+
+                    addRow(1, QStringLiteral("Normal"), IconTone::Normal, QStringLiteral("text"));
+                    addRow(2, QStringLiteral("Accent"), IconTone::Accent, QStringLiteral("accent"));
+                    addRow(3, QStringLiteral("OnAccent"), IconTone::OnAccent, QStringLiteral("onAccent"));
+                    addRow(4, QStringLiteral("Disabled"), IconTone::Disabled, QStringLiteral("disabled"));
+
+                    grid->setColumnStretch(1, 1);
+                    grid->setColumnStretch(2, 1);
+                    grid->setColumnStretch(3, 1);
+                    body->addLayout(grid);
+                },
+                false,
+                300));
+        }
 
         auto *paletteCard = new FluentCard();
         auto *paletteLayout = new QVBoxLayout(paletteCard);

@@ -3,7 +3,9 @@
 #include "Fluent/FluentMotion.h"
 #include "Fluent/FluentStyle.h"
 #include "Fluent/FluentTheme.h"
+#include "FluentInputVisuals_p.h"
 
+#include <QAbstractAnimation>
 #include <QEvent>
 #include <QEasingCurve>
 #include <QFocusEvent>
@@ -115,9 +117,10 @@ void FluentKeySequenceEdit::paintEvent(QPaintEvent *event)
         QRectF(this->rect()),
         colors,
         m_hoverLevel,
-        m_focusLevel,
+        0.0,
         isEnabled(),
         false);
+    InputVisuals::paintFocusRing(painter, QRectF(this->rect()).adjusted(0.5, 0.5, -0.5, -0.5), colors, isEnabled() ? m_focusLevel : 0.0);
 
     QKeySequenceEdit::paintEvent(event);
 }
@@ -196,14 +199,28 @@ void FluentKeySequenceEdit::ensureEditor()
 
 void FluentKeySequenceEdit::applyTheme()
 {
+    const bool hoverRunning = m_hoverAnim && m_hoverAnim->state() == QAbstractAnimation::Running;
+    const bool focusRunning = m_focusAnim && m_focusAnim->state() == QAbstractAnimation::Running;
+    const QVariant hoverEnd = m_hoverAnim ? m_hoverAnim->endValue() : QVariant();
+    const QVariant focusEnd = m_focusAnim ? m_focusAnim->endValue() : QVariant();
+
     FluentMotion::configure(m_hoverAnim, FluentMotionRole::Hover);
     FluentMotion::configure(m_focusAnim, FluentMotionRole::Focus);
+    if (hoverRunning && m_hoverAnim->duration() <= 0) {
+        m_hoverAnim->stop();
+        m_hoverLevel = qBound<qreal>(0.0, hoverEnd.toReal(), 1.0);
+    }
+    if (focusRunning && m_focusAnim->duration() <= 0) {
+        m_focusAnim->stop();
+        m_focusLevel = qBound<qreal>(0.0, focusEnd.toReal(), 1.0);
+    }
 
     ensureEditor();
 
     const auto &colors = ThemeManager::instance().colors();
+    const auto &tokens = ThemeManager::instance().tokens();
     const bool dark = ThemeManager::instance().themeMode() == ThemeManager::ThemeMode::Dark;
-    QColor selectionBg = colors.accent;
+    QColor selectionBg = tokens.accent.base;
     selectionBg.setAlphaF(dark ? 0.35 : 0.22);
 
     const QString hostStyle = QStringLiteral(
@@ -236,9 +253,11 @@ void FluentKeySequenceEdit::applyTheme()
         }
 
         QPalette palette = m_editor->palette();
+        // QSS owns text color; QPalette::Text is left for the native caret color.
         palette.setColor(QPalette::WindowText, textColor);
         palette.setColor(QPalette::Disabled, QPalette::WindowText, colors.disabledText);
-        palette.setColor(QPalette::Text, textColor);
+        palette.setColor(QPalette::Text, isEnabled() ? tokens.accent.base : colors.disabledText);
+        palette.setColor(QPalette::Disabled, QPalette::Text, colors.disabledText);
         palette.setColor(QPalette::Highlight, selectionBg);
         palette.setColor(QPalette::HighlightedText, colors.text);
 #if QT_VERSION >= QT_VERSION_CHECK(5, 12, 0)
@@ -255,7 +274,14 @@ void FluentKeySequenceEdit::applyTheme()
 
 void FluentKeySequenceEdit::startHoverAnimation(qreal endValue)
 {
+    FluentMotion::configure(m_hoverAnim, FluentMotionRole::Hover);
     m_hoverAnim->stop();
+    endValue = qBound<qreal>(0.0, endValue, 1.0);
+    if (m_hoverAnim->duration() <= 0) {
+        m_hoverLevel = endValue;
+        update();
+        return;
+    }
     m_hoverAnim->setStartValue(m_hoverLevel);
     m_hoverAnim->setEndValue(endValue);
     m_hoverAnim->start();
@@ -263,7 +289,14 @@ void FluentKeySequenceEdit::startHoverAnimation(qreal endValue)
 
 void FluentKeySequenceEdit::startFocusAnimation(qreal endValue)
 {
+    FluentMotion::configure(m_focusAnim, FluentMotionRole::Focus);
     m_focusAnim->stop();
+    endValue = qBound<qreal>(0.0, endValue, 1.0);
+    if (m_focusAnim->duration() <= 0) {
+        m_focusLevel = endValue;
+        update();
+        return;
+    }
     m_focusAnim->setStartValue(m_focusLevel);
     m_focusAnim->setEndValue(endValue);
     m_focusAnim->start();

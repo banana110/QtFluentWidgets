@@ -48,20 +48,21 @@ Selection transition (Current Index):
 `FluentListView` paints an animated "current item" background in `paintEvent()` before calling the base paint, keeping text/icons crisp.
 
 - Trigger: `selectionModel()->currentChanged(current, previous)`.
-- Animation: `QVariantAnimation` (~180ms, `InOutCubic`) interpolates the background rect and opacity.
+- Animation: `QVariantAnimation` uses `FluentMotionRole::Selection` to interpolate the background rect and opacity. Disabling global animations or setting the Selection duration to 0 snaps directly to the target state.
 - Accent hint: a light accent fill (alpha ~40) plus a left accent indicator bar (~3px width, ~16px height).
 - Multi-selection / non-current selected items: painted by the delegate using a lighter selection color (but avoids the current row to prevent double painting).
+- Disabled views keep the selected/current row position visible with a neutral disabled selection fill, but do not draw the accent indicator; labels continue to use `disabledText`.
 
 Theme coupling:
 
 - On `ThemeManager::themeChanged` and Enabled changes, it refreshes `styleSheet` via `Theme::listViewStyle(colors)`.
-- Focus, disabled background/text/border, and the normal border are derived from Theme tokens, so dark mode no longer falls back to native Qt light colors.
+- Focus, disabled background/text/border, and the normal border are derived from Theme tokens; the fallback stylesheet also resolves through `neutral.card` / `strokeSubtle` / `accent.base`, so dark mode no longer falls back to native Qt light colors.
 
 Key APIs:
 
 - `hoverIndex()`
 - `hoverLevel()`
-- Overridden `setModel()` hooks the selection model for animations.
+- Overridden `setModel()` / `setSelectionModel()` hooks the current selection model for animations, so replacing the `QItemSelectionModel` still preserves the current-row transition.
 
 Demo: DataViews / Overview.
 
@@ -91,25 +92,26 @@ Header separator painting:
 
 The custom header draws separators in `viewportEvent(Paint)`:
 
-- Color: derived from `colors.border` with an alpha tint.
+- Color: derived from `ThemeManager::tokens().neutral.strokeSubtle`, matching the view palette's `Mid` role.
 - Insets: leaves a small top/bottom inset (doesn't draw to the very edges).
 - Safety: skips drawing when the window isn't exposed yet (`isExposed()` guard) to avoid early paint-engine warnings on some platforms.
 
 Hover & selection transition:
 
 - Hover uses `hoverIndex()` + `hoverLevel()`, configured with `FluentMotionRole::Hover`, and jumps directly to the final state when animations are disabled.
-- Selection transition listens to `selectionModel()->currentChanged` and animates a background rect over ~180ms.
+- Selection transition listens to `selectionModel()->currentChanged` and animates the background rect and opacity using `FluentMotionRole::Selection`; disabling global animations or setting the Selection duration to 0 snaps directly to the target state.
 - Under `SelectRows`, the animation target rect is computed by union-ing `visualRect()` across visible columns for the row, then applying a small inset (`adjusted(2,1,-2,-1)`).
+- Disabled views do not keep the enabled accent fill or left indicator for selected/current rows; they use a neutral disabled selection fill instead. `FluentTableWidget` shares the same semantics.
 
 Theme coupling:
 
 - Refreshes `styleSheet` via `Theme::tableViewStyle(colors)` on theme/enabled changes.
-- Focus, disabled state, header background, and separator colors all come from the same neutral/accent tokens, avoiding native light remnants in dark mode.
+- Focus, disabled state, view palette roles, fallback stylesheet, header background, and separator colors all come from the same neutral/accent tokens, avoiding native light remnants in dark mode.
 
 Key APIs:
 
 - `hoverIndex()` / `hoverLevel()`
-- Overridden `setModel()` hooks the selection model for animations.
+- Overridden `setModel()` / `setSelectionModel()` hooks the selection model for animations.
 
 Demo: DataViews / Overview.
 
@@ -142,13 +144,14 @@ Purpose: item-based table (`QTableWidget` style) sharing all visuals/interaction
 
 ### Defaults
 
-- Reuses the same `FluentHeaderView` + `FluentTableItemDelegate` as `FluentTableView`: identical row hover/selection rendering, column separators, Fluent scroll bars, and 180 ms selection transition.
+- Reuses the same `FluentHeaderView` + `FluentTableItemDelegate` as `FluentTableView`: identical row hover/selection rendering, column separators, Fluent scroll bars, and `FluentMotionRole::Selection` transition semantics.
 - Two constructors: `FluentTableWidget(QWidget*)` and `FluentTableWidget(int rows, int cols, QWidget*)`.
 
 Key APIs:
 
 - Inherits `QTableWidget`: `setItem()` / `item()` / `setCellWidget()` / `cellWidget()` / `setHorizontalHeaderLabels()` / etc.
 - `hoverIndex()` / `hoverLevel()`.
+- Overridden `setSelectionModel()` keeps the selection transition connected after external selection-model replacement.
 
 Demo: DataViews (the "FluentTableWidget" section).
 
@@ -184,7 +187,7 @@ Overrides `drawBranches()` and paints a chevron for items that have children and
 Hover & selection transition:
 
 - Hover uses `hoverIndex()` + `hoverLevel()`, configured with `FluentMotionRole::Hover`, and jumps directly to the final state when animations are disabled. Under `SelectRows`, it treats "same row + same parent" as a line.
-- Selection transition matches `FluentTableView` (row rect union across visible columns).
+- Selection transition matches `FluentTableView` (row rect union across visible columns); disabled selected/current rows use the neutral disabled selection fill and omit the accent indicator.
 
 Theme coupling:
 
@@ -193,7 +196,7 @@ Theme coupling:
 Key APIs:
 
 - `hoverIndex()` / `hoverLevel()`
-- Overridden `setModel()` hooks the selection model for animations.
+- Overridden `setModel()` / `setSelectionModel()` hooks the selection model for animations.
 - Overridden `drawBranches()` for Fluent branch visuals.
 
 Demo: DataViews / Overview.

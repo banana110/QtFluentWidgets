@@ -99,7 +99,8 @@ ed->setAutoFormatTriggerPolicy(P::OnEnterOrFocusOut);
 
 ### Fluent 边框/焦点环的绘制方式
 
-`FluentCodeEditor` 会把 `QPlainTextEdit` 的 viewport 保持为透明，并在自身 `paintEvent()` 中绘制 Fluent 的 surface（随 hover 轻微混合 `colors.hover`）。
+`FluentCodeEditor` 会把 `QPlainTextEdit` 的 viewport 保持为透明，并在自身 `paintEvent()` 中绘制 Fluent 的 surface。
+surface、gutter tint、gutter divider、边框、当前行高亮与括号匹配标记都从 `FluentThemeTokens` 派生（`neutral.card`、`neutral.cardHover`、`neutral.strokeSubtle` 以及 accent/semantic ramp），深色模式和自定义 accent 下不会回退到旧的 hover/border 颜色。
 
 边框与焦点环则由一个独立的 overlay widget 绘制，以避免被 `QPlainTextEdit` 内部绘制覆盖。
 
@@ -107,11 +108,13 @@ ed->setAutoFormatTriggerPolicy(P::OnEnterOrFocusOut);
 
 - 鼠标进入/离开 viewport 会触发 hover level 动画。
 - `focusInEvent/focusOutEvent` 会触发 focus level 动画，并更新高亮 selections。
+- `hoverLevel` / `focusLevel`（Q_PROPERTY）可用于测试或外部状态观测。
+- hover/focus 使用 `FluentMotionRole::Hover` / `Focus`；关闭全局动画后会直接落到最终状态。
 
 ### 行号区（gutter）细节
 
 - 行号区宽度会随 `blockCount()` 的位数变化（按 `'9'` 的字宽估算），并通过 `setViewportMargins(...)` 把文本区域整体向右让出 gutter。
-- gutter 会绘制轻微底色（surface 与 hover 的混合），并额外绘制一条细分隔线。
+- gutter 会绘制 neutral-token 底色，并额外绘制一条 `neutral.strokeSubtle` 细分隔线。
 - 当存在选区时，gutter 会对“覆盖到的行范围”做背景高亮；若选区结束正好落在某个 block 的起始位置，会避免把下一行误算进选区范围。
 
 ### 括号匹配高亮
@@ -119,7 +122,7 @@ ed->setAutoFormatTriggerPolicy(P::OnEnterOrFocusOut);
 - 仅支持三类括号：`()`, `{}`, `[]`。
 - 匹配算法是纯字符扫描（按深度计数），不做词法分析：不会识别字符串/注释语境。
 	- 这意味着在包含括号字符的字符串/注释附近，匹配结果可能与“真实语义”不一致。
-- 若找不到匹配括号，会用 `colors.error` 标出当前位置括号。
+- 若找不到匹配括号，会用 semantic error token 标出当前位置括号。
 
 ## 高亮器
 

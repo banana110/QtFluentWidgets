@@ -390,20 +390,21 @@ void FluentAnnotatedScrollBar::paintEvent(QPaintEvent *event)
     }
     painter.setRenderHint(QPainter::Antialiasing, true);
 
-    const auto &colors = ThemeManager::instance().colors();
+    const auto &tokens = ThemeManager::instance().tokens();
+    const auto &colors = tokens.legacyColors;
     const QRectF rail = railRect();
     const QRectF labelBounds = labelBoundsRect();
     const QVector<QRectF> labelRects = layoutLabelRects();
 
-    QColor railColor = colors.border;
-    railColor.setAlpha(110);
+    QColor railColor = tokens.neutral.strokeSubtle;
+    railColor.setAlpha(tokens.dark ? 118 : 104);
     painter.setPen(Qt::NoPen);
     painter.setBrush(railColor);
     painter.drawRoundedRect(rail, rail.width() / 2.0, rail.width() / 2.0);
 
     if (m_scrollBar && m_scrollBar->maximum() > m_scrollBar->minimum()) {
-        QColor handleColor = colors.accent;
-        handleColor.setAlpha(m_draggingHandle ? 235 : (m_hoverHandle ? 225 : 210));
+        QColor handleColor = m_draggingHandle ? tokens.accent.light1 : tokens.accent.base;
+        handleColor.setAlpha(m_draggingHandle ? 238 : (m_hoverHandle ? 226 : 210));
         painter.setBrush(handleColor);
         painter.drawRoundedRect(handleRect(), rail.width() / 2.0, rail.width() / 2.0);
     }
@@ -417,8 +418,8 @@ void FluentAnnotatedScrollBar::paintEvent(QPaintEvent *event)
         const bool active = (i == m_currentRange);
         const bool hovered = (i == m_hoverRange);
 
-        QColor connector = active ? colors.accent : colors.border;
-        connector.setAlpha(active ? 190 : 80);
+        QColor connector = active ? tokens.accent.base : tokens.neutral.strokeSubtle;
+        connector.setAlpha(active ? 196 : (tokens.dark ? 104 : 82));
         painter.setPen(QPen(connector, active ? 1.6 : 1.0, Qt::SolidLine, Qt::RoundCap));
         painter.drawLine(QPointF(rail.right() + 4.0, rect.center().y()), QPointF(rect.left() - 6.0, rect.center().y()));
 
@@ -429,10 +430,10 @@ void FluentAnnotatedScrollBar::paintEvent(QPaintEvent *event)
 
         QColor fill = Qt::transparent;
         if (active) {
-            fill = colors.accent;
+            fill = tokens.accent.base;
         } else if (hovered) {
-            fill = colors.hover;
-            fill.setAlpha(140);
+            fill = tokens.neutral.cardHover;
+            fill.setAlpha(tokens.dark ? 154 : 136);
         }
 
         if (fill.alpha() > 0) {
@@ -440,7 +441,7 @@ void FluentAnnotatedScrollBar::paintEvent(QPaintEvent *event)
             painter.drawRoundedRect(rect, 8.0, 8.0);
         }
 
-        QColor textColor = active ? Theme::contrastColor(colors.accent) : colors.subText;
+        QColor textColor = active ? tokens.onAccent : colors.subText;
         if (hovered && !active) {
             textColor = colors.text;
         }
@@ -669,6 +670,14 @@ int FluentAnnotatedScrollBar::rangeIndexForViewport(int topValue, int bottomValu
     if (m_ranges.isEmpty()) {
         return -1;
     }
+    if (m_scrollBar) {
+        if (topValue <= m_scrollBar->minimum()) {
+            return 0;
+        }
+        if (topValue >= m_scrollBar->maximum()) {
+            return m_ranges.size() - 1;
+        }
+    }
 
     int bestIndex = -1;
     int bestOverlap = -1;
@@ -780,6 +789,14 @@ int FluentAnnotatedScrollBar::sourceIndexForViewport(int topValue, int bottomVal
 {
     if (!m_usingSources || m_sources.isEmpty()) {
         return -1;
+    }
+    if (m_scrollBar) {
+        if (topValue <= m_scrollBar->minimum()) {
+            return 0;
+        }
+        if (topValue >= m_scrollBar->maximum()) {
+            return m_sources.size() - 1;
+        }
     }
 
     int bestIndex = -1;

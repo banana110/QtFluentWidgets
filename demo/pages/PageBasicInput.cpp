@@ -2,7 +2,9 @@
 
 #include "../DemoHelpers.h"
 
+#include <QGridLayout>
 #include <QHBoxLayout>
+#include <QSizePolicy>
 #include <QVBoxLayout>
 
 #include "Fluent/FluentAnimatedButton.h"
@@ -29,16 +31,9 @@ QWidget *createBasicInputPage(FluentMainWindow *window, const std::function<void
     return Demo::makePage([&](QVBoxLayout *page) {
         auto hero = Demo::makeSection(
             DEMO_TEXT("基本输入", "Basic Input"),
-            DEMO_TEXT("NavigationView 父节点整合页。点击父节点进入这里，点击右侧箭头展开并查看子页。",
-                      "NavigationView parent hub page. Click the parent item to enter here, or use the chevron to expand and inspect child pages."));
+            DEMO_TEXT("常用输入与命令控件的低密度总览。",
+                      "Low-density overview of common input and command controls."));
         page->addWidget(hero.card);
-
-        auto *summary = new FluentLabel(DEMO_TEXT(
-            "这个分组把最常用的输入与交互控件放在一起：文本输入、数值输入、组合选择，以及按钮、工具按钮、复选、单选和开关。",
-            "This group brings together the most common input and interaction controls: text entry, numeric input, combo selection, plus buttons, tool buttons, check boxes, radio buttons, and toggles."));
-        summary->setWordWrap(true);
-        summary->setStyleSheet("font-size: 12px; opacity: 0.88;");
-        hero.body->addWidget(summary);
 
         auto *jumpRow = new QHBoxLayout();
         jumpRow->setContentsMargins(0, 0, 0, 0);
@@ -53,6 +48,114 @@ QWidget *createBasicInputPage(FluentMainWindow *window, const std::function<void
         jumpRow->addWidget(buttonsBtn);
         jumpRow->addStretch(1);
         hero.body->addLayout(jumpRow);
+
+        auto addStateCard = [&](const QString &title,
+                                const QString &code,
+                                const std::function<void(QVBoxLayout *)> &buildDemo) {
+            page->addWidget(Demo::makeCollapsedExample(title, QString(), QString(), code, buildDemo, false, 120));
+        };
+
+        addStateCard(DEMO_TEXT("文本输入状态", "Text input states"),
+                     QStringLiteral("auto *edit = new FluentLineEdit();\nedit->setPlaceholderText(QStringLiteral(\"Search or type\"));\n"),
+                     [](QVBoxLayout *body) {
+                         auto *row = new QHBoxLayout();
+                         row->setContentsMargins(0, 0, 0, 0);
+                         row->setSpacing(12);
+
+                         auto *ready = new FluentLineEdit();
+                         ready->setPlaceholderText(DEMO_TEXT("搜索或输入", "Search or type"));
+                         auto *filled = new FluentLineEdit();
+                         filled->setText(QStringLiteral("QtFluent"));
+                         auto *disabled = new FluentLineEdit();
+                         disabled->setPlaceholderText(DEMO_TEXT("禁用态", "Disabled"));
+                         disabled->setDisabled(true);
+
+                         row->addWidget(ready, 1);
+                         row->addWidget(filled, 1);
+                         row->addWidget(disabled, 1);
+                         body->addLayout(row);
+                     });
+
+        addStateCard(DEMO_TEXT("数值与组合", "Numeric and combo"),
+                     QStringLiteral("auto *combo = new FluentComboBox();\nauto *spin = new FluentSpinBox();\n"),
+                     [](QVBoxLayout *body) {
+                         auto *row = new QHBoxLayout();
+                         row->setContentsMargins(0, 0, 0, 0);
+                         row->setSpacing(12);
+
+                         auto makeCombo = [](int index, bool enabled) {
+                             auto *combo = new FluentComboBox();
+                             combo->addItems({DEMO_TEXT("选项 A", "Option A"),
+                                              DEMO_TEXT("选项 B", "Option B"),
+                                              DEMO_TEXT("选项 C", "Option C")});
+                             combo->setCurrentIndex(index);
+                             combo->setMinimumWidth(150);
+                             combo->setEnabled(enabled);
+                             return combo;
+                         };
+
+                         auto *spin = new FluentSpinBox();
+                         spin->setRange(0, 100);
+                         spin->setValue(24);
+                         auto *slider = new FluentSlider(Qt::Horizontal);
+                         slider->setRange(0, 100);
+                         slider->setValue(62);
+                         slider->setMinimumWidth(180);
+
+                         row->addWidget(makeCombo(0, true));
+                         row->addWidget(spin);
+                         row->addWidget(makeCombo(1, true));
+                         row->addWidget(slider, 1);
+                         row->addWidget(makeCombo(2, false));
+                         body->addLayout(row);
+                     });
+
+        addStateCard(DEMO_TEXT("命令按钮", "Command buttons"),
+                     QStringLiteral("auto *primary = new FluentButton(QStringLiteral(\"Primary\"));\nprimary->setPrimary(true);\n"),
+                     [](QVBoxLayout *body) {
+                         auto *row = new QHBoxLayout();
+                         row->setContentsMargins(0, 0, 0, 0);
+                         row->setSpacing(12);
+
+                         auto *secondary = new FluentButton(QStringLiteral("Secondary"));
+                         auto *primary = new FluentButton(QStringLiteral("Primary"));
+                         primary->setPrimary(true);
+                         auto *tool = new FluentToolButton(QStringLiteral("Tool"));
+                         auto *disabled = new FluentButton(QStringLiteral("Disabled"));
+                         disabled->setDisabled(true);
+
+                         row->addWidget(secondary);
+                         row->addWidget(primary);
+                         row->addWidget(tool);
+                         row->addWidget(disabled);
+                         row->addStretch(1);
+                         body->addLayout(row);
+                     });
+
+        addStateCard(DEMO_TEXT("选择控件", "Selection controls"),
+                     QStringLiteral("auto *toggle = new FluentToggleSwitch(QStringLiteral(\"Toggle\"));\ntoggle->setChecked(true);\n"),
+                     [](QVBoxLayout *body) {
+                         auto *row = new QHBoxLayout();
+                         row->setContentsMargins(0, 0, 0, 0);
+                         row->setSpacing(16);
+
+                         auto *toggle = new FluentToggleSwitch(DEMO_TEXT("开关", "Toggle"));
+                         toggle->setChecked(true);
+                         auto *check = new FluentCheckBox(DEMO_TEXT("复选", "Check"));
+                         check->setChecked(true);
+                         auto *radio = new FluentRadioButton(DEMO_TEXT("单选", "Radio"));
+                         radio->setChecked(true);
+                         auto *disabled = new FluentToggleSwitch(DEMO_TEXT("禁用", "Disabled"));
+                         disabled->setChecked(true);
+                         disabled->setDisabled(true);
+
+                         row->addWidget(toggle);
+                         row->addWidget(check);
+                         row->addWidget(radio);
+                         row->addWidget(disabled);
+                         row->addStretch(1);
+                         body->addLayout(row);
+                     });
 
         page->addWidget(Demo::makeCollapsedExample(
             DEMO_TEXT("输入控件概览", "Input overview"),

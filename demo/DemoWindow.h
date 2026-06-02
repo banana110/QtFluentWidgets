@@ -17,9 +17,9 @@ public:
     explicit DemoWindow(QWidget *parent = nullptr,
                         const QString &selectedNavigationKey = QStringLiteral("overview"),
                         Fluent::FluentToast::Position toastPosition = Fluent::FluentToast::Position::BottomRight);
+    void switchLanguage(DemoLanguage language);
 
 private:
-    void switchLanguage(DemoLanguage language);
     void performQueuedLanguageSwitch(DemoLanguage language);
     void clearUi();
     void buildUi();

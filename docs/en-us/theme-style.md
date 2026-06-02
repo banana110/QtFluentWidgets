@@ -13,7 +13,7 @@ Public headers:
 - `Fluent/FluentStyle.h`
 - `Fluent/FluentMotion.h`
 
-Demo pages: Overview (`demo/pages/PageOverview.cpp`) and Windows (`demo/pages/PageWindows.cpp`).
+Demo pages: Overview (`demo/pages/PageOverview.cpp`), Motion (`demo/pages/PageMotion.cpp`), and Windows (`demo/pages/PageWindows.cpp`). The Motion page starts with a Motion Role Matrix for configured/effective duration and reduced-motion checks across semantic roles.
 
 ## Toggle theme
 
@@ -71,6 +71,12 @@ colors.accent = QColor("#2D7DFF");
 ThemeManager::instance().setColors(colors);
 ```
 
+## Token ramps and Surface / Elevation
+
+`FluentFramePainter.h` exposes `FluentSurfaceSpec` and `paintFluentSurface()` for mapping Background / Pane / Card / Raised / Popup / Modal levels to consistent fills, strokes, and lightweight elevation shadows.
+
+The Demo Theme panel includes Token ramps and Surface / Elevation previews. Changing Background, Surface, Accent, or light/dark mode immediately shows the accent ramp, neutral ramp, radius tokens, and how each surface/elevation level separates.
+
 ## Paint a Fluent-like input surface
 
 ```cpp
@@ -84,6 +90,7 @@ Style::paintControlSurface(p, QRectF(rect()), ThemeManager::instance().colors(),
 More related APIs:
 
 - `Style::metrics()`
+- `Style::paintControlSurface()` paints its focus stroke from the current `accent.base` token; a legacy `ThemeColors::focus` override does not bypass the token ramp.
 - `Style::windowMetrics()` / `Style::setWindowMetrics(...)`
 - `Style::roundedRectPath(...)`, `Style::paintTraceBorder(...)`, `Style::paintElevationShadow(...)`
 
@@ -134,8 +141,8 @@ Configuration notes:
 Reduced motion:
 
 - `ThemeManager::setAnimationsEnabled(false)` makes `FluentMotion::duration(...)` return 0.
-- Migrated widgets complete their next state change immediately; for example, Button/ToolButton/LineEdit/ComboBox hover and focus feedback jumps to the final state, popups jump to their final geometry, and Toggle/Check/Radio/Slider/Progress controls jump to the target state.
-- Container, navigation, and popup widgets follow the same switch: NavigationView pane/selection, TabWidget indicators, DataViews hover, ScrollBar reveal/hover, DateRangePicker hover, TeachingTip mask, Toast opacity, and the demo Page transition complete immediately or render as static states.
+- Migrated widgets complete their next state change immediately; for example, Button/ToolButton/input-family/ComboBox hover and focus feedback jump to the final state, popups jump to their final geometry, and Toggle/Check/Radio/Slider/Progress controls jump to the target state.
+- Container, navigation, popup, and Lottie widgets follow the same switch: NavigationView pane/selection, TabWidget indicators, DataViews hover, ScrollBar reveal/hover, picker hover/focus, TeachingTip mask, Toast opacity and queue movement, Lottie segment/state transitions, and the demo Page transition complete immediately or render as static states.
 - For an indeterminate `FluentProgressRing`, disabling global animations pauses rotation and leaves a static arc.
 
 ## Theme::baseStyleSheet (global QSS)
@@ -144,13 +151,16 @@ Reduced motion:
 
 - Default font family and size
 - Window background (`QWidget:window, QMainWindow, QDialog`)
-- Win11-like overlay scrollbars (handle becomes visible on `QAbstractScrollArea:hover`)
-- `QToolTip` styling
+- Win11-like overlay scrollbars (handle becomes visible on `QAbstractScrollArea:hover`), with handle colors derived from `neutral.strokeStrong` and text tokens instead of fixed gray `rgba(...)`
+- `QToolTip` styling, with surface and border derived from light mixes of `neutral.layer` / `neutral.strokeSubtle` and `accent.base`
 - `QLabel#FluentLink` link color
 
 Additional notes:
 
 - `Theme::baseStyleSheet(...)` provides the global baseline look, but it does **not** directly paint the outer `FluentMainWindow` border; the main window accent border and trace animation are custom-painted.
+- `FluentMainWindow` also syncs the `QApplication` palette from the same neutral/accent tokens (Base, AlternateBase, ToolTipBase, Mid, Highlight, etc.), so native/fallback paths do not fall back to raw legacy `surface/border/accent` values.
+- `FluentMainWindow` tracks the actual derived token colors in its application-level QSS / palette cache signatures; even `border` / `pressed` / `error`-only changes refresh tooltip, scrollbar, and native palette roles to the new `strokeSubtle` / `fillTertiary` / semantic tokens.
+- Control-level `Theme::*Style(...)` fallback QSS follows the same tokens: disabled surfaces resolve toward `neutral.background`, pressed states use `neutral.fillTertiary`, CheckBox fallback checkmarks use bundled SVGs selected from `onAccent`, RadioButton fallback checked state uses a tokenized radial gradient for the accent dot and neutral circle fill, the ProgressBar disabled chunk uses a muted `accent.base`, and dark slider/dialog lifts use the current text token instead of directly mixing legacy `hover` / `pressed` colors, platform-native images, or fixed white.
 - `FluentMainWindow` compares the next stylesheet string before reapplying it, which avoids unnecessary full-application repolish on redundant theme changes.
 
 Related headers (used by windows/menus/dialogs for accent borders):

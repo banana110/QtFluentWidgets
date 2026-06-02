@@ -36,6 +36,7 @@ private:
     void applyTheme();
     void applyContentMargins();
     void applyContentMarginToPage(int index);
+    void syncFrameOverlay();
     void scheduleDocumentCornerWidgetPosition();
     void positionDocumentCornerWidget();
 

@@ -8,9 +8,14 @@
 #include <QHBoxLayout>
 #include <QItemSelectionModel>
 #include <QPointer>
+#include <QResizeEvent>
+#include <QScrollBar>
 #include <QStringListModel>
+#include <QTimer>
 #include <QVBoxLayout>
+#include <algorithm>
 
+#include "Fluent/FluentAnnotatedScrollBar.h"
 #include "Fluent/FluentCard.h"
 #include "Fluent/FluentLabel.h"
 #include "Fluent/FluentListView.h"
@@ -40,7 +45,10 @@ DemoSidebar::DemoSidebar(QWidget *hostWindow, QWidget *parent, bool showNavigati
     sidebarContent->setMinimumWidth(0);
 
     auto *sideLayout = new QVBoxLayout(sidebarContent);
-    sideLayout->setContentsMargins(showNavigation ? 0 : 24, showNavigation ? 0 : 24, showNavigation ? 0 : 24, showNavigation ? 0 : 24);
+    sideLayout->setContentsMargins(showNavigation ? 0 : 24,
+                                   showNavigation ? 0 : 24,
+                                   showNavigation ? 0 : 136,
+                                   showNavigation ? 0 : 24);
     sideLayout->setSpacing(showNavigation ? 12 : 18);
 
     QWidget *headerCard = nullptr;
@@ -63,7 +71,7 @@ DemoSidebar::DemoSidebar(QWidget *hostWindow, QWidget *parent, bool showNavigati
         headerCard = Demo::makeSidebarCard(header);
     }
 
-    auto *themePanel = new DemoThemePanel(m_hostWindow, sidebarContent, false);
+    auto *themePanel = new DemoThemePanel(m_hostWindow, sidebarContent, false, !showNavigation);
     m_toastPosition = themePanel->toastPosition();
     QObject::connect(themePanel,
                      &DemoThemePanel::toastPositionChanged,
@@ -105,7 +113,16 @@ DemoSidebar::DemoSidebar(QWidget *hostWindow, QWidget *parent, bool showNavigati
         codeEditorSection = codeEditorCard;
     } else {
         themeSection = themePanel;
-        codeEditorSection = new DemoCodeEditorPanel(sidebarContent, true);
+        auto *codeEditorCard = new FluentCard();
+        codeEditorCard->setProperty("_demoSectionTitle", QStringLiteral("CodeEditor"));
+        auto *codeLayout = new QVBoxLayout(codeEditorCard);
+        codeLayout->setContentsMargins(16, 16, 16, 16);
+        codeLayout->setSpacing(10);
+        auto *codeTitle = new FluentLabel(QStringLiteral("CodeEditor"));
+        codeTitle->setStyleSheet("font-size: 14px; font-weight: 700;");
+        codeLayout->addWidget(codeTitle);
+        codeLayout->addWidget(new DemoCodeEditorPanel(codeEditorCard, true));
+        codeEditorSection = codeEditorCard;
     }
 
     QWidget *navCard = nullptr;
@@ -158,6 +175,23 @@ DemoSidebar::DemoSidebar(QWidget *hostWindow, QWidget *parent, bool showNavigati
     }
     if (!showNavigation) {
         sideLayout->addStretch(1);
+
+        m_annotatedScrollBar = new FluentAnnotatedScrollBar(this);
+        m_annotatedScrollBar->setObjectName(QStringLiteral("DemoSettingsAnnotatedScrollBar"));
+        m_annotatedScrollBar->setFixedWidth(116);
+        m_annotatedScrollBar->setToolTipDuration(1100);
+        m_annotatedScrollBar->setScrollArea(this);
+        m_annotatedScrollBar->setVisible(true);
+        m_annotatedScrollBar->raise();
+
+        QObject::connect(verticalScrollBar(), &QScrollBar::rangeChanged, this, [this](int, int) {
+            for (int delay : {0, 16, 48}) {
+                QTimer::singleShot(delay, this, &DemoSidebar::refreshAnnotatedSources);
+            }
+        });
+        for (int delay : {0, 16, 48}) {
+            QTimer::singleShot(delay, this, &DemoSidebar::refreshAnnotatedSources);
+        }
     }
 
     if (m_navView && m_navView->selectionModel()) {
@@ -192,6 +226,69 @@ int DemoSidebar::currentPage() const
     }
     const QModelIndex idx = m_navView->currentIndex();
     return idx.isValid() ? idx.row() : -1;
+}
+
+void DemoSidebar::resizeEvent(QResizeEvent *event)
+{
+    FluentScrollArea::resizeEvent(event);
+
+    if (m_annotatedScrollBar) {
+        const int w = m_annotatedScrollBar->sizeHint().width();
+        m_annotatedScrollBar->setGeometry(width() - w - 10, 12, w, qMax(0, height() - 24));
+        m_annotatedScrollBar->raise();
+        for (int delay : {0, 16, 48}) {
+            QTimer::singleShot(delay, this, &DemoSidebar::refreshAnnotatedSources);
+        }
+    }
+}
+
+void DemoSidebar::refreshAnnotatedSources()
+{
+    if (!m_annotatedScrollBar || !widget()) {
+        return;
+    }
+
+    QVector<FluentAnnotatedScrollBarSource> sources;
+    int fallbackTop = 0;
+    const auto cards = widget()->findChildren<FluentCard *>();
+    for (FluentCard *card : cards) {
+        if (!card || card->isHidden()) {
+            continue;
+        }
+
+        const QString title = card->property("_demoSectionTitle").toString().trimmed();
+        if (title.isEmpty()) {
+            continue;
+        }
+
+        const QPoint topLeft = card->mapTo(widget(), QPoint(0, 0));
+        const QRect geometry = card->geometry();
+        const int hintHeight = qMax(1, card->sizeHint().height());
+        const bool hasGeometry = card->isVisible() && geometry.width() > 0 && geometry.height() > 0;
+        const int sourceStart = hasGeometry ? qMax(0, topLeft.y()) : qMax(0, fallbackTop);
+        const int sectionHeight = hasGeometry ? qMax(1, card->height()) : hintHeight;
+
+        FluentAnnotatedScrollBarSource source;
+        source.group = title;
+        source.text = title;
+        source.start = sourceStart;
+        source.end = source.start + sectionHeight - 1;
+        sources.append(source);
+        fallbackTop = sourceStart + sectionHeight + 18;
+    }
+
+    std::sort(sources.begin(), sources.end(), [](const FluentAnnotatedScrollBarSource &a,
+                                                 const FluentAnnotatedScrollBarSource &b) {
+        return a.start < b.start;
+    });
+
+    if (sources.isEmpty()) {
+        m_annotatedScrollBar->setVisible(true);
+        return;
+    }
+
+    m_annotatedScrollBar->setSources(sources);
+    m_annotatedScrollBar->setVisible(sources.size() > 1);
 }
 
 FluentToast::Position DemoSidebar::toastPosition() const

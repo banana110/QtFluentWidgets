@@ -1,5 +1,6 @@
 #include "Fluent/FluentLottieWidget.h"
 
+#include "Fluent/FluentMotion.h"
 #include "Fluent/FluentStyle.h"
 #include "Fluent/FluentTheme.h"
 #include "FluentPaintSupport.h"
@@ -13,6 +14,7 @@
 #include <QImage>
 #include <QPainter>
 #include <QPaintEvent>
+#include <QPixmap>
 #include <QResizeEvent>
 #include <QTimer>
 
@@ -51,6 +53,37 @@ std::string toStdString(const QString &value)
 std::string toStdString(const QByteArray &value)
 {
     return std::string(value.constData(), static_cast<size_t>(value.size()));
+}
+
+void paintFallbackIcon(QPainter &painter,
+                       const QIcon &icon,
+                       const QRect &rect,
+                       QIcon::Mode mode,
+                       const QColor &tint)
+{
+    if (icon.isNull()) {
+        return;
+    }
+
+    if (!tint.isValid()) {
+        icon.paint(&painter, rect, Qt::AlignCenter, mode);
+        return;
+    }
+
+    QPixmap pixmap = icon.pixmap(rect.size(), mode);
+    if (pixmap.isNull()) {
+        return;
+    }
+
+    QImage image = pixmap.toImage().convertToFormat(QImage::Format_ARGB32_Premultiplied);
+    image.setDevicePixelRatio(pixmap.devicePixelRatio());
+
+    QPainter tintPainter(&image);
+    tintPainter.setCompositionMode(QPainter::CompositionMode_SourceIn);
+    tintPainter.fillRect(image.rect(), tint);
+    tintPainter.end();
+
+    painter.drawImage(rect.topLeft(), image);
 }
 
 } // namespace
@@ -98,7 +131,10 @@ FluentLottieWidget::FluentLottieWidget(QWidget *parent)
     d->timer->setTimerType(Qt::PreciseTimer);
     connect(d->timer, &QTimer::timeout, this, &FluentLottieWidget::advanceFrame);
 
-    connect(&ThemeManager::instance(), &ThemeManager::themeChanged, this, QOverload<>::of(&FluentLottieWidget::update));
+    connect(&ThemeManager::instance(), &ThemeManager::themeChanged, this, [this]() {
+        syncReducedMotionState();
+        update();
+    });
     syncTimerInterval();
 }
 
@@ -376,6 +412,13 @@ void FluentLottieWidget::play()
         return;
     }
 
+    if (!FluentMotion::animationsEnabled()) {
+        if (d->segmentActive) {
+            finishActiveSegmentImmediately(true);
+        }
+        return;
+    }
+
     if (d->playing) {
         return;
     }
@@ -425,6 +468,11 @@ void FluentLottieWidget::playSegment(int startFrame, int endFrame)
     if (start == end) {
         d->segmentActive = false;
         pause();
+        return;
+    }
+
+    if (!FluentMotion::animationsEnabled()) {
+        finishActiveSegmentImmediately(true);
         return;
     }
 
@@ -529,7 +577,7 @@ void FluentLottieWidget::paintEvent(QPaintEvent *event)
 
     if (!d->fallbackIcon.isNull()) {
         const QIcon::Mode mode = isEnabled() ? QIcon::Normal : QIcon::Disabled;
-        d->fallbackIcon.paint(&painter, iconRect, Qt::AlignCenter, mode);
+        paintFallbackIcon(painter, d->fallbackIcon, iconRect, mode, d->tintColor);
         return;
     }
 
@@ -608,6 +656,46 @@ void FluentLottieWidget::syncTimerInterval()
     const qreal fps = qMax<qreal>(1.0, d->frameRate * d->speed);
     const int interval = qBound(1, qRound(1000.0 / fps), 1000);
     d->timer->setInterval(interval);
+}
+
+void FluentLottieWidget::syncReducedMotionState()
+{
+    if (FluentMotion::animationsEnabled()) {
+        syncTimerInterval();
+        return;
+    }
+
+    if (d->segmentActive) {
+        finishActiveSegmentImmediately(true);
+        return;
+    }
+
+    if (d->playing) {
+        pause();
+    }
+}
+
+void FluentLottieWidget::finishActiveSegmentImmediately(bool emitFinished)
+{
+    if (!d->segmentActive) {
+        if (d->playing) {
+            pause();
+        }
+        return;
+    }
+
+    const bool wasPlaying = d->playing;
+    const int targetFrame = d->segmentEnd;
+    d->segmentActive = false;
+    d->playing = false;
+    d->timer->stop();
+    setCurrentFrame(targetFrame);
+    if (wasPlaying) {
+        emit playingChanged(false);
+    }
+    if (emitFinished) {
+        emit finished();
+    }
 }
 
 void FluentLottieWidget::syncAnimationMetadata()

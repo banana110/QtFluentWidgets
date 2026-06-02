@@ -94,6 +94,7 @@ private:
     QList<QRect> computeItemGeometries(const QRect &rect, int *outUsedHeight = nullptr) const;
     void applyItemGeometries(const QList<QRect> &geometries) const;
     void animateToItemGeometries(const QList<QRect> &geometries);
+    void snapActiveAnimationsToEnd();
     int effectiveAnimationDuration() const;
     QEasingCurve effectiveAnimationEasing() const;
 

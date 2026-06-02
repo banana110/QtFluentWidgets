@@ -20,6 +20,17 @@ constexpr int kMaxWidth = 420;
 constexpr int kOffsetX = 14;
 constexpr int kOffsetY = 22;
 constexpr qreal kRadius = 8.0;
+
+QColor tooltipSurface(const FluentThemeTokens &tokens)
+{
+    return Style::mix(tokens.neutral.layer, tokens.accent.base, tokens.dark ? 0.16 : 0.07);
+}
+
+QColor tooltipBorder(const FluentThemeTokens &tokens)
+{
+    return Style::mix(tokens.neutral.strokeSubtle, tokens.accent.base, tokens.dark ? 0.20 : 0.12);
+}
+
 class FluentToolTipWidget final : public QWidget {
 public:
     FluentToolTipWidget() : QWidget(nullptr, Qt::ToolTip | Qt::FramelessWindowHint | Qt::NoDropShadowWindowHint) {
@@ -65,9 +76,9 @@ protected:
     void paintEvent(QPaintEvent *event) override {
         Q_UNUSED(event)
         const auto &colors = ThemeManager::instance().colors();
-        const bool dark = colors.background.lightnessF() < 0.5;
-        const QColor surface = Style::mix(colors.surface, colors.accent, dark ? 0.18 : 0.08);
-        const QColor border = Style::mix(colors.border, colors.accent, dark ? 0.78 : 0.84);
+        const auto tokens = ThemeManager::instance().tokens();
+        const QColor surface = tooltipSurface(tokens);
+        const QColor border = tooltipBorder(tokens);
         QPainter clear(this);
         if (!clear.isActive()) return;
         clear.setCompositionMode(QPainter::CompositionMode_Source);
@@ -99,7 +110,9 @@ private:
         QFont f = QApplication::font();
         f.setPointSizeF(12.0);
         m_label->setFont(f);
-        const QString next = QStringLiteral("QLabel { background: transparent; color: palette(window-text); font-weight: 500; }");
+        const auto &colors = ThemeManager::instance().colors();
+        const QString next = QStringLiteral("QLabel { background: transparent; color: %1; font-weight: 500; }")
+            .arg(colors.text.name(QColor::HexArgb));
         if (m_label->styleSheet() != next) m_label->setStyleSheet(next);
     }
     void updateGeometryForText() {

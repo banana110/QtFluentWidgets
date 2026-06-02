@@ -76,6 +76,8 @@ cmake --build build --config Release
 
 - CMake target：`QtFluentDemo`
 - 也可以使用仓库提供的自定义 target：`run-QtFluentDemo`（会设置少量 demo 用的 env）
+- 视觉回归基线：`render-QtFluentDemoVisualBaselines` 使用 Qt `QWidget::render()` 离屏生成 `demo-visual-baselines/`，默认覆盖 100% / 150% 缩放、light / dark / accent 与 Demo 主页面状态矩阵。
+- 离屏交互烟测：`smoke-QtFluentDemoInteractions` 使用合成点击 + `QWidget::render()` 生成 `demo-interaction-smoke/`，不打开可见窗口。
 
 ## 在你的项目中使用
 
@@ -112,6 +114,7 @@ rangePicker->setEndPrefix(QStringLiteral("结束："));
 为了便于查阅，控件使用说明按模块拆分到 `docs/`，由本 README 跳转：
 
 - 主题 / 样式： [docs/zh-cn/theme-style.md](docs/zh-cn/theme-style.md)
+- 图标： [docs/zh-cn/icons.md](docs/zh-cn/icons.md)
 - 按钮与开关： [docs/zh-cn/buttons.md](docs/zh-cn/buttons.md)
 - Lottie 动效： [docs/zh-cn/lottie.md](docs/zh-cn/lottie.md)
 - 输入与编辑： [docs/zh-cn/inputs.md](docs/zh-cn/inputs.md)

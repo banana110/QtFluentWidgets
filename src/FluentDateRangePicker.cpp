@@ -3,10 +3,14 @@
 #include "Fluent/FluentStyle.h"
 #include "Fluent/FluentTheme.h"
 #include "Fluent/datePicker/FluentCalendarPopup.h"
+#include "FluentInputVisuals_p.h"
 
+#include <QAbstractAnimation>
 #include <QEasingCurve>
 #include <QEvent>
+#include <QFocusEvent>
 #include <QFontMetrics>
+#include <QLocale>
 #include <QMouseEvent>
 #include <QPainter>
 #include <QTimer>
@@ -14,18 +18,36 @@
 
 namespace Fluent {
 
+namespace {
+
+QLocale defaultRangePickerLocale()
+{
+    return QLocale(QLocale::Chinese, QLocale::China);
+}
+
+} // namespace
+
 FluentDateRangePicker::FluentDateRangePicker(QWidget *parent)
     : QWidget(parent)
 {
     setMouseTracking(true);
     setAttribute(Qt::WA_Hover, true);
+    setFocusPolicy(Qt::StrongFocus);
     setMinimumHeight(Style::metrics().height);
     setCursor(Qt::PointingHandCursor);
+    setLocale(defaultRangePickerLocale());
 
     m_hoverAnim = new QVariantAnimation(this);
     FluentMotion::configure(m_hoverAnim, FluentMotionRole::Hover);
     connect(m_hoverAnim, &QVariantAnimation::valueChanged, this, [this](const QVariant &v) {
         m_hoverLevel = v.toReal();
+        update();
+    });
+
+    m_focusAnim = new QVariantAnimation(this);
+    FluentMotion::configure(m_focusAnim, FluentMotionRole::Focus);
+    connect(m_focusAnim, &QVariantAnimation::valueChanged, this, [this](const QVariant &v) {
+        m_focusLevel = v.toReal();
         update();
     });
 
@@ -87,6 +109,8 @@ QString FluentDateRangePicker::endPlaceholder() const              { return m_en
 
 qreal FluentDateRangePicker::hoverLevel() const     { return m_hoverLevel; }
 void  FluentDateRangePicker::setHoverLevel(qreal v) { m_hoverLevel = qBound(0.0, v, 1.0); update(); }
+qreal FluentDateRangePicker::focusLevel() const     { return m_focusLevel; }
+void  FluentDateRangePicker::setFocusLevel(qreal v) { m_focusLevel = qBound(0.0, v, 1.0); update(); }
 
 // ── Size hints ────────────────────────────────────────────────────────────
 
@@ -125,7 +149,21 @@ QString FluentDateRangePicker::buildSideText(const QDate  &date,
 
 void FluentDateRangePicker::applyTheme()
 {
+    const bool hoverRunning = m_hoverAnim && m_hoverAnim->state() == QAbstractAnimation::Running;
+    const bool focusRunning = m_focusAnim && m_focusAnim->state() == QAbstractAnimation::Running;
+    const QVariant hoverEnd = m_hoverAnim ? m_hoverAnim->endValue() : QVariant();
+    const QVariant focusEnd = m_focusAnim ? m_focusAnim->endValue() : QVariant();
+
     FluentMotion::configure(m_hoverAnim, FluentMotionRole::Hover);
+    FluentMotion::configure(m_focusAnim, FluentMotionRole::Focus);
+    if (hoverRunning && m_hoverAnim->duration() <= 0) {
+        m_hoverAnim->stop();
+        m_hoverLevel = qBound<qreal>(0.0, hoverEnd.toReal(), 1.0);
+    }
+    if (focusRunning && m_focusAnim->duration() <= 0) {
+        m_focusAnim->stop();
+        m_focusLevel = qBound<qreal>(0.0, focusEnd.toReal(), 1.0);
+    }
     update();
 }
 
@@ -142,7 +180,9 @@ void FluentDateRangePicker::paintEvent(QPaintEvent *event)
     if (!painter.isActive()) return;
     painter.setRenderHint(QPainter::Antialiasing, true);
 
-    Style::paintControlSurface(painter, QRectF(rect()), colors, m_hoverLevel, 0.0, enabled, expanded);
+    const QRectF surfaceRect = QRectF(rect());
+    Style::paintControlSurface(painter, surfaceRect, colors, m_hoverLevel, 0.0, enabled, expanded);
+    InputVisuals::paintFocusRing(painter, surfaceRect.adjusted(0.5, 0.5, -0.5, -0.5), colors, enabled ? m_focusLevel : 0.0);
 
     const auto  m       = Style::metrics();
     const int   h       = rect().height();
@@ -150,11 +190,7 @@ void FluentDateRangePicker::paintEvent(QPaintEvent *event)
     const QRect iconRect(rect().right() - iconW, 0, iconW, h);
     const int   textArea = rect().width() - iconW - m.paddingX;  // available text width
 
-    // Separator line before the chevron icon
-    QColor sep = colors.border; sep.setAlpha(80);
-    painter.setPen(QPen(sep, 1));
-    painter.drawLine(QPointF(iconRect.left() + 0.5, iconRect.top() + 8),
-                     QPointF(iconRect.left() + 0.5, iconRect.bottom() - 8));
+    InputVisuals::paintTrailingDivider(painter, iconRect, colors, enabled);
 
     // Chevron-down icon
     Style::drawChevronDown(painter, iconRect.center(),
@@ -173,18 +209,25 @@ void FluentDateRangePicker::paintEvent(QPaintEvent *event)
     const QRect sepRect  (m.paddingX + sideW,            0, sepW,  h);
     const QRect endRect  (m.paddingX + sideW + sepW,     0, sideW, h);
 
+    auto sideTextColor = [&](const QDate &date) {
+        if (!enabled) {
+            return colors.disabledText;
+        }
+        return date.isValid() ? colors.text : colors.subText;
+    };
+
     // Start text
-    const QColor startColor = (enabled && m_startDate.isValid()) ? colors.text : colors.subText;
+    const QColor startColor = sideTextColor(m_startDate);
     painter.setPen(startColor);
     painter.drawText(startRect, Qt::AlignVCenter | Qt::AlignLeft,
                      fm.elidedText(startText, Qt::ElideRight, sideW));
 
     // Separator
-    painter.setPen(colors.subText);
+    painter.setPen(enabled ? colors.subText : colors.disabledText);
     painter.drawText(sepRect, Qt::AlignVCenter | Qt::AlignHCenter, sepText);
 
     // End text
-    const QColor endColor = (enabled && m_endDate.isValid()) ? colors.text : colors.subText;
+    const QColor endColor = sideTextColor(m_endDate);
     painter.setPen(endColor);
     painter.drawText(endRect, Qt::AlignVCenter | Qt::AlignLeft,
                      fm.elidedText(endText, Qt::ElideRight, sideW));
@@ -217,10 +260,28 @@ void FluentDateRangePicker::leaveEvent(QEvent *event)
     startHoverAnimation(0.0);
 }
 
+void FluentDateRangePicker::focusInEvent(QFocusEvent *event)
+{
+    QWidget::focusInEvent(event);
+    startFocusAnimation(1.0);
+}
+
+void FluentDateRangePicker::focusOutEvent(QFocusEvent *event)
+{
+    QWidget::focusOutEvent(event);
+    if (!isPopupVisible()) {
+        startFocusAnimation(0.0);
+    }
+}
+
 void FluentDateRangePicker::changeEvent(QEvent *event)
 {
     QWidget::changeEvent(event);
     if (event->type() == QEvent::EnabledChange) applyTheme();
+    if (event->type() == QEvent::LocaleChange && m_popup) {
+        m_popup->setLocale(locale());
+        m_popup->update();
+    }
 }
 
 // ── Popup ─────────────────────────────────────────────────────────────────
@@ -243,6 +304,7 @@ void FluentDateRangePicker::showPopup()
     }
 
     m_popup->setAnchor(this);
+    m_popup->setLocale(locale());
     if (m_startDate.isValid() || m_endDate.isValid())
         m_popup->setDateRange(m_startDate, m_endDate);
 
@@ -261,6 +323,7 @@ bool FluentDateRangePicker::isPopupVisible() const
 
 void FluentDateRangePicker::startHoverAnimation(qreal endValue)
 {
+    FluentMotion::configure(m_hoverAnim, FluentMotionRole::Hover);
     m_hoverAnim->stop();
     if (m_hoverAnim->duration() <= 0) {
         m_hoverLevel = qBound<qreal>(0.0, endValue, 1.0);
@@ -270,6 +333,20 @@ void FluentDateRangePicker::startHoverAnimation(qreal endValue)
     m_hoverAnim->setStartValue(m_hoverLevel);
     m_hoverAnim->setEndValue(endValue);
     m_hoverAnim->start();
+}
+
+void FluentDateRangePicker::startFocusAnimation(qreal endValue)
+{
+    FluentMotion::configure(m_focusAnim, FluentMotionRole::Focus);
+    m_focusAnim->stop();
+    if (m_focusAnim->duration() <= 0) {
+        m_focusLevel = qBound<qreal>(0.0, endValue, 1.0);
+        update();
+        return;
+    }
+    m_focusAnim->setStartValue(m_focusLevel);
+    m_focusAnim->setEndValue(endValue);
+    m_focusAnim->start();
 }
 
 } // namespace Fluent

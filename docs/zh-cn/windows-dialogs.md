@@ -27,6 +27,12 @@ auto *bar = new Fluent::FluentInfoBar(
     QStringLiteral("注意"),
     QStringLiteral("这是一条页面内提示。"));
 bar->setActionText(QStringLiteral("查看"));
+
+auto *compact = new Fluent::FluentInfoBar(
+    Fluent::FluentInfoBar::Severity::Success,
+    QStringLiteral("已保存"),
+    QStringLiteral("紧凑模式适合单行状态。"));
+compact->setCompact(true);
 ```
 
 用途：页面内信息提示条，适合表单校验结果、同步状态、轻量错误说明等不需要打断用户的反馈。
@@ -37,7 +43,14 @@ bar->setActionText(QStringLiteral("查看"));
 - `setTitle()` / `setMessage()`：标题与正文。
 - `setActionText()`：显示可选操作按钮。
 - `setClosable(bool)`：是否显示关闭按钮。
+- `setCompact(bool)`：在单行紧凑提示和多行展开提示之间切换；默认是展开模式。
 - `actionTriggered()` / `closed()`：操作与关闭信号。
+
+实现语义：
+
+- 点击关闭按钮时会使用 `FluentMotionRole::PopupClose` 做淡出 + 高度折叠；关闭全局动效后会立即隐藏并发出 `closed()`。
+- InfoBar 自身使用 `FluentSurfaceSpec` 的 raised surface，并按 severity 注入轻量 tint、左侧 3px accent 指示条和圆形语义图标。
+- Compact 模式会压缩外边距、图标和关闭按钮尺寸，并把标题/正文排为单行；展开模式保留正文换行，适合较长说明。
 
 Demo：Windows / Overview。
 
@@ -242,6 +255,7 @@ Demo：Windows / Overview。
 - **只打开一个弹层**：自绘 menubar 不再调用 `QMenuBar::setActiveAction()` 激活原生菜单路径，点击顶层菜单时只显示 Fluent popup。
 - **中性菜单边框**：菜单 popup 使用普通边框，不跟随窗口 accent 描边，避免单项菜单看起来像另一个按钮或第二条菜单。
 - **禁用原生 overflow 按钮**：检测到 `qt_menubar_ext_button` 后会隐藏/禁用，并清空其 menu（避免出现原生样式 overflow 菜单）。
+- **fallback chrome**：`Theme::menuBarStyle()` 的背景、hover、pressed、分割线均从 neutral token 派生（`card` / `cardHover` / `fillTertiary` / `strokeSubtle`），避免局部回退到旧的 `surface/hover/pressed` 质感。
 - **高亮动画**：
     - hoverLevel：使用 `FluentMotionRole::Hover`；
     - highlightRect：使用 `FluentMotionRole::Selection`；
@@ -253,10 +267,11 @@ Demo：Windows / Overview。
 - `QProxyStyle` 覆写：子菜单延迟 120ms，关闭 sloppy submenu。
 - `aboutToShow` 时确保所有子菜单也转换为 `FluentMenu`（递归）。
 - **弹出动画**：show 时先 `opacity=0` 并按 `FluentMotion::popupSlideOffset()` 做轻微位移，然后用 `FluentMotionRole::PopupOpen` 同步 fade+slide 到最终位置。
+- slide 距离会按 anchor 的留白裁剪，因此在按钮下方打开的菜单不会在入场动画中穿过按钮内容。
 - **绘制语义**：
     - panel 圆角半径 10，先清透明，再用 `paintFluentPanel()` 绘制面板；
-    - hover 高亮圆角 6，颜色来自 `colors.hover` 并按 hoverLevel 调整 alpha；
-    - 额外自绘：checked action 的 accent 对勾、以及有子菜单的 chevron。
+    - enabled hover 行使用 neutral theme token（`cardHover` / `strokeSubtle`），不再走旧的 hover/border 颜色；disabled 行不会显示 hover accent indicator，菜单 popup 与 ComboBox、AutoSuggest 的列表质感保持一致；
+    - 额外自绘：enabled checked action 的 accent-token 对勾、disabled checked action 的 `disabledText` 对勾、hover 行左侧 3px active indicator，以及有子菜单的 chevron。
 
 ---
 
@@ -269,6 +284,8 @@ Demo：Windows / Overview。
 - 继承自 `QToolBar`：仍然使用 Qt 原生 API `addAction()` / `addWidget()`。
 - 当外部 `addAction(QAction*)`（且该 action 不是 separator / 不是 `QWidgetAction`）时：会移除该 action 并插入一个 `QWidgetAction`，其默认 widget 为 `FluentToolButton`，并 `setDefaultAction(action)`。
     - 这意味着你无需手动创建 ToolButton；但如果你本身就插入 `QWidgetAction` / `addWidget()`，不会被自动替换。
+    - `FluentToolBar` 静态类型下的 `insertAction(before, action)` / `removeAction(action)` 会把被包装的原始 `QAction` 映射回内部 wrapper，保留常用的工具栏维护语义。
+- fallback QSS 的 toolbar 背景、hover、separator 均走 neutral token（`card` / `cardHover` / `strokeSubtle`），用于未完全提升或局部套样式的窗口 chrome。
 
 Demo：Windows / Overview。
 
@@ -282,6 +299,7 @@ Demo：Windows / Overview。
 
 - 继承自 `QStatusBar`：使用 Qt 原生 API `showMessage()` / `addWidget()`。
 - 默认关闭 size grip（`setSizeGripEnabled(false)`），并启用 `WA_StyledBackground` 以配合 QSS。
+- fallback QSS 的状态栏背景与顶部分割线走 neutral token（`card` / `strokeSubtle`），和 Fluent main window 的面板 chrome 保持一致。
 
 Demo：Windows / Overview。
 
@@ -332,6 +350,7 @@ Fluent::FluentMessageBox::information(parent,
 实现语义要点：
 
 - 同样支持 mask overlay（父窗口变暗并拦截输入）。
+- `Info` / `Warning` / `Error` 图标强调色来自 `FluentThemeTokens::semantic`，`Question` 使用当前 accent ramp，因此切换主题色或深浅色后消息框语义图标会立即同步；图标内部 glyph 使用 `Theme::contrastColor()` 选择可读前景色。
 - **文本高度自适应 + 多行省略**：
     - 对话框最大高度约束为 `max(240, availableScreenHeight * 0.72)`；
     - 初次会先尝试用完整文本布局，只有确实超出最大高度才触发多行 elide；
@@ -356,13 +375,14 @@ Demo：Windows / Overview。
 - Toast 通过内部 `ToastOverlay` 挂在目标窗口上（对象名 `FluentToastOverlay`），并用 **mask region** 只覆盖 toast 周围区域：
     - 有 toast 时 overlay 会拦截输入，但只在 toast 区域；其余窗口区域仍可交互。
     - 没有 toast 时 overlay 会 `WA_TransparentForMouseEvents=true`，完全不影响窗口。
-- 布局：每个位置（TopLeft/TopCenter/...）各维护一个队列，新 toast 会插在队列头部；其余 toast 会用 `QPropertyAnimation(pos)` 做平滑移动，时长来自 `FluentMotionRole::Toast`。
+- 布局：每个位置（TopLeft/TopCenter/...）各维护一个队列，新 toast 会插在队列头部；其余 toast 会用 `QPropertyAnimation(pos)` 做平滑移动，时长与 easing 都来自 `FluentMotionRole::Toast`。
 - 尺寸稳定：为避免 `QLabel(wordWrap)` 在快速创建时出现“多一行跳动”，overlay 会先固定 label wrap 宽度，再 `adjustSize()`，并在下一次事件循环再次 stabilize + relayout。
 - 出现/消失：
     - 出现和关闭 opacity 使用 `FluentMotionRole::Toast`；
     - 自动消失计时使用线性进度动画，最短 `max(800, durationMs)`；
-    - 关闭全局动画或把 Toast duration 设为 0 时，出现会直接显示，关闭会直接销毁。
-- 进度条：从中间向两侧扩展/收缩（以 label 区域居中为基准）。
+    - 关闭全局动画或把 Toast duration 设为 0 时，出现会直接显示，关闭会直接销毁，队列移动也会直接落位。
+- 面板 chrome：surface / border 通过 `FluentFramePainter` 的 modal frame token 解析，普通描边使用 `neutral.strokeSubtle`，启用 accent border 时切到 `accent.base` 并保留 trace-in 动画；不会直接回退到旧 `surface/border` 色。
+- 进度条：从中间向两侧扩展/收缩（以 label 区域居中为基准），track 来自 neutral stroke/modal surface 混合，fill 使用当前 `accent.base` token。
 
 Demo：Windows / Pickers / Overview。
 

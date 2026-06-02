@@ -3,6 +3,7 @@
 #include "../DemoHelpers.h"
 #include "Fluent/FluentCard.h"
 
+#include <QGridLayout>
 #include <QHeaderView>
 #include <QHBoxLayout>
 #include <QItemSelectionModel>
@@ -38,55 +39,46 @@ QWidget *createDataViewsPage(FluentMainWindow *window)
 
         page->addWidget(s.card);
 
-        // State preview
+        // Data view state matrix
         {
             QString code;
 #define DATAVIEWS_STATE_PREVIEW(X) \
-    X(auto *listRow = new QHBoxLayout();) \
-    X(listRow->setContentsMargins(0, 0, 0, 0);) \
-    X(listRow->setSpacing(10);) \
-    X(auto *activeList = new FluentListView();) \
-    X(auto *activeListModel = new QStringListModel({QStringLiteral("Active item"), QStringLiteral("Selected item"), QStringLiteral("Hover target")}, activeList);) \
-    X(activeList->setModel(activeListModel);) \
-    X(activeList->setFixedHeight(118);) \
-    X(activeList->setCurrentIndex(activeListModel->index(1, 0));) \
-    X(activeList->selectionModel()->select(activeListModel->index(1, 0), QItemSelectionModel::ClearAndSelect);) \
-    X(auto *disabledList = new FluentListView();) \
-    X(auto *disabledListModel = new QStringListModel({QStringLiteral("Disabled item"), QStringLiteral("Disabled selection"), QStringLiteral("Disabled hover")}, disabledList);) \
-    X(disabledList->setModel(disabledListModel);) \
-    X(disabledList->setFixedHeight(118);) \
-    X(disabledList->setCurrentIndex(disabledListModel->index(1, 0));) \
-    X(disabledList->selectionModel()->select(disabledListModel->index(1, 0), QItemSelectionModel::ClearAndSelect);) \
-    X(disabledList->setEnabled(false);) \
-    X(listRow->addWidget(activeList, 1);) \
-    X(listRow->addWidget(disabledList, 1);) \
-    X(body->addLayout(listRow);) \
-    X(auto *table = new FluentTableView();) \
-    X(auto *tableModel = new QStandardItemModel(3, 2, table);) \
-    X(tableModel->setHorizontalHeaderLabels({DEMO_TEXT("状态", "State"), DEMO_TEXT("Token", "Token")} );) \
-    X(tableModel->setItem(0, 0, new QStandardItem(QStringLiteral("Normal"))); tableModel->setItem(0, 1, new QStandardItem(QStringLiteral("surface/text")));) \
-    X(tableModel->setItem(1, 0, new QStandardItem(QStringLiteral("Selected"))); tableModel->setItem(1, 1, new QStandardItem(QStringLiteral("accent + neutral")));) \
-    X(tableModel->setItem(2, 0, new QStandardItem(QStringLiteral("Focus"))); tableModel->setItem(2, 1, new QStandardItem(QStringLiteral("accent border")));) \
-    X(table->setModel(tableModel);) \
-    X(table->setFixedHeight(128);) \
-    X(table->setCurrentIndex(tableModel->index(1, 0));) \
-    X(table->selectionModel()->select(tableModel->index(1, 0), QItemSelectionModel::ClearAndSelect | QItemSelectionModel::Rows);) \
-    X(body->addWidget(table);)
+    X(auto *grid = new QGridLayout();) \
+    X(grid->setContentsMargins(0, 0, 0, 0);) \
+    X(grid->setHorizontalSpacing(14);) \
+    X(grid->setVerticalSpacing(10);) \
+    X(auto makeCaption = [](const QString &text, bool strong = false) { auto *label = new FluentLabel(text); label->setWordWrap(true); label->setStyleSheet(strong ? QStringLiteral("font-size: 12px; font-weight: 600; opacity: 0.9;") : QStringLiteral("font-size: 12px; opacity: 0.78;")); return label; };) \
+    X(auto makeList = [](bool enabled) { auto *view = new FluentListView(); auto *model = new QStringListModel({QStringLiteral("Normal row"), QStringLiteral("Selected row"), QStringLiteral("Hover candidate")}, view); view->setModel(model); view->setFixedSize(220, 120); view->setCurrentIndex(model->index(1, 0)); view->selectionModel()->select(model->index(1, 0), QItemSelectionModel::ClearAndSelect); view->setEnabled(enabled); return view; };) \
+    X(auto makeTable = [](bool enabled) { auto *view = new FluentTableView(); auto *model = new QStandardItemModel(3, 2, view); model->setHorizontalHeaderLabels({QStringLiteral("State"), QStringLiteral("Token")}); model->setItem(0, 0, new QStandardItem(QStringLiteral("Normal"))); model->setItem(0, 1, new QStandardItem(QStringLiteral("surface"))); model->setItem(1, 0, new QStandardItem(QStringLiteral("Selected"))); model->setItem(1, 1, new QStandardItem(QStringLiteral("accent"))); model->setItem(2, 0, new QStandardItem(QStringLiteral("Focus"))); model->setItem(2, 1, new QStandardItem(QStringLiteral("border"))); view->setModel(model); view->setFixedSize(240, 128); view->setCurrentIndex(model->index(1, 0)); view->selectionModel()->select(model->index(1, 0), QItemSelectionModel::ClearAndSelect | QItemSelectionModel::Rows); view->setEnabled(enabled); return view; };) \
+    X(auto makeTree = [](bool enabled) { auto *view = new FluentTreeView(); auto *model = new QStandardItemModel(view); model->setHorizontalHeaderLabels({QStringLiteral("Section"), QStringLiteral("Value")}); auto *root = new QStandardItem(QStringLiteral("Group")); auto *rootValue = new QStandardItem(QStringLiteral("Ready")); root->appendRow({new QStandardItem(QStringLiteral("Selected child")), new QStandardItem(QStringLiteral("Active"))}); root->appendRow({new QStandardItem(QStringLiteral("Nested child")), new QStandardItem(QStringLiteral("Idle"))}); model->appendRow({root, rootValue}); view->setModel(model); view->expandAll(); view->setFixedSize(240, 136); const QModelIndex index = model->index(0, 0, root->index()); view->setCurrentIndex(index); view->selectionModel()->select(index, QItemSelectionModel::ClearAndSelect | QItemSelectionModel::Rows); view->setEnabled(enabled); return view; };) \
+    X(auto makeTableWidget = [](bool enabled) { auto *view = new FluentTableWidget(3, 2); view->setHorizontalHeaderLabels({QStringLiteral("Field"), QStringLiteral("Value")}); view->setItem(0, 0, new QTableWidgetItem(QStringLiteral("Normal"))); view->setItem(0, 1, new QTableWidgetItem(QStringLiteral("Ready"))); view->setItem(1, 0, new QTableWidgetItem(QStringLiteral("Selected"))); view->setItem(1, 1, new QTableWidgetItem(QStringLiteral("On"))); view->setItem(2, 0, new QTableWidgetItem(QStringLiteral("Hover"))); view->setItem(2, 1, new QTableWidgetItem(QStringLiteral("Candidate"))); view->setFixedSize(240, 128); view->setCurrentCell(1, 0); view->selectionModel()->select(view->model()->index(1, 0), QItemSelectionModel::ClearAndSelect | QItemSelectionModel::Rows); view->setEnabled(enabled); return view; };) \
+    X(grid->addWidget(makeCaption(DEMO_TEXT("控件", "Control"), true), 0, 0);) \
+    X(grid->addWidget(makeCaption(DEMO_TEXT("Selected / Header", "Selected / Header"), true), 0, 1);) \
+    X(grid->addWidget(makeCaption(DEMO_TEXT("Disabled", "Disabled"), true), 0, 2);) \
+    X(grid->addWidget(makeCaption(QStringLiteral("FluentListView")), 1, 0); grid->addWidget(makeList(true), 1, 1); grid->addWidget(makeList(false), 1, 2);) \
+    X(grid->addWidget(makeCaption(QStringLiteral("FluentTableView")), 2, 0); grid->addWidget(makeTable(true), 2, 1); grid->addWidget(makeTable(false), 2, 2);) \
+    X(grid->addWidget(makeCaption(QStringLiteral("FluentTreeView")), 3, 0); grid->addWidget(makeTree(true), 3, 1); grid->addWidget(makeTree(false), 3, 2);) \
+    X(grid->addWidget(makeCaption(QStringLiteral("FluentTableWidget")), 4, 0); grid->addWidget(makeTableWidget(true), 4, 1); grid->addWidget(makeTableWidget(false), 4, 2);) \
+    X(grid->setColumnStretch(1, 1);) \
+    X(grid->setColumnStretch(2, 1);) \
+    X(body->addLayout(grid);)
 
 #define X(line) code += QStringLiteral(#line "\n");
             DATAVIEWS_STATE_PREVIEW(X)
 #undef X
 
             page->addWidget(Demo::makeCollapsedExample(
-                DEMO_TEXT("状态与主题联动", "State and theme coupling"),
-                DEMO_TEXT("快速检查 active / selected / disabled / focus 在浅色、深色与自定义 accent 下的观感。",
-                          "Quickly inspect active / selected / disabled / focus states under light, dark, and custom accent colors."),
+                QStringLiteral("Data View State Matrix"),
+                DEMO_TEXT("快速检查 List / Table / Tree / TableWidget 的 selected、header 与 disabled 状态。",
+                          "Quickly inspect selected, header, and disabled states across List / Table / Tree / TableWidget."),
                 DEMO_TEXT("要点：\n"
-                          "-ListView / TableView 的边框、文字、header、disabled 状态都由 theme token 派生\n"
+                          "-ListView / TableView / TreeView / TableWidget 共用 hover/selection 语言\n"
+                          "-表头、边框、文字、disabled 状态都由 theme token 派生\n"
                           "-关闭全局动效后 hover 直接切换到最终状态\n"
                           "-这个示例适合配合右侧设置面板切换主题后肉眼检查",
                           "Highlights:\n"
-                          "-ListView / TableView borders, text, headers, and disabled states are derived from theme tokens\n"
+                          "-ListView / TableView / TreeView / TableWidget share one hover/selection language\n"
+                          "-Headers, borders, text, and disabled states are derived from theme tokens\n"
                           "-When global animations are disabled, hover jumps directly to its final state\n"
                           "-Use this sample with the theme settings panel for quick visual checks"),
                 code,
@@ -96,7 +88,7 @@ QWidget *createDataViewsPage(FluentMainWindow *window)
 #undef X
                 },
                 false,
-                250));
+                310));
 
 #undef DATAVIEWS_STATE_PREVIEW
         }

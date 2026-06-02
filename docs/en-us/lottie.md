@@ -16,6 +16,8 @@ Demo pages:
 - Buttons: `demo/pages/PageButtons.cpp`
 - Overview: `demo/pages/PageOverview.cpp`
 
+The Motion page starts with a Motion Role Matrix for configured/effective duration and reduced-motion checks across Hover, Focus, Popup, Selection, Navigation, Page, Toast, and WheelSnap.
+
 ---
 
 ## Dependency and Build
@@ -96,9 +98,9 @@ Animation metadata:
 
 Fallback and tint:
 
-- `setFallbackIcon(const QIcon&)` / `fallbackIcon()`: icon painted when loading fails or no Lottie is loaded.
+- `setFallbackIcon(const QIcon&)` / `fallbackIcon()`: icon painted when loading fails or no Lottie is loaded; when `tintColor` is valid, fallback icons are recolored by alpha as well so AnimatedButton / NavigationView failure fallbacks keep following the themed foreground.
 - `setFallbackIconSize(const QSize&)` / `fallbackIconSize()`: fallback icon size.
-- `setTintColor(const QColor&)` / `resetTintColor()` / `tintColor()`: recolor rendered frames by alpha.
+- `setTintColor(const QColor&)` / `resetTintColor()` / `tintColor()`: recolor rendered frames and fallback icons by alpha.
 - `tintColorChanged(const QColor&)`: tint change signal.
 
 ---
@@ -169,6 +171,19 @@ QObject::connect(speed, &QSlider::valueChanged, animation, [animation](int value
 ```
 
 `setSpeed()` changes the timer cadence. It does not modify the current frame, looping mode, or markers. The setting also applies to `playSegment()` / `playMarker()`. To fit a segment into a fixed duration, compute `speed = segmentFrameCount / fps / targetSeconds`.
+
+---
+
+## Reduced Motion
+
+`FluentLottieWidget` follows `ThemeManager::setAnimationsEnabled(false)`:
+
+- `play()` does not start the timer while global animations are disabled.
+- `playSegment(start, end)` jumps to `end` immediately and emits `finished()`.
+- If reduced motion is turned on while a segment is playing, the widget stops and lands on the segment end frame.
+- Regular looping animations pause on the current frame when reduced motion is turned on.
+
+This means `FluentAnimatedIcon` state transitions and `FluentAnimatedButton` icon transitions resolve to their target marker frame instead of animating through intermediate frames.
 
 ---
 

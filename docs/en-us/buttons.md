@@ -17,7 +17,7 @@ This module contains common clickable/toggle controls with Fluent-style rounded 
 - `FluentRadioButton` (include: `Fluent/FluentRadioButton.h`)
 - `FluentProgressRing` (include: `Fluent/FluentProgressRing.h`)
 
-Demo pages: Buttons (`demo/pages/PageButtons.cpp`) and Overview (`demo/pages/PageOverview.cpp`).
+Demo pages: Basic Input (`demo/pages/PageBasicInput.cpp`), Buttons (`demo/pages/PageButtons.cpp`), and Overview (`demo/pages/PageOverview.cpp`). The Basic Input page first summarizes command and selection controls with a Ready / Active / Disabled Hub Matrix.
 
 ---
 
@@ -92,11 +92,11 @@ connect(button, &QPushButton::clicked, this, [] {
 Notes:
 
 - `FluentAnimatedButton` is best for action affordances; avoid replacing every ordinary form button with animation.
-- The first version does not automatically wire animated icons into every navigation control yet; use it as a standalone QWidget or button.
+- `FluentNavigationView` and collapsible `FluentCard` already provide animated-icon entry points; other controls can still use `FluentLottieWidget` / `FluentAnimatedIcon` as standalone widgets or buttons in layouts.
 - If Lottie loading fails, the widget paints a fallback icon or a default static glyph.
 - Public headers do not expose rlottie types, so backend changes should not break user code.
 
-See [animated-icon-plan.md](animated-icon-plan.md) for the broader integration plan.
+See [animated-icon-plan.md](animated-icon-plan.md) for the current integration status and next steps.
 
 ---
 
@@ -112,10 +112,12 @@ Inheritance & construction:
 Visual / interaction notes:
 
 - Minimum height follows `Style::metrics().height` (closer to Win11 control sizing).
-- Secondary (default): surface fill + border.
-	- If `setCheckable(true)` and checked, it adds a subtle accent tint + accent border, and shifts text color slightly toward accent.
-- Primary: accent fill.
-	- If checkable and checked, it draws an extra inner highlight to strengthen the “selected” state.
+- Secondary (default): derives fill, hover, and border from `ThemeManager::tokens().neutral.card`, `cardHover`, and `strokeSubtle`, with a stronger bottom stroke for depth.
+	- If `setCheckable(true)` and checked, it adds a subtle accent tint + accent border and picks a readable text color automatically.
+- Primary: uses the accent ramp: `accent.base` for normal, `accent.light1` for hover, `accent.dark1` for pressed in light mode, and `accent.light3` for pressed in dark mode.
+	- Icon/text use `onAccent`; if checkable and checked, it draws an extra inner highlight to strengthen the “selected” state.
+- The focus ring uses the current `accent.base` token; the button family no longer paints focus outlines directly from the legacy `focus` color.
+- Disabled: uses neutral disabled surface/stroke plus `disabledText` instead of deriving directly from legacy surface/hover colors.
 - With an icon: the icon is painted on the left; text is laid out as a group (icon + gap + text) and visually centered.
 
 Theme coupling: listens to `ThemeManager::themeChanged` and its own enabled-state changes to repaint.
@@ -168,7 +170,8 @@ Inheritance & construction:
 Visual / interaction notes:
 
 - Defaults to `setAutoRaise(true)` and uses `Style::metrics().height` as minimum height.
-- If `setCheckable(true)` and checked, it shows a subtle accent tint + accent border, and shifts label color toward accent.
+- Normal, checked, and disabled states reuse the button neutral token rules. If `setCheckable(true)` and checked, it shows a subtle accent tint + accent border and picks a readable label color automatically.
+- The focus ring uses the current `accent.base` token; title-bar caption button hover/press feedback comes from neutral tokens instead of direct legacy `hover` / `pressed` colors.
 
 Title-bar window button convention (internal):
 
@@ -177,7 +180,7 @@ If the dynamic property `fluentWindowGlyph` (int) is set, the button paints as a
 - `0`: minimize
 - `1`: maximize
 - `2`: restore
-- `3`: close (hover uses a stronger red)
+- `3`: close (hover uses the semantic error token, pressed derives a deeper error shade from the current theme text/background tokens, and the glyph color is picked for readability)
 
 This is mainly used by `FluentMainWindow`; typical app code does not need to set it.
 
@@ -196,7 +199,7 @@ Purpose: command-entry controls for tool surfaces, page command rows, card heade
 
 - `FluentDropDownButton`: one button that opens a set of secondary actions.
 - `FluentSplitButton`: a high-frequency default action on the left, with variants or more options on the right.
-- `FluentCommandBar`: a `QAction`-centered surface for frequent commands, menu commands, separators, and a small number of custom widgets. When an action's enabled/text/icon state changes, the matching command button updates with it.
+- `FluentCommandBar`: a `QAction`-centered surface for frequent commands, menu commands, separators, and a small number of custom widgets. When an action's enabled/checked/text/icon/menu state changes, the matching command button updates with it.
 
 Inheritance & construction:
 
@@ -210,6 +213,13 @@ Key APIs:
 - `FluentSplitButton::setDefaultAction(QAction*)`: run the primary action from the left side.
 - `FluentSplitButton::setMenu(QMenu*)`: open secondary actions from the right arrow.
 - `FluentCommandBar::addAction()` / `addCommand(QAction*)` / `addSeparator()` / `addWidget()`: compose command buttons, menu commands, separators, and custom widgets; when space runs out, trailing commands automatically move into a right-side overflow FluentMenu.
+
+Visual details:
+
+- `FluentDropDownButton`, `FluentSplitButton`, and plain buttons share the same neutral/accent token state rules. Primary pressed uses a lighter accent stop in dark mode.
+- `FluentDropDownButton` and `FluentSplitButton` focus rings also use the `accent.base` token, matching `FluentButton` / `FluentAnimatedButton`.
+- `FluentSplitButton` keeps both segments at the same height and border weight, removes radius at the seam, and reuses the neutral bottom stroke for depth.
+- `FluentCommandBar` command buttons keep a transparent baseline and only show token-derived feedback for hover, pressed, checked, and focus states.
 
 Example:
 
@@ -250,7 +260,8 @@ Notes:
 
 - `FluentCommandBar` is a lightweight command container, not a replacement for `QToolBar`; use `FluentToolBar` when you need main-window toolbar semantics.
 - `FluentSplitButton` separates default action and secondary menu. If the control only opens a menu, `FluentDropDownButton` is clearer.
-- `FluentCommandBar` is valuable when commands are managed centrally; it is not just a styled replacement for `QHBoxLayout + Button`. Overflow menu items reuse the same `QAction` instances, so enabled, text, icon, and submenu state stay synchronized.
+- DropDownButton and SplitButton menus use the Fluent popup host; the opening slide is clamped to the anchor gap so the menu content does not overlap the button label while it animates in.
+- `FluentCommandBar` is valuable when commands are managed centrally; it is not just a styled replacement for `QHBoxLayout + Button`. Overflow menu items reuse the same `QAction` instances, so enabled, checked, text, icon, and submenu state stay synchronized.
 
 Demo: Buttons / Overview.
 
@@ -268,6 +279,7 @@ Inheritance & construction:
 Visual / interaction notes:
 
 - Track size is roughly `40x20`, knob is an Islands-style dot (no shadow; performance-oriented).
+- Track, hover row, focus ring, unchecked knob surface, checked knob `onAccent`, and disabled treatment are derived from the current theme tokens, so dark or bright-accent themes do not fall back to fixed legacy hover/accent colors.
 - `setText()` shows a right-side label (auto-elided).
 - `setChecked()` starts a smooth progress animation and emits `toggled(bool)`.
 
@@ -302,6 +314,8 @@ Demo: Buttons / Containers / Windows / Overview.
 
 Purpose: a `QCheckBox` with hover row highlight, focus ring, and a checkmark fade-in animation.
 
+Visual semantics: unchecked / disabled box surfaces and borders come from the current neutral tokens; enabled checked fill and the focus ring use `accent.base`, while the checkmark uses `onAccent`; disabled checked keeps the neutral disabled surface and uses `disabledText` for the checkmark.
+
 Inheritance & construction:
 
 - `class FluentCheckBox : public QCheckBox`
@@ -322,6 +336,8 @@ Demo: Buttons / Overview.
 ## FluentRadioButton
 
 Purpose: a `QRadioButton` with hover row highlight, focus ring, and a selection animation (dot scale + accent border fade-in).
+
+Visual semantics: unchecked / disabled circle surfaces and borders come from the current neutral tokens; enabled checked border, inner dot, and focus ring use `accent.base`; disabled checked keeps the neutral disabled surface and uses `disabledText` for the inner dot.
 
 Inheritance & construction:
 

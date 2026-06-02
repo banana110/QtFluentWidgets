@@ -23,6 +23,7 @@ class FluentMenu final : public QMenu
 public:
     explicit FluentMenu(QWidget *parent = nullptr);
     explicit FluentMenu(const QString &title, QWidget *parent = nullptr);
+    ~FluentMenu() override;
     void popup(const QPoint &pos, QAction *atAction = nullptr);
     QAction *exec(const QPoint &pos, QAction *atAction = nullptr);
 
@@ -44,6 +45,7 @@ private:
     void startHoverAnimation(qreal endValue);
 
     void startPopupAnimation();
+    void finishPopupAnimationImmediately();
     void updateHighlightForAction(QAction *action, bool animate);
     QRect highlightTargetRect(QAction *action) const;
     void updateWindowMask();

@@ -40,6 +40,8 @@ namespace {
 constexpr int kAutoSuggestPopupGap = 5;
 constexpr int kAutoSuggestMaxVisibleRows = 6;
 constexpr int kAutoSuggestViewInset = 6;
+constexpr int kAutoSuggestItemMinHeight = 36;
+constexpr qreal kAutoSuggestItemRadius = 5.0;
 
 class AutoSuggestListView final : public QListView
 {
@@ -80,7 +82,17 @@ public:
 
     void applyMotion()
     {
+        const bool hoverRunning = m_hoverAnim && m_hoverAnim->state() == QAbstractAnimation::Running;
+        const QVariant hoverEnd = m_hoverAnim ? m_hoverAnim->endValue() : QVariant();
+
         FluentMotion::configure(m_hoverAnim, FluentMotionRole::Hover);
+        if (hoverRunning && m_hoverAnim->duration() <= 0) {
+            m_hoverAnim->stop();
+            m_hoverLevel = qBound<qreal>(0.0, hoverEnd.toReal(), 1.0);
+            if (viewport()) {
+                viewport()->update();
+            }
+        }
     }
 
 protected:
@@ -107,6 +119,7 @@ private:
         if (!m_hoverAnim) {
             return;
         }
+        FluentMotion::configure(m_hoverAnim, FluentMotionRole::Hover);
         m_hoverAnim->stop();
         if (m_hoverAnim->duration() <= 0) {
             m_hoverLevel = qBound<qreal>(0.0, endValue, 1.0);
@@ -137,7 +150,7 @@ public:
     QSize sizeHint(const QStyleOptionViewItem &option, const QModelIndex &index) const override
     {
         QSize size = QStyledItemDelegate::sizeHint(option, index);
-        size.setHeight(qMax(32, size.height()));
+        size.setHeight(qMax(kAutoSuggestItemMinHeight, size.height()));
         size.setWidth(qMax(size.width(), option.fontMetrics.horizontalAdvance(index.data(Qt::DisplayRole).toString()) + 28));
         return size;
     }
@@ -149,6 +162,7 @@ public:
         opt.state &= ~QStyle::State_HasFocus;
 
         const auto &colors = ThemeManager::instance().colors();
+        const auto &tokens = ThemeManager::instance().tokens();
         const QRectF itemRect = QRectF(opt.rect).adjusted(4, 2, -4, -2);
         const bool enabled = opt.state.testFlag(QStyle::State_Enabled);
         const bool selected = opt.state.testFlag(QStyle::State_Selected);
@@ -159,22 +173,22 @@ public:
 
         QColor bg = Qt::transparent;
         if (selected) {
-            bg = colors.accent;
-            bg.setAlpha(38);
+            bg = tokens.accent.base;
+            bg.setAlpha(tokens.dark ? 54 : 36);
         } else if (hovered) {
-            bg = colors.hover;
-            bg.setAlphaF(0.32 * (m_view ? m_view->hoverLevel() : 1.0));
+            bg = tokens.neutral.fillSecondary;
+            bg.setAlpha(qBound(0, int(std::lround((tokens.dark ? 120.0 : 90.0) * (m_view ? m_view->hoverLevel() : 1.0))), 150));
         }
 
         if (bg.alpha() > 0) {
             painter->setPen(Qt::NoPen);
             painter->setBrush(bg);
-            painter->drawRoundedRect(itemRect, 4.0, 4.0);
+            painter->drawRoundedRect(itemRect, kAutoSuggestItemRadius, kAutoSuggestItemRadius);
         }
 
         if (selected) {
             painter->setPen(Qt::NoPen);
-            painter->setBrush(colors.accent);
+            painter->setBrush(tokens.accent.base);
             const QRectF indicator(itemRect.left(),
                                    itemRect.center().y() - 8.0,
                                    3.0,
@@ -254,10 +268,15 @@ public:
     void applyTheme()
     {
         FluentMotion::configure(m_openAnim, FluentMotionRole::PopupOpen);
+        if (isVisible() && m_openAnim && m_openAnim->duration() <= 0) {
+            m_openAnim->stop();
+            Detail::finishPopupOpen(this, m_targetGeom);
+        }
         m_border.syncFromTheme();
         if (m_view) {
             m_view->applyMotion();
             const auto &colors = ThemeManager::instance().colors();
+            const auto &tokens = ThemeManager::instance().tokens();
             Detail::applyFluentViewPalette(m_view, m_view->viewport(), colors);
             const QString next = QStringLiteral(
                 "QListView#FluentAutoSuggestPopupView {"
@@ -284,7 +303,7 @@ public:
                 "  height: 0px;"
                 "}")
                 .arg(colors.text.name(QColor::HexArgb),
-                     colors.border.name(QColor::HexArgb));
+                     tokens.neutral.stroke.name(QColor::HexArgb));
             if (m_view->styleSheet() != next) {
                 m_view->setStyleSheet(next);
             }
@@ -406,6 +425,15 @@ protected:
         if ((m_owner && watched == m_owner->lineEdit()) ||
             watched == m_view ||
             (m_view && watched == m_view->viewport())) {
+            if (m_owner && watched == m_owner->lineEdit() && event->type() == QEvent::FocusIn) {
+                QPointer<FluentAutoSuggestBox> owner = m_owner;
+                QTimer::singleShot(0, this, [owner]() {
+                    if (owner) {
+                        owner->updatePopup();
+                    }
+                });
+            }
+
             if (event->type() == QEvent::KeyPress) {
                 auto *keyEvent = static_cast<QKeyEvent *>(event);
                 switch (keyEvent->key()) {

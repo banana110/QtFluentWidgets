@@ -3,7 +3,9 @@
 #include "Fluent/FluentScrollBar.h"
 #include "Fluent/FluentStyle.h"
 #include "Fluent/FluentTheme.h"
+#include "FluentInputVisuals_p.h"
 
+#include <QAbstractAnimation>
 #include <QEvent>
 #include <QFocusEvent>
 #include <QFrame>
@@ -44,11 +46,10 @@ protected:
             return;
         }
 
-        const auto &colors = ThemeManager::instance().colors();
         const auto m = Style::metrics();
+        const auto &colors = ThemeManager::instance().colors();
 
-        // Mirror Style::paintControlSurface border/focus ring.
-        const QColor stroke = m_owner->isEnabled() ? colors.border : Style::mix(colors.border, colors.disabledText, 0.35);
+        const QColor stroke = InputVisuals::inputStroke(colors, m_owner->isEnabled());
 
         p.setRenderHint(QPainter::Antialiasing, true);
         const QRectF r = QRectF(rect());
@@ -68,12 +69,7 @@ protected:
         p.setBrush(Qt::NoBrush);
         p.drawPath(Style::roundedRectPath(rr, m.radius));
 
-        if (m_owner->isEnabled() && m_owner->focusLevel() > 0.0) {
-            QColor focus = colors.focus;
-            focus.setAlphaF(0.9 * qBound<qreal>(0.0, m_owner->focusLevel(), 1.0));
-            p.setPen(QPen(focus, 2.0));
-            p.drawPath(Style::roundedRectPath(rr.adjusted(1.0, 1.0, -1.0, -1.0), m.radius - 1));
-        }
+        InputVisuals::paintFocusRing(p, rr, colors, m_owner->isEnabled() ? m_owner->focusLevel() : 0.0);
     }
 
 private:
@@ -132,7 +128,12 @@ FluentTextEdit::FluentTextEdit(QWidget *parent)
     m_borderOverlay->hide();
 
     // Defer theme application until the widget is shown to avoid triggering early viewport paints.
-    connect(&ThemeManager::instance(), &ThemeManager::themeChanged, this, &FluentTextEdit::applyTheme);
+    connect(&ThemeManager::instance(), &ThemeManager::themeChanged, this, [this] {
+        if (!m_themeAppliedOnce && !isVisible()) {
+            return;
+        }
+        applyTheme();
+    });
 }
 
 QSize FluentTextEdit::sizeHint() const
@@ -149,6 +150,9 @@ void FluentTextEdit::setHoverLevel(qreal value)
 {
     m_hoverLevel = qBound<qreal>(0.0, value, 1.0);
     update();
+    if (m_borderOverlay) {
+        m_borderOverlay->update();
+    }
 }
 
 qreal FluentTextEdit::focusLevel() const
@@ -160,26 +164,46 @@ void FluentTextEdit::setFocusLevel(qreal value)
 {
     m_focusLevel = qBound<qreal>(0.0, value, 1.0);
     update();
+    if (m_borderOverlay) {
+        m_borderOverlay->update();
+    }
 }
 
 void FluentTextEdit::changeEvent(QEvent *event)
 {
     QTextEdit::changeEvent(event);
     if (event && event->type() == QEvent::EnabledChange) {
+        if (!m_themeAppliedOnce && !isVisible()) {
+            return;
+        }
         applyTheme();
     }
 }
 
 void FluentTextEdit::applyTheme()
 {
+    const bool hoverRunning = m_hoverAnim && m_hoverAnim->state() == QAbstractAnimation::Running;
+    const bool focusRunning = m_focusAnim && m_focusAnim->state() == QAbstractAnimation::Running;
+    const QVariant hoverEnd = m_hoverAnim ? m_hoverAnim->endValue() : QVariant();
+    const QVariant focusEnd = m_focusAnim ? m_focusAnim->endValue() : QVariant();
+
     FluentMotion::configure(m_hoverAnim, FluentMotionRole::Hover);
     FluentMotion::configure(m_focusAnim, FluentMotionRole::Focus);
+    if (hoverRunning && m_hoverAnim->duration() <= 0) {
+        m_hoverAnim->stop();
+        m_hoverLevel = qBound<qreal>(0.0, hoverEnd.toReal(), 1.0);
+    }
+    if (focusRunning && m_focusAnim->duration() <= 0) {
+        m_focusAnim->stop();
+        m_focusLevel = qBound<qreal>(0.0, focusEnd.toReal(), 1.0);
+    }
 
     const auto &colors = ThemeManager::instance().colors();
+    const auto &tokens = ThemeManager::instance().tokens();
     const QColor textColor = isEnabled() ? colors.text : colors.disabledText;
     const bool dark = ThemeManager::instance().themeMode() == ThemeManager::ThemeMode::Dark;
 
-    QColor selectionBg = colors.accent;
+    QColor selectionBg = tokens.accent.base;
     selectionBg.setAlphaF(dark ? 0.35 : 0.22);
 
     const QString next = QStringLiteral(
@@ -201,7 +225,8 @@ void FluentTextEdit::applyTheme()
     pal.setColor(QPalette::Window, QColor(Qt::transparent));
     pal.setColor(QPalette::WindowText, textColor);
     pal.setColor(QPalette::Disabled, QPalette::WindowText, colors.disabledText);
-    pal.setColor(QPalette::Text, textColor);
+    // QSS owns text color; QPalette::Text is left for the native caret color.
+    pal.setColor(QPalette::Text, isEnabled() ? tokens.accent.base : colors.disabledText);
     pal.setColor(QPalette::Disabled, QPalette::Text, colors.disabledText);
     pal.setColor(QPalette::Highlight, selectionBg);
     pal.setColor(QPalette::HighlightedText, colors.text);
@@ -330,7 +355,12 @@ void FluentTextEdit::startHoverAnimation(qreal endValue)
     if (!m_hoverAnim) {
         return;
     }
+    FluentMotion::configure(m_hoverAnim, FluentMotionRole::Hover);
     m_hoverAnim->stop();
+    if (m_hoverAnim->duration() <= 0) {
+        setHoverLevel(endValue);
+        return;
+    }
     m_hoverAnim->setStartValue(m_hoverLevel);
     m_hoverAnim->setEndValue(endValue);
     m_hoverAnim->start();
@@ -341,7 +371,12 @@ void FluentTextEdit::startFocusAnimation(qreal endValue)
     if (!m_focusAnim) {
         return;
     }
+    FluentMotion::configure(m_focusAnim, FluentMotionRole::Focus);
     m_focusAnim->stop();
+    if (m_focusAnim->duration() <= 0) {
+        setFocusLevel(endValue);
+        return;
+    }
     m_focusAnim->setStartValue(m_focusLevel);
     m_focusAnim->setEndValue(endValue);
     m_focusAnim->start();

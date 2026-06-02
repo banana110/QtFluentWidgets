@@ -17,7 +17,7 @@
 - `FluentRadioButton`（include: `Fluent/FluentRadioButton.h`）
 - `FluentProgressRing`（include: `Fluent/FluentProgressRing.h`）
 
-Demo 页面：Buttons（`demo/pages/PageButtons.cpp`），以及 Overview（`demo/pages/PageOverview.cpp`）。
+Demo 页面：Basic Input（`demo/pages/PageBasicInput.cpp`）、Buttons（`demo/pages/PageButtons.cpp`），以及 Overview（`demo/pages/PageOverview.cpp`）。Basic Input 页会先用 Hub Matrix 汇总命令与选择控件的 Ready / Active / Disabled 状态。
 
 ---
 
@@ -92,11 +92,11 @@ connect(button, &QPushButton::clicked, this, [] {
 注意事项：
 
 - `FluentAnimatedButton` 适合动作入口，不建议把所有普通表单按钮都替换成动画按钮。
-- 第一版不会把 animated icon 自动接入所有导航控件；目前可作为独立 QWidget 或按钮放进布局。
+- `FluentNavigationView` 和可折叠 `FluentCard` 已经有动画图标入口；其他控件仍可把 `FluentLottieWidget` / `FluentAnimatedIcon` 作为独立 QWidget 或按钮放进布局。
 - 如果 Lottie 加载失败，会绘制 fallback icon 或默认静态 glyph。
 - 公开头文件不暴露 rlottie 类型，后续替换/扩展后端不影响使用方 API。
 
-完整接入计划见 [animated-icon-plan.md](animated-icon-plan.md)。
+接入现状与后续计划见 [animated-icon-plan.md](animated-icon-plan.md)。
 
 ---
 
@@ -112,8 +112,10 @@ connect(button, &QPushButton::clicked, this, [] {
 外观/交互要点：
 
 - 最小高度来自 `Style::metrics().height`（更贴近 Win11 控件高度）。
-- Secondary（默认）：surface 填充 + border；若设置为 checkable 且 checked，会出现轻微 accent tint + accent 边框，并把文本颜色略偏向 accent。
-- Primary：accent 填充；若 checkable 且 checked，会额外绘制一层内侧高光以强化“已选中”。
+- Secondary（默认）：使用 `ThemeManager::tokens().neutral.card` / `cardHover` / `strokeSubtle` 派生表面、hover、边框，并额外绘制更清晰的底部 stroke；若设置为 checkable 且 checked，会出现轻微 accent tint + accent 边框，并自动选择可读文字色。
+- Primary：使用 accent ramp，normal 为 `accent.base`、hover 为 `accent.light1`，pressed 在浅色模式使用 `accent.dark1`、暗色模式使用 `accent.light3`；图标/文字使用 `onAccent`。
+- Focus ring 使用当前 `accent.base` token；按钮族不会再直接使用旧 `focus` 色绘制焦点描边。
+- Disabled：使用 neutral disabled surface/stroke 与 `disabledText`，不再由旧的 surface/hover 颜色混合直接决定。
 - 有图标时：图标绘制在左侧，文本居中对齐图标组（icon + gap + text）。
 
 主题联动：控件会监听 `ThemeManager::themeChanged`，以及自身 `EnabledChange`，自动触发重绘。
@@ -166,7 +168,8 @@ connect(toggle, &QAbstractButton::toggled, this, [](bool on) {
 外观/交互要点：
 
 - 默认 `setAutoRaise(true)`，并使用 `Style::metrics().height` 作为最小高度。
-- 若 `setCheckable(true)` 且 checked，会使用“轻微 accent tint + accent 边框”的方式表现选中状态，并把 label 颜色略偏向 accent。
+- 普通、checked、disabled 状态复用按钮 neutral token 规则；若 `setCheckable(true)` 且 checked，会使用“轻微 accent tint + accent 边框”的方式表现选中状态，并自动选择可读 label 色。
+- focus ring 使用当前 `accent.base` token；标题栏 caption 按钮的普通 hover/press 反馈来自 neutral token，不再直接使用旧 `hover` / `pressed` 色。
 
 标题栏窗口按钮（内部约定）：
 
@@ -175,7 +178,7 @@ connect(toggle, &QAbstractButton::toggled, this, [](bool on) {
 - `0`：最小化
 - `1`：最大化
 - `2`：还原
-- `3`：关闭（hover 会用更明显的红色）
+- `3`：关闭（hover 使用 semantic error token，pressed 会用当前主题文本/背景 token 派生更深的 error shade，并自动选择可读 glyph 色）
 
 该属性主要由 `FluentMainWindow` 内部使用；一般业务代码无需设置。
 
@@ -194,7 +197,7 @@ Demo：Buttons / Overview（也用于若干容器控件内部）。
 
 - `FluentDropDownButton`：一个按钮只负责展开一组次级动作。
 - `FluentSplitButton`：左侧是高频默认动作，右侧是同一动作的变体或更多选项。
-- `FluentCommandBar`：以 `QAction` 为中心组织一组常用命令，统一承载按钮、菜单命令、分隔线和少量自定义控件；当 action 的 enabled/text/icon 改变时，命令栏中的按钮会同步更新。
+- `FluentCommandBar`：以 `QAction` 为中心组织一组常用命令，统一承载按钮、菜单命令、分隔线和少量自定义控件；当 action 的 enabled/checked/text/icon/menu 改变时，命令栏中的按钮会同步更新。
 
 继承与构造：
 
@@ -208,6 +211,13 @@ Demo：Buttons / Overview（也用于若干容器控件内部）。
 - `FluentSplitButton::setDefaultAction(QAction*)`：左侧执行主动作。
 - `FluentSplitButton::setMenu(QMenu*)`：右侧箭头展开更多动作。
 - `FluentCommandBar::addAction()` / `addCommand(QAction*)` / `addSeparator()` / `addWidget()`：组织命令按钮、菜单命令、分隔线和自定义控件；宽度不足时尾部命令会自动收进右侧 overflow FluentMenu。
+
+外观细节：
+
+- `FluentDropDownButton`、`FluentSplitButton` 与普通按钮共用 neutral/accent token 状态规则，Primary 的 `pressed` 在暗色模式下会走更亮的 accent stop。
+- `FluentDropDownButton` 与 `FluentSplitButton` 的 focus ring 同样来自 `accent.base` token，与 `FluentButton` / `FluentAnimatedButton` 保持一致。
+- `FluentSplitButton` 左右段保持一致高度和边框，分段接缝处不绘制圆角，并沿用 neutral bottom stroke 强化实体感。
+- `FluentCommandBar` 中的命令按钮保持轻量 transparent baseline，只在 hover、pressed、checked、focus 时显示 token 派生反馈。
 
 示例：
 
@@ -248,7 +258,8 @@ editAction->setEnabled(false); // CommandBar 内对应按钮会同步禁用。
 
 - `FluentCommandBar` 是轻量命令容器，不替代 `QToolBar`；需要主窗口工具栏语义时继续使用 `FluentToolBar`。
 - `FluentSplitButton` 左右两块分别响应，适合“默认动作 + 更多选项”；如果只有菜单，使用 `FluentDropDownButton` 更清楚。
-- `FluentCommandBar` 的价值在于集中管理一组命令，而不是简单替代 `QHBoxLayout + Button`；overflow 菜单仍复用原始 `QAction`，因此 enabled、text、icon、menu 状态会继续同步。
+- DropDownButton 和 SplitButton 的菜单使用 Fluent popup host；开场 slide 会按按钮间距裁剪，因此菜单内容在入场动画首帧也不会压住按钮文字。
+- `FluentCommandBar` 的价值在于集中管理一组命令，而不是简单替代 `QHBoxLayout + Button`；overflow 菜单仍复用原始 `QAction`，因此 enabled、checked、text、icon、menu 状态会继续同步。
 
 Demo：Buttons / Overview。
 
@@ -266,6 +277,7 @@ Demo：Buttons / Overview。
 外观/交互要点：
 
 - Track 尺寸固定为约 `40x20`，knob 为 Islands 风格圆点（无阴影，偏性能优先）。
+- Track、hover 行、focus ring、unchecked knob surface、checked knob `onAccent` 和禁用态都从当前 theme token 派生；暗色或高亮 accent 下不会回退到旧 hover/accent 颜色或固定白色 knob。
 - `setText()` 可显示右侧标签（会自动省略）。
 - `setChecked()` 会触发平滑的 progress 动画并发出 `toggled(bool)`。
 
@@ -300,6 +312,8 @@ Demo：Buttons / Containers / Windows / Overview。
 
 用途：复选框（`QCheckBox`），包含 hover 行高亮、focus ring，以及勾选动画（checkmark 渐入）。
 
+外观语义：unchecked / disabled 的框体 surface 与边框来自当前 neutral token；enabled checked 填充和 focus ring 使用 `accent.base`，checkmark 使用 `onAccent`；disabled checked 保持 neutral disabled surface，并用 `disabledText` 表示勾选状态。
+
 继承与构造：
 
 - `class FluentCheckBox : public QCheckBox`
@@ -320,6 +334,8 @@ Demo：Buttons / Overview。
 ## FluentRadioButton
 
 用途：单选按钮（`QRadioButton`），包含 hover 行高亮、focus ring，以及选中动画（dot 缩放 + accent border 渐入）。
+
+外观语义：unchecked / disabled 的圆形 surface 与边框来自当前 neutral token；enabled checked 边框、内点和 focus ring 使用 `accent.base`；disabled checked 保持 neutral disabled surface，并用 `disabledText` 表示内点。
 
 继承与构造：
 

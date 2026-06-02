@@ -63,6 +63,7 @@ private:
     void updateTitleBarContent();
     void updateWindowControlIcons();
     void updateWindowMarginsForState();
+    int effectiveResizeBorderWidth() const;
 
     void ensureMaskOverlay();
     void teardownMaskOverlay();
@@ -80,6 +81,8 @@ private:
     QPoint m_dragOffset;
 
     bool m_resizeEnabled = false;
+    int m_resizeBorderWidth = 8;
+    bool m_resizeBorderWidthExplicit = false;
     FluentResizeHelper *m_resizeHelper = nullptr;
 
     bool m_maskEnabled = false;

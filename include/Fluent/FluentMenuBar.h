@@ -11,6 +11,7 @@ class QVariantAnimation;
 class QMouseEvent;
 class QPaintEvent;
 class QActionEvent;
+class QChildEvent;
 class QFontMetrics;
 class QMenu;
 class QPoint;
@@ -31,6 +32,7 @@ public:
     void setHoverLevel(qreal value);
     QSize minimumSizeHint() const override;
 protected:
+    void childEvent(QChildEvent *event) override;
     void changeEvent(QEvent *event) override;
     void actionEvent(QActionEvent *event) override;
     void mousePressEvent(QMouseEvent *event) override;
@@ -70,6 +72,8 @@ private:
     mutable QHash<QAction *, QRect> m_actionRects;
     mutable QSize m_cachedSizeHint;
     mutable bool m_layoutDirty = true;
+    bool m_convertingMenus = false;
+    bool m_extensionSuppressionQueued = false;
 
     QPointer<QMenu> m_openMenu;
     QPointer<QWidget> m_openPopup;

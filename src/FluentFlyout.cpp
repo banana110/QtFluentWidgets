@@ -33,6 +33,9 @@ FluentFlyout::FluentFlyout(QWidget *parent)
     m_border.setRequestUpdate([this]() { update(); });
     m_border.syncFromTheme();
     connect(&ThemeManager::instance(), &ThemeManager::themeChanged, this, [this]() {
+        if (m_openAnim && FluentMotion::duration(FluentMotionRole::PopupOpen) <= 0) {
+            finishOpenAnimationImmediately();
+        }
         if (isVisible()) {
             m_border.onThemeChanged();
         } else {
@@ -111,6 +114,7 @@ void FluentFlyout::hideEvent(QHideEvent *event)
         m_openAnim->deleteLater();
         m_openAnim = nullptr;
     }
+    m_openTargetGeometry = QRect();
     Detail::resetPopupOpenState(this);
     m_border.resetInitial();
 }
@@ -216,6 +220,21 @@ void FluentFlyout::updateLayoutMargins()
                                  shadow.bottom() + m_contentMargins.bottom());
 }
 
+void FluentFlyout::finishOpenAnimationImmediately()
+{
+    if (!m_openAnim) {
+        return;
+    }
+
+    auto *animation = m_openAnim;
+    m_openAnim = nullptr;
+    animation->stop();
+    animation->deleteLater();
+    Detail::finishPopupOpen(this, m_openTargetGeometry);
+    m_openTargetGeometry = QRect();
+    raise();
+}
+
 void FluentFlyout::startOpenAnimation(const QPoint &finalPos, int slideOffsetY)
 {
     if (m_openAnim) {
@@ -223,6 +242,7 @@ void FluentFlyout::startOpenAnimation(const QPoint &finalPos, int slideOffsetY)
         m_openAnim->deleteLater();
         m_openAnim = nullptr;
     }
+    m_openTargetGeometry = QRect();
 
     QRect targetGeometry(finalPos, size());
     const bool revealEnabled = popupRevealEnabled();
@@ -244,8 +264,10 @@ void FluentFlyout::startOpenAnimation(const QPoint &finalPos, int slideOffsetY)
         Detail::preparePopupOpen(this, targetGeometry, effectiveSlideOffsetY, revealEnabled);
     }
 
+    m_openTargetGeometry = targetGeometry;
     m_openAnim = Detail::startPopupOpenAnimation(this, targetGeometry, effectiveSlideOffsetY, revealEnabled, [this]() {
         m_openAnim = nullptr;
+        m_openTargetGeometry = QRect();
     });
 }
 

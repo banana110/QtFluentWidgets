@@ -50,28 +50,72 @@ static constexpr qreal kWindowFrameRadius = 8.0;
 
 static QString applicationStyleSignature(const ThemeColors &colors)
 {
-    // QApplication::setStyleSheet() repolishes the whole widget tree. Fluent
-    // controls already repaint/apply local styles for colors, while generic
-    // Qt widgets can follow QApplication's palette. Keep this signature purely
-    // structural so Light/Dark and accent changes do not force a global polish.
-    Q_UNUSED(colors);
-    return QStringLiteral("structure|%1")
-        .arg(ThemeManager::instance().tokens().typography.body);
+    // QApplication::setStyleSheet() repolishes the whole widget tree. Keep this
+    // signature to the colors that Theme::baseStyleSheet actually emits so
+    // border-only token changes refresh native/fallback chrome without making
+    // unrelated themeChanged signals expensive.
+    const auto tokens = Theme::tokens(colors);
+    const QColor tooltipFill = Style::mix(tokens.neutral.layer,
+                                          tokens.accent.base,
+                                          tokens.dark ? 0.16 : 0.07);
+    const QColor tooltipBorder = Style::mix(tokens.neutral.strokeSubtle,
+                                            tokens.accent.base,
+                                            tokens.dark ? 0.20 : 0.12);
+    const QColor scrollHandle = Style::withAlpha(tokens.neutral.strokeStrong,
+                                                 tokens.dark ? 132 : 116);
+    const QColor scrollHandleHover = Style::withAlpha(
+        Style::mix(tokens.neutral.strokeStrong, colors.text, tokens.dark ? 0.16 : 0.10),
+        tokens.dark ? 168 : 148);
+    const QColor scrollHandlePressed = Style::withAlpha(
+        Style::mix(tokens.neutral.strokeStrong, colors.text, tokens.dark ? 0.26 : 0.18),
+        tokens.dark ? 204 : 180);
+
+    QStringList parts;
+    parts << QStringLiteral("base-style")
+          << QString::number(tokens.typography.body)
+          << colors.text.name(QColor::HexArgb)
+          << tokens.neutral.background.name(QColor::HexArgb)
+          << tokens.accent.base.name(QColor::HexArgb)
+          << tooltipFill.name(QColor::HexArgb)
+          << tooltipBorder.name(QColor::HexArgb)
+          << scrollHandle.name(QColor::HexArgb)
+          << scrollHandleHover.name(QColor::HexArgb)
+          << scrollHandlePressed.name(QColor::HexArgb);
+    return parts.join(QLatin1Char('|'));
 }
 
 static QString applicationPaletteSignature(const ThemeColors &colors)
 {
-    return QStringLiteral("%1|%2|%3|%4|%5|%6")
-        .arg(colors.text.name(QColor::HexArgb))
-        .arg(colors.subText.name(QColor::HexArgb))
-        .arg(colors.disabledText.name(QColor::HexArgb))
-        .arg(colors.background.name(QColor::HexArgb))
-        .arg(colors.surface.name(QColor::HexArgb))
-        .arg(colors.accent.name(QColor::HexArgb));
+    const auto tokens = Theme::tokens(colors);
+    const QColor tooltipFill = Style::mix(tokens.neutral.layer,
+                                          tokens.accent.base,
+                                          tokens.dark ? 0.16 : 0.07);
+    const QColor disabledSelection = Style::mix(tokens.neutral.card,
+                                                tokens.neutral.background,
+                                                tokens.dark ? 0.48 : 0.35);
+
+    QStringList parts;
+    parts << QStringLiteral("palette")
+          << colors.text.name(QColor::HexArgb)
+          << colors.disabledText.name(QColor::HexArgb)
+          << colors.error.name(QColor::HexArgb)
+          << tokens.neutral.background.name(QColor::HexArgb)
+          << tokens.neutral.card.name(QColor::HexArgb)
+          << tokens.neutral.cardHover.name(QColor::HexArgb)
+          << tooltipFill.name(QColor::HexArgb)
+          << tokens.neutral.strokeSubtle.name(QColor::HexArgb)
+          << tokens.neutral.fillTertiary.name(QColor::HexArgb)
+          << tokens.accent.base.name(QColor::HexArgb)
+          << tokens.accent.dark1.name(QColor::HexArgb)
+          << tokens.accent.dark2.name(QColor::HexArgb)
+          << tokens.onAccent.name(QColor::HexArgb)
+          << disabledSelection.name(QColor::HexArgb);
+    return parts.join(QLatin1Char('|'));
 }
 
 static constexpr const char *kPaletteStyleDirtyProperty = "_fluentPaletteStyleDirty";
 static constexpr const char *kPaletteStyleFilterInstalledProperty = "_fluentPaletteStyleFilterInstalled";
+static constexpr const char *kPreserveNativeMenuActionProperty = "_fluentPreserveNativeMenuAction";
 
 static bool hasPaletteDrivenStyleSheet(QWidget *widget)
 {
@@ -113,32 +157,38 @@ static void applyApplicationPalette(QApplication *app, const ThemeColors &colors
     }
 
     const auto tokens = Theme::tokens(colors);
+    const QColor tooltipFill = Style::mix(tokens.neutral.layer,
+                                          tokens.accent.base,
+                                          tokens.dark ? 0.16 : 0.07);
+    const QColor disabledSelection = Style::mix(tokens.neutral.card,
+                                                tokens.neutral.background,
+                                                tokens.dark ? 0.48 : 0.35);
     QPalette palette = app->palette();
-    palette.setColor(QPalette::Window, colors.background);
+    palette.setColor(QPalette::Window, tokens.neutral.background);
     palette.setColor(QPalette::WindowText, colors.text);
-    palette.setColor(QPalette::Base, colors.surface);
-    palette.setColor(QPalette::AlternateBase, colors.hover);
-    palette.setColor(QPalette::ToolTipBase, Style::mix(colors.surface, colors.accent, tokens.dark ? 0.18 : 0.08));
+    palette.setColor(QPalette::Base, tokens.neutral.card);
+    palette.setColor(QPalette::AlternateBase, tokens.neutral.cardHover);
+    palette.setColor(QPalette::ToolTipBase, tooltipFill);
     palette.setColor(QPalette::ToolTipText, colors.text);
     palette.setColor(QPalette::Text, colors.text);
-    palette.setColor(QPalette::Button, colors.surface);
+    palette.setColor(QPalette::Button, tokens.neutral.card);
     palette.setColor(QPalette::ButtonText, colors.text);
     palette.setColor(QPalette::BrightText, colors.error);
-    palette.setColor(QPalette::Light, colors.hover);
+    palette.setColor(QPalette::Light, tokens.neutral.cardHover);
     palette.setColor(QPalette::Midlight, tokens.accent.dark2);
-    palette.setColor(QPalette::Mid, colors.border);
-    palette.setColor(QPalette::Dark, colors.pressed);
+    palette.setColor(QPalette::Mid, tokens.neutral.strokeSubtle);
+    palette.setColor(QPalette::Dark, tokens.neutral.fillTertiary);
     palette.setColor(QPalette::Shadow, tokens.accent.dark1);
-    palette.setColor(QPalette::Highlight, colors.accent);
+    palette.setColor(QPalette::Highlight, tokens.accent.base);
     palette.setColor(QPalette::HighlightedText, tokens.onAccent);
-    palette.setColor(QPalette::Link, colors.accent);
-    palette.setColor(QPalette::LinkVisited, colors.accent.darker(120));
+    palette.setColor(QPalette::Link, tokens.accent.base);
+    palette.setColor(QPalette::LinkVisited, tokens.accent.dark2);
     palette.setColor(QPalette::PlaceholderText, colors.disabledText);
 
     palette.setColor(QPalette::Disabled, QPalette::WindowText, colors.disabledText);
     palette.setColor(QPalette::Disabled, QPalette::Text, colors.disabledText);
     palette.setColor(QPalette::Disabled, QPalette::ButtonText, colors.disabledText);
-    palette.setColor(QPalette::Disabled, QPalette::Highlight, colors.hover);
+    palette.setColor(QPalette::Disabled, QPalette::Highlight, disabledSelection);
     palette.setColor(QPalette::Disabled, QPalette::HighlightedText, colors.disabledText);
 
     app->setPalette(palette);
@@ -282,9 +332,7 @@ protected:
         QRectF panelRect(rect());
         panelRect.adjust(frame.borderInset, frame.borderInset, -frame.borderInset, -frame.borderInset);
 
-        const QColor border = frame.borderColorOverride.isValid()
-            ? frame.borderColorOverride
-            : (frame.accentBorderEnabled ? colors.accent : colors.border);
+        const QColor border = fluentFrameBorder(colors, frame);
 
         p.setRenderHint(QPainter::Antialiasing, true);
         p.setPen(QPen(border, frame.borderWidth));
@@ -327,6 +375,7 @@ protected:
         p.setRenderHint(QPainter::Antialiasing, true);
 
         const auto &colors = ThemeManager::instance().colors();
+        const auto &tokens = ThemeManager::instance().tokens();
         const qreal radius = property("_fluentTitleBarRadius").toReal();
         const QRectF r = QRectF(rect()).adjusted(0.0, 0.0, -0.5, -0.5);
 
@@ -343,10 +392,10 @@ protected:
             path.addRect(r);
         }
 
-        p.fillPath(path, colors.surface);
+        p.fillPath(path, tokens.neutral.card);
 
         if (property("_fluentTitleBarBottomRule").toBool()) {
-            QColor divider = colors.border;
+            QColor divider = tokens.neutral.strokeSubtle;
             divider.setAlpha(Theme::isDark(colors) ? 180 : 130);
             p.setPen(QPen(divider, 1.0));
             p.drawLine(QPointF(r.left(), r.bottom()), QPointF(r.right(), r.bottom()));
@@ -392,11 +441,11 @@ protected:
             return;
         }
 
-        const auto &colors = ThemeManager::instance().colors();
+        const auto &tokens = ThemeManager::instance().tokens();
 
         // Simple opaque fill — no rounded rect needed here because the border
         // overlay and DWM handle the visual rounding.
-        p.fillRect(rect(), colors.surface);
+        p.fillRect(rect(), tokens.neutral.card);
     }
 };
 
@@ -405,6 +454,8 @@ protected:
 FluentMainWindow::FluentMainWindow(QWidget *parent)
     : QMainWindow(parent)
 {
+    m_resizeBorderWidth = Style::windowMetrics().resizeBorder;
+
     setAttribute(Qt::WA_StyledBackground, true);
     setWindowFlag(Qt::NoDropShadowWindowHint, true);
 
@@ -706,7 +757,8 @@ QIcon FluentMainWindow::fluentTitleBarIcon() const
     if (m_hasIconOverride) {
         return m_iconOverride;
     }
-    return windowIcon();
+    const QIcon icon = windowIcon();
+    return icon.isNull() ? qApp->windowIcon() : icon;
 }
 
 void FluentMainWindow::setFluentTitleBarCenterWidget(QWidget *widget)
@@ -747,6 +799,7 @@ void FluentMainWindow::setFluentTitleBarCenterWidget(QWidget *widget)
         m_titleLabel->setVisible(false);
         m_centerCustomWidget->setParent(m_centerHost);
         layout->addWidget(m_centerCustomWidget);
+        m_centerCustomWidget->show();
     } else {
         m_titleLabel->setVisible(true);
         m_titleLabel->setParent(m_centerHost);
@@ -798,6 +851,7 @@ void FluentMainWindow::setFluentTitleBarLeftWidget(QWidget *widget)
     if (m_leftCustomWidget) {
         m_leftCustomWidget->setParent(m_leftSlotHost);
         layout->addWidget(m_leftCustomWidget);
+        m_leftCustomWidget->show();
         m_leftSlotHost->show();
     } else {
         m_leftSlotHost->hide();
@@ -850,6 +904,7 @@ void FluentMainWindow::setFluentTitleBarRightWidget(QWidget *widget)
     if (m_rightCustomWidget) {
         m_rightCustomWidget->setParent(m_rightSlotHost);
         layout->addWidget(m_rightCustomWidget);
+        m_rightCustomWidget->show();
         m_rightSlotHost->show();
     } else {
         m_rightSlotHost->hide();
@@ -958,17 +1013,24 @@ bool FluentMainWindow::fluentResizeEnabled() const
 
 void FluentMainWindow::setFluentResizeBorderWidth(int px)
 {
+    m_resizeBorderWidth = qMax(1, px);
+    m_resizeBorderWidthExplicit = true;
     if (!m_resizeHelper) {
         updateResizeHelperState();
     }
     if (m_resizeHelper) {
-        m_resizeHelper->setBorderWidth(px);
+        m_resizeHelper->setBorderWidth(m_resizeBorderWidth);
     }
 }
 
 int FluentMainWindow::fluentResizeBorderWidth() const
 {
-    return m_resizeHelper ? m_resizeHelper->borderWidth() : Style::windowMetrics().resizeBorder;
+    return effectiveResizeBorderWidth();
+}
+
+int FluentMainWindow::effectiveResizeBorderWidth() const
+{
+    return qMax(1, m_resizeBorderWidthExplicit ? m_resizeBorderWidth : Style::windowMetrics().resizeBorder);
 }
 
 QMenuBar *FluentMainWindow::menuBar() const
@@ -1112,6 +1174,7 @@ void FluentMainWindow::setMenuBar(QMenuBar *menuBar)
         if (!action) {
             return;
         }
+        action->setProperty(kPreserveNativeMenuActionProperty, true);
         if (before && fluent->actions().contains(before)) {
             fluent->insertAction(before, action);
         } else {
@@ -1386,6 +1449,7 @@ bool FluentMainWindow::eventFilter(QObject *watched, QEvent *event)
             if (act) {
                 if (event->type() == QEvent::ActionAdded) {
                     QAction *before = ae->before();
+                    act->setProperty(kPreserveNativeMenuActionProperty, true);
                     if (before && m_menuBar->actions().contains(before)) {
                         m_menuBar->insertAction(before, act);
                     } else {
@@ -1513,7 +1577,7 @@ bool FluentMainWindow::nativeEvent(const QByteArray &eventType, void *message, l
         const int y = localPos.y();
         const int w = width();
         const int h = height();
-        const int b = Style::windowMetrics().resizeBorder;
+        const int b = effectiveResizeBorderWidth();
 
         // Resize borders are meaningless when maximized/fullscreen; skip them so
         // they don't shadow the title bar's HTCAPTION area. But we still want to
@@ -2083,8 +2147,8 @@ void FluentMainWindow::updateResizeHelperState()
     if (shouldEnable) {
         if (!m_resizeHelper) {
             m_resizeHelper = new FluentResizeHelper(this);
-            m_resizeHelper->setBorderWidth(Style::windowMetrics().resizeBorder);
         }
+        m_resizeHelper->setBorderWidth(effectiveResizeBorderWidth());
         m_resizeHelper->setEnabled(true);
     } else {
         if (m_resizeHelper) {

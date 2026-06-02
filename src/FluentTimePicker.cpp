@@ -3,8 +3,10 @@
 #include "Fluent/FluentMotion.h"
 #include "Fluent/FluentStyle.h"
 #include "Fluent/FluentTheme.h"
+#include "FluentInputVisuals_p.h"
 #include "datePicker/FluentWheelPickerSupport.h"
 
+#include <QAbstractAnimation>
 #include <QEvent>
 #include <QFocusEvent>
 #include <QKeyEvent>
@@ -285,8 +287,21 @@ void FluentTimePicker::changeEvent(QEvent *event)
 
 void FluentTimePicker::applyTheme()
 {
+    const bool hoverRunning = m_hoverAnim && m_hoverAnim->state() == QAbstractAnimation::Running;
+    const bool focusRunning = m_focusAnim && m_focusAnim->state() == QAbstractAnimation::Running;
+    const QVariant hoverEnd = m_hoverAnim ? m_hoverAnim->endValue() : QVariant();
+    const QVariant focusEnd = m_focusAnim ? m_focusAnim->endValue() : QVariant();
+
     FluentMotion::configure(m_hoverAnim, FluentMotionRole::Hover);
     FluentMotion::configure(m_focusAnim, FluentMotionRole::Focus);
+    if (hoverRunning && m_hoverAnim->duration() <= 0) {
+        m_hoverAnim->stop();
+        m_hoverLevel = qBound<qreal>(0.0, hoverEnd.toReal(), 1.0);
+    }
+    if (focusRunning && m_focusAnim->duration() <= 0) {
+        m_focusAnim->stop();
+        m_focusLevel = qBound<qreal>(0.0, focusEnd.toReal(), 1.0);
+    }
 
     const QString next = QStringLiteral("QTimeEdit { background: transparent; color: transparent; border: none; }"
                                         "QTimeEdit::up-button, QTimeEdit::down-button { width: 0px; border: none; }"
@@ -338,17 +353,16 @@ void FluentTimePicker::paintEvent(QPaintEvent *event)
     painter.setRenderHint(QPainter::Antialiasing, true);
 
     const QRectF surfaceRect = QRectF(this->rect());
-    Style::paintControlSurface(painter, surfaceRect, colors, m_hoverLevel, m_focusLevel, enabled, isPopupVisible());
+    Style::paintControlSurface(painter, surfaceRect, colors, m_hoverLevel, 0.0, enabled, isPopupVisible());
+    InputVisuals::paintFocusRing(painter, surfaceRect.adjusted(0.5, 0.5, -0.5, -0.5), colors, enabled ? m_focusLevel : 0.0);
 
     const auto m = Style::metrics();
     const QRect buttonRect(width() - m.iconAreaWidth, 0, m.iconAreaWidth, height());
     const int fieldCount = m_use24HourClock ? 2 : 3;
     const QRect contentRect = surfaceRect.toRect().adjusted(8, 4, -m.iconAreaWidth - 6, -4);
 
-    QColor divider = colors.border;
-    divider.setAlpha(80);
-    painter.setPen(QPen(divider, 1));
-    painter.drawLine(QPointF(buttonRect.left() + 0.5, buttonRect.top() + 8), QPointF(buttonRect.left() + 0.5, buttonRect.bottom() - 8));
+    const QColor divider = InputVisuals::inputDividerStroke(colors, enabled);
+    InputVisuals::paintTrailingDivider(painter, buttonRect, colors, enabled);
 
     qreal totalWeight = 0.0;
     for (int i = 0; i < fieldCount; ++i) {
@@ -365,7 +379,7 @@ void FluentTimePicker::paintEvent(QPaintEvent *event)
         const QRect fieldRect(x, contentRect.top(), qMin(fieldWidth, remainingWidth), contentRect.height());
 
         QColor textColor = enabled ? (m_hasTime ? colors.text : colors.subText) : colors.disabledText;
-        if (!m_hasTime) {
+        if (enabled && !m_hasTime) {
             textColor.setAlpha(210);
         }
 
@@ -414,7 +428,13 @@ void FluentTimePicker::focusOutEvent(QFocusEvent *event)
 
 void FluentTimePicker::startHoverAnimation(qreal endValue)
 {
+    FluentMotion::configure(m_hoverAnim, FluentMotionRole::Hover);
     m_hoverAnim->stop();
+    if (m_hoverAnim->duration() <= 0) {
+        m_hoverLevel = qBound<qreal>(0.0, endValue, 1.0);
+        update();
+        return;
+    }
     m_hoverAnim->setStartValue(m_hoverLevel);
     m_hoverAnim->setEndValue(endValue);
     m_hoverAnim->start();
@@ -422,7 +442,13 @@ void FluentTimePicker::startHoverAnimation(qreal endValue)
 
 void FluentTimePicker::startFocusAnimation(qreal endValue)
 {
+    FluentMotion::configure(m_focusAnim, FluentMotionRole::Focus);
     m_focusAnim->stop();
+    if (m_focusAnim->duration() <= 0) {
+        m_focusLevel = qBound<qreal>(0.0, endValue, 1.0);
+        update();
+        return;
+    }
     m_focusAnim->setStartValue(m_focusLevel);
     m_focusAnim->setEndValue(endValue);
     m_focusAnim->start();

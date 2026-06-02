@@ -44,9 +44,8 @@ protected:
             return baseResult;
         }
 
-        const auto &colors = ThemeManager::instance().colors();
-        QColor sep = colors.border;
-        sep.setAlpha(140);
+        const auto &tokens = ThemeManager::instance().tokens();
+        const QColor sep = tokens.neutral.strokeSubtle;
 
         QPainter painter(viewport());
         if (!painter.isActive()) {
@@ -121,6 +120,7 @@ public:
         painter->setRenderHint(QPainter::Antialiasing, true);
 
         QColor bgColor = Qt::transparent;
+        const bool enabled = opt.state.testFlag(QStyle::State_Enabled);
         const bool selected = opt.state.testFlag(QStyle::State_Selected);
         bool isCurrentRow = false;
         if (m_view) {
@@ -134,10 +134,12 @@ public:
         const qreal hoverLvl = m_hoverLevelGetter ? m_hoverLevelGetter() : 0.0;
 
         if (selected && !isCurrentRow) {
-            bgColor = fluentItemSelectionFill(colors, 0.86);
-        } else if (isRowSelection && hoverIdx.isValid() && index.row() == hoverIdx.row()) {
+            bgColor = enabled
+                ? fluentItemSelectionFill(colors, 0.86)
+                : fluentItemDisabledSelectionFill(colors, 0.86);
+        } else if (enabled && isRowSelection && hoverIdx.isValid() && index.row() == hoverIdx.row()) {
             bgColor = fluentItemHoverFill(colors, hoverLvl);
-        } else if (!isRowSelection && index == hoverIdx) {
+        } else if (enabled && !isRowSelection && index == hoverIdx) {
             bgColor = fluentItemHoverFill(colors, hoverLvl);
         }
 

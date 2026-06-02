@@ -13,7 +13,10 @@ class DemoThemePanel final : public QWidget
 {
     Q_OBJECT
 public:
-    explicit DemoThemePanel(QWidget *hostWindow, QWidget *parent = nullptr, bool showToastControls = true);
+    explicit DemoThemePanel(QWidget *hostWindow,
+                            QWidget *parent = nullptr,
+                            bool showToastControls = true,
+                            bool useSectionCards = false);
 
     Fluent::FluentToast::Position toastPosition() const;
 
@@ -24,6 +27,7 @@ signals:
 private:
     QPointer<QWidget> m_hostWindow;
     bool m_showToastControls = true;
+    bool m_useSectionCards = false;
     Fluent::FluentToast::Position m_toastPosition = Fluent::FluentToast::Position::BottomRight;
 };
 

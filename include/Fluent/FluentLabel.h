@@ -10,6 +10,7 @@ class FluentLabel final : public QLabel
 public:
     explicit FluentLabel(QWidget *parent = nullptr);
     explicit FluentLabel(const QString &text, QWidget *parent = nullptr);
+    void setStyleSheet(const QString &styleSheet);
 
 protected:
     void changeEvent(QEvent *event) override;
