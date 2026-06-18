@@ -37,6 +37,8 @@ using namespace Fluent;
 QWidget *createWindowsPage(FluentMainWindow *window)
 {
     return Demo::makePage([&](QVBoxLayout *page) {
+        page->addWidget(Demo::makePageHeader(DEMO_TEXT("窗口/对话框","COMPONENTS · DIALOGS"), DEMO_TEXT("窗口 / 对话框 Dialogs","Windows & Dialogs"), DEMO_TEXT("对话框、消息框、信息条与浮出控件等反馈层。","Dialogs, message boxes, info bars and flyouts.")));
+
         auto s = Demo::makeSection(DEMO_TEXT("窗口 / 对话框", "Windows / Dialogs"),
                                    DEMO_TEXT("FluentDialog 可选 resize；FluentMessageBox 四种类型", "FluentDialog with optional resize; FluentMessageBox in four variants"));
         page->addWidget(s.card);

@@ -31,6 +31,8 @@ using namespace Fluent;
 QWidget *createPickersPage(FluentMainWindow *window)
 {
     return Demo::makePage([&](QVBoxLayout *page) {
+        page->addWidget(Demo::makePageHeader(DEMO_TEXT("选择器","COMPONENTS · PICKERS"), DEMO_TEXT("选择器 Pickers","Pickers"), DEMO_TEXT("日期、时间、颜色与下拉选择控件。","Date, time, color and combo selection controls.")));
+
         auto s = Demo::makeSection(DEMO_TEXT("选择器", "Pickers"),
                                    DEMO_TEXT("DatePicker / Calendar / Time / ComboBox（联动 Accent）", "DatePicker / Calendar / Time / ComboBox with Accent linkage"));
 

@@ -138,6 +138,8 @@ FluentCard *makeAnnotatedSectionCard(const QString &group, const QString &title,
 QWidget *createContainersPage(FluentMainWindow *window)
 {
     return Demo::makePage([&](QVBoxLayout *page) {
+        page->addWidget(Demo::makePageHeader(DEMO_TEXT("容器/布局","COMPONENTS · LAYOUT"), DEMO_TEXT("容器 / 布局 Layout","Containers & Layout"), DEMO_TEXT("卡片、分组、标签页与导航等容器布局。","Cards, groups, tabs and navigation containers.")));
+
         auto s = Demo::makeSection(DEMO_TEXT("容器 / 布局", "Containers / Layout"),
                                    QStringLiteral("Card / GroupBox / TabWidget / ScrollArea / ScrollBar / AnnotatedScrollBar / Splitter / FlowLayout"));
 

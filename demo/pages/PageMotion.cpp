@@ -774,6 +774,7 @@ X(animation->play();)
 QWidget *createMotionPage()
 {
     return Demo::makePage([](QVBoxLayout *page) {
+        page->addWidget(Demo::makePageHeader(DEMO_TEXT("动态/图标","COMPONENTS · MOTION"), DEMO_TEXT("动态 / 图标 Motion","Motion & Icons"), DEMO_TEXT("图标系统、动画图标与动效角色。","Icon system, animated icons and motion roles.")));
         fillIcons(page);
         fillMotion(page);
     });

@@ -556,6 +556,7 @@ QWidget *createInputsPage(FluentMainWindow *window)
 QWidget *createInputPage(FluentMainWindow *window)
 {
     return Demo::makePage([&](QVBoxLayout *page) {
+        page->addWidget(Demo::makePageHeader(DEMO_TEXT("基本输入","COMPONENTS · INPUT"), DEMO_TEXT("基本输入 Basic Input","Basic Input"), DEMO_TEXT("文本、数值、开关、选择与角度控件的入口控件。","Text, number, toggle, choice and angle entry controls.")));
         fillInputs(page, window);
         fillAngleControls(page, window);
     });

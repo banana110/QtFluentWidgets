@@ -58,6 +58,8 @@ QWidget *createOverviewPage(FluentMainWindow *window, const std::function<void(i
     Q_UNUSED(window)
 
     return Demo::makePage([=](QVBoxLayout *page) {
+        page->addWidget(Demo::makePageHeader(DEMO_TEXT("总览","OVERVIEW"), DEMO_TEXT("Fluent，为 Qt 桌面重制","Fluent, rebuilt for Qt desktop"), DEMO_TEXT("一套基于 Qt Widgets 的 Fluent Design 控件库，统一 ThemeManager 与 Style 联动。","A Fluent Design widget set on Qt Widgets, unified via ThemeManager and Style.")));
+
         const auto addJumpButton = [jumpTo](QHBoxLayout *row, const QString &text, int pageIndex, bool primary = false) {
             auto *button = new FluentButton(text);
             button->setPrimary(primary);
@@ -85,8 +87,8 @@ QWidget *createOverviewPage(FluentMainWindow *window, const std::function<void(i
 
                 auto *row = new QHBoxLayout();
                 addJumpButton(row, DEMO_TEXT("基本输入", "Basic Input"), 1, true);
-                addJumpButton(row, DEMO_TEXT("容器 / 布局", "Containers"), 9);
-                addJumpButton(row, DEMO_TEXT("窗口 / 对话框", "Windows"), 10);
+                addJumpButton(row, DEMO_TEXT("容器 / 布局", "Containers"), 5);
+                addJumpButton(row, DEMO_TEXT("窗口 / 对话框", "Windows"), 6);
                 addStretchingRow(body, row);
             });
 
@@ -126,8 +128,8 @@ QWidget *createOverviewPage(FluentMainWindow *window, const std::function<void(i
                 body->addWidget(gridHost);
 
                 auto *row = new QHBoxLayout();
-                addJumpButton(row, DEMO_TEXT("输入页", "Inputs"), 2, true);
-                addJumpButton(row, DEMO_TEXT("按钮 / 开关", "Buttons"), 3);
+                addJumpButton(row, DEMO_TEXT("输入页", "Inputs"), 1, true);
+                addJumpButton(row, DEMO_TEXT("按钮 / 开关", "Buttons"), 2);
                 addStretchingRow(body, row);
             });
 
@@ -154,7 +156,7 @@ QWidget *createOverviewPage(FluentMainWindow *window, const std::function<void(i
                 body->addWidget(rowHost);
 
                 auto *buttonRow = new QHBoxLayout();
-                addJumpButton(buttonRow, DEMO_TEXT("打开角度控件页", "Open Angle Controls"), 7, true);
+                addJumpButton(buttonRow, DEMO_TEXT("打开角度控件页", "Open Angle Controls"), 1, true);
                 addStretchingRow(body, buttonRow);
             });
 
@@ -168,7 +170,7 @@ QWidget *createOverviewPage(FluentMainWindow *window, const std::function<void(i
                 body->addWidget(combo);
 
                 auto *row = new QHBoxLayout();
-                addJumpButton(row, DEMO_TEXT("打开选择器页", "Open Pickers"), 6, true);
+                addJumpButton(row, DEMO_TEXT("打开选择器页", "Open Pickers"), 3, true);
                 addStretchingRow(body, row);
             });
 
@@ -185,8 +187,8 @@ QWidget *createOverviewPage(FluentMainWindow *window, const std::function<void(i
                 body->addWidget(status);
 
                 auto *row = new QHBoxLayout();
-                addJumpButton(row, DEMO_TEXT("图标", "Icons"), 4, true);
-                addJumpButton(row, DEMO_TEXT("动态", "Motion"), 5);
+                addJumpButton(row, DEMO_TEXT("图标", "Icons"), 7, true);
+                addJumpButton(row, DEMO_TEXT("动态", "Motion"), 7);
                 addStretchingRow(body, row);
             });
 
@@ -201,7 +203,7 @@ QWidget *createOverviewPage(FluentMainWindow *window, const std::function<void(i
                 body->addWidget(progress);
 
                 auto *row = new QHBoxLayout();
-                addJumpButton(row, DEMO_TEXT("打开数据视图页", "Open Data Views"), 8, true);
+                addJumpButton(row, DEMO_TEXT("打开数据视图页", "Open Data Views"), 4, true);
                 addStretchingRow(body, row);
             });
 
@@ -218,7 +220,7 @@ QWidget *createOverviewPage(FluentMainWindow *window, const std::function<void(i
                 body->addWidget(tabs);
 
                 auto *row = new QHBoxLayout();
-                addJumpButton(row, DEMO_TEXT("打开容器 / 布局页", "Open Containers"), 9, true);
+                addJumpButton(row, DEMO_TEXT("打开容器 / 布局页", "Open Containers"), 5, true);
                 addStretchingRow(body, row);
             });
 
@@ -233,7 +235,7 @@ QWidget *createOverviewPage(FluentMainWindow *window, const std::function<void(i
                 body->addWidget(editor);
 
                 auto *row = new QHBoxLayout();
-                addJumpButton(row, DEMO_TEXT("打开窗口 / 对话框页", "Open Windows"), 10, true);
+                addJumpButton(row, DEMO_TEXT("打开窗口 / 对话框页", "Open Windows"), 6, true);
                 addStretchingRow(body, row);
             });
     });

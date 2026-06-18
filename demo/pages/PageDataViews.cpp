@@ -35,6 +35,8 @@ using namespace Fluent;
 QWidget *createDataViewsPage(FluentMainWindow *window)
 {
     return Demo::makePage([&](QVBoxLayout *page) {
+        page->addWidget(Demo::makePageHeader(DEMO_TEXT("数据视图","COMPONENTS · DATA"), DEMO_TEXT("数据视图 Data Views","Data Views"), DEMO_TEXT("列表、树与表格等数据展示控件。","List, tree and table data views.")));
+
         auto s = Demo::makeSection(DEMO_TEXT("数据视图", "Data Views"),
                                    DEMO_TEXT("ListView / TableView / TreeView（选择变化联动到详情区）", "ListView / TableView / TreeView with selection-driven detail updates"));
 

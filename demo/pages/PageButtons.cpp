@@ -32,6 +32,8 @@ using namespace Fluent;
 QWidget *createButtonsPage(FluentMainWindow *window)
 {
     return Demo::makePage([&](QVBoxLayout *page) {
+        page->addWidget(Demo::makePageHeader(DEMO_TEXT("按钮/命令","COMPONENTS · BUTTONS"), DEMO_TEXT("按钮 / 命令 Buttons","Buttons & Commands"), DEMO_TEXT("按钮、命令栏、下拉与拆分按钮等命令控件。","Buttons, command bar, dropdown and split buttons.")));
+
         auto s = Demo::makeSection(DEMO_TEXT("按钮 / 开关", "Buttons / Toggles"),
                                    DEMO_TEXT("包含 primary/secondary、disabled、checked，以及 CheckBox/Radio/Toggle", "Includes primary / secondary, disabled, checked, plus CheckBox / Radio / Toggle"));
 
