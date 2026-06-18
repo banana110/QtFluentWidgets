@@ -338,6 +338,10 @@ int runVisualRenderBatch(const QString &outputPath,
             appendRenderLog(outputDir, QStringLiteral("begin %1 %2").arg(variant.name, page));
             auto *window = new Demo::DemoWindow(nullptr, page);
             appendRenderLog(outputDir, QStringLiteral("constructed %1 %2").arg(variant.name, page));
+            // DemoWindow's ctor applies the interactive default accent; re-assert the
+            // per-variant accent here so light / light-accent / dark-accent baselines
+            // actually differ instead of all rendering with the demo default.
+            Demo::applyAccent(variant.accent);
             window->setAttribute(Qt::WA_DontShowOnScreen, true);
             window->resize(1260, 780);
             window->ensurePolished();

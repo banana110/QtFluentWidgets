@@ -145,9 +145,14 @@ protected:
         p.setRenderHint(QPainter::Antialiasing, true);
         p.setPen(Qt::NoPen);
         p.setBrush(m_color);
-        p.drawEllipse(QRectF(rect()).adjusted(3, 3, -3, -3));
+        // When selected, shrink the dot so a same-color halo ring fits around it
+        // with a background gap. Using the swatch's own color keeps the indicator
+        // visible on any theme and for any accent — a neutral ring (e.g. white)
+        // would vanish against the light title bar, which hid the teal/blue state.
+        const qreal dotInset = isChecked() ? 4.5 : 3.0;
+        p.drawEllipse(QRectF(rect()).adjusted(dotInset, dotInset, -dotInset, -dotInset));
         if (isChecked()) {
-            QPen ring(m_color.lightness() > 140 ? QColor(0, 0, 0, 160) : QColor(255, 255, 255, 230));
+            QPen ring(m_color);
             ring.setWidthF(2.0);
             p.setBrush(Qt::NoBrush);
             p.setPen(ring);
@@ -288,7 +293,8 @@ void DemoWindow::buildUi()
     auto &window = *this;
 
     window.setWindowTitle(QStringLiteral("QtFluentWidgets Showcase"));
-    ThemeManager::instance().setAccentColor(QColor(QStringLiteral("#5A48E8")));
+    const QColor kDefaultAccent(QStringLiteral("#2563EB")); // blue
+    ThemeManager::instance().setAccentColor(kDefaultAccent);
     ThemeManager::instance().setAccentBorderEnabled(true);
     trace.mark(QStringLiteral("window title"));
 
@@ -349,19 +355,19 @@ void DemoWindow::buildUi()
             QColor(QStringLiteral("#0F9B8E")),
             QColor(QStringLiteral("#2563EB")),
         };
-        AccentSwatchButton *swatch0 = nullptr;
+        AccentSwatchButton *defaultSwatch = nullptr;
         for (int i = 0; i < static_cast<int>(accents.size()); ++i) {
             const QColor c = accents[static_cast<size_t>(i)];
             auto *btn = new AccentSwatchButton(c, right);
-            if (i == 0) {
-                swatch0 = btn;
+            if (c == kDefaultAccent) {
+                defaultSwatch = btn;
             }
             QObject::connect(btn, &QAbstractButton::clicked, this, [c] { ThemeManager::instance().setAccentColor(c); });
             rl->addWidget(btn);
             accentGroup->addButton(btn);
         }
-        if (swatch0) {
-            swatch0->setChecked(true);
+        if (defaultSwatch) {
+            defaultSwatch->setChecked(true);
         }
 
         const bool isDarkAtStartup = ThemeManager::instance().themeMode() == ThemeManager::ThemeMode::Dark;
