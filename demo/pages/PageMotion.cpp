@@ -86,9 +86,8 @@ void addSubsectionTitle(QVBoxLayout *body, const QString &title, const QString &
 
 } // namespace
 
-QWidget *createMotionPage()
+void fillMotion(QVBoxLayout *page)
 {
-    return Demo::makePage([&](QVBoxLayout *page) {
         auto s = Demo::makeSection(
             DEMO_TEXT("动态", "Motion"),
             DEMO_TEXT("展示 FluentLottieWidget 加载内嵌 JSON 资源、播放控制、主题联动以及图标型 Lottie 的 tint 效果。",
@@ -769,7 +768,11 @@ QWidget *createMotionPage()
 
 #undef MOTION_LOTTIE_WIDGET
         }
-    });
+}
+
+QWidget *createMotionPage()
+{
+    return Demo::makePage([](QVBoxLayout *page) { fillMotion(page); });
 }
 
 } // namespace Demo::Pages

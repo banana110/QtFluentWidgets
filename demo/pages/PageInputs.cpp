@@ -24,9 +24,8 @@ namespace Demo::Pages {
 
 using namespace Fluent;
 
-QWidget *createInputsPage(FluentMainWindow *window)
+void fillInputs(QVBoxLayout *page, FluentMainWindow *window)
 {
-    return Demo::makePage([&](QVBoxLayout *page) {
         auto s = Demo::makeSection(DEMO_TEXT("输入控件", "Inputs"),
                                    DEMO_TEXT("LineEdit / TextEdit / SpinBox（含禁用与占位符展示）", "LineEdit / TextEdit / SpinBox with disabled and placeholder states"));
 
@@ -546,7 +545,11 @@ QWidget *createInputsPage(FluentMainWindow *window)
         }
 
         Q_UNUSED(window);
-    });
+}
+
+QWidget *createInputsPage(FluentMainWindow *window)
+{
+    return Demo::makePage([&](QVBoxLayout *page) { fillInputs(page, window); });
 }
 
 } // namespace Demo::Pages

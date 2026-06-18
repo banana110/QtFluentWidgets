@@ -303,9 +303,8 @@ QVector<IconSample> iconSamples()
 
 } // namespace
 
-QWidget *createIconsPage()
+void fillIcons(QVBoxLayout *page)
 {
-    return Demo::makePage([](QVBoxLayout *page) {
         auto s = Demo::makeSection(
             DEMO_TEXT("图标", "Icons"),
             DEMO_TEXT("内置 FluentIcon 图标集：统一 24px outline 风格，可直接用于 NavigationView、按钮、菜单、状态提示和命令栏。",
@@ -436,7 +435,11 @@ QWidget *createIconsPage()
                            "                              options);"),
             false);
         page->addWidget(usageCard);
-    });
+}
+
+QWidget *createIconsPage()
+{
+    return Demo::makePage([](QVBoxLayout *page) { fillIcons(page); });
 }
 
 } // namespace Demo::Pages

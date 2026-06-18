@@ -18,11 +18,10 @@ namespace Demo::Pages {
 
 using namespace Fluent;
 
-QWidget *createAngleControlsPage(FluentMainWindow *window)
+void fillAngleControls(QVBoxLayout *page, FluentMainWindow *window)
 {
-    Q_UNUSED(window)
+        Q_UNUSED(window)
 
-    return Demo::makePage([&](QVBoxLayout *page) {
         auto s = Demo::makeSection(DEMO_TEXT("角度控件", "Angle Controls"),
                                    DEMO_TEXT("FluentDial / FluentAngleSelector：指针、高亮、复合编辑器", "FluentDial / FluentAngleSelector: indicator, highlight, and composite editor"));
         page->addWidget(s.card);
@@ -266,7 +265,11 @@ QWidget *createAngleControlsPage(FluentMainWindow *window)
 
 #undef ANGLE_SELECTOR_VARIANTS
         }
-    });
+}
+
+QWidget *createAngleControlsPage(FluentMainWindow *window)
+{
+    return Demo::makePage([&](QVBoxLayout *page) { fillAngleControls(page, window); });
 }
 
 } // namespace Demo::Pages
