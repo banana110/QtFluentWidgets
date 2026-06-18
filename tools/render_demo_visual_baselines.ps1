@@ -8,7 +8,7 @@ param(
     [Parameter(Mandatory = $true)]
     [string] $QtBinDir,
 
-    [string[]] $Pages = @("overview", "basic_input", "inputs", "buttons", "icons", "motion", "pickers", "angles", "dataviews", "containers", "windows", "settings"),
+    [string[]] $Pages = @("overview", "input", "buttons", "pickers", "data", "containers", "windows", "motion", "settings"),
     [string[]] $Variants = @("light", "dark", "accent"),
     [string[]] $ScaleFactors = @("1", "1.5"),
     [string] $Platform = "windows"

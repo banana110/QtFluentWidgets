@@ -387,7 +387,7 @@ if(WIN32)
             -Executable "$<TARGET_FILE:QtFluentDemo>"
             -OutputDir "${CMAKE_CURRENT_BINARY_DIR}/demo-visual-baselines"
             -QtBinDir "${FLUENT_QT_BIN_DIR}"
-            -Pages "overview,basic_input,inputs,buttons,icons,motion,pickers,angles,dataviews,containers,windows,settings"
+            -Pages "overview,input,buttons,pickers,data,containers,windows,motion,settings"
             -Variants "light,dark,accent"
             -ScaleFactors "1,1.5"
             -Platform "windows"
@@ -405,7 +405,7 @@ else()
             QT_SCALE_FACTOR=1
             $<TARGET_FILE:QtFluentDemo>
             --render-baselines ${CMAKE_CURRENT_BINARY_DIR}/demo-visual-baselines
-            --render-pages overview,basic_input,inputs,buttons,icons,motion,pickers,angles,dataviews,containers,windows,settings
+            --render-pages overview,input,buttons,pickers,data,containers,windows,motion,settings
             --render-variants light,dark,accent
         COMMAND ${CMAKE_COMMAND} -E env
             QTFLUENT_SUPPRESS_KNOWN_PAINT_WARNINGS=1
@@ -413,7 +413,7 @@ else()
             QT_SCALE_FACTOR=1.5
             $<TARGET_FILE:QtFluentDemo>
             --render-baselines ${CMAKE_CURRENT_BINARY_DIR}/demo-visual-baselines
-            --render-pages overview,basic_input,inputs,buttons,icons,motion,pickers,angles,dataviews,containers,windows,settings
+            --render-pages overview,input,buttons,pickers,data,containers,windows,motion,settings
             --render-variants light,dark,accent
         DEPENDS QtFluentDemo
         WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
