@@ -74,7 +74,7 @@ Implementation notes:
 
 - `accentBorderEnabled()` is not just a plain on/off flag: window-layer widgets (`FluentMainWindow`, `FluentDialog`, `FluentMessageBox`, `FluentToast`) feed it through `FluentBorderEffect`, which switches between normal border and accent border states and can play a trace-in animation when enabled.
 - `FluentMainWindow` currently paints that border in a dedicated top-level overlay, so the border can wrap both the title bar and the central widget without being covered by opaque child widgets.
-- **Flow** style strokes that overlay with a `QConicalGradient` from `resolvedFlowColors()` and animates its rotation. The animation pauses when the window is inactive / minimized / hidden and when `animationsEnabled()` is false (so it never spins in the background or breaks offscreen rendering).
+- **Flow** style strokes the accent border with a `QConicalGradient` from `resolvedFlowColors()`. A single shared rotation — `ThemeManager::flowAngle()`, driven by one animator that emits `flowTick()` — is used by **every** accent border (main window, dialogs, message boxes, ...) so they flow in sync. The shared driver runs only while the Flow border is enabled, animations are on, and the application is active; it pauses otherwise (so it never spins in the background or breaks offscreen rendering). `paintFluentFrame` / `paintFluentPanel` and `FluentMainWindow`'s overlay all paint it via the same `paintFluentFlowStroke` helper.
 
 ## Customize colors
 

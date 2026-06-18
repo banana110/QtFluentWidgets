@@ -74,7 +74,7 @@ ThemeManager::instance().setFlowGradientColors({QColor("#2563EB"), QColor("#8A46
 
 - `accentBorderEnabled()` 不只是一个布尔开关；窗口层组件（`FluentMainWindow` / `FluentDialog` / `FluentMessageBox` / `FluentToast`）会通过 `FluentBorderEffect` 把它映射到“普通描边 ↔ accent 描边”的状态切换，并在启用时播放 trace-in 动画。
 - `FluentMainWindow` 当前会把描边画在一个独立的顶层 overlay 上，因此描边可以同时包裹标题栏与 central widget，且不会被不透明内容控件覆盖。
-- **Flow** 样式用 `resolvedFlowColors()` 的 `QConicalGradient` 描边并旋转动画；窗口失焦/最小化/隐藏或 `animationsEnabled()` 为 false 时自动暂停（不在后台空转，也不影响离屏渲染）。
+- **Flow** 样式用 `resolvedFlowColors()` 的 `QConicalGradient` 描边。**所有** accent 描边（主窗口、对话框、消息框等）共用同一个旋转角度 `ThemeManager::flowAngle()`（由单一动画驱动并发出 `flowTick()` 信号），因此整体同步流转。该共享驱动仅在「Flow 描边启用 + 动画开启 + 应用处于活动状态」时运行，否则暂停（不在后台空转，也不影响离屏渲染）。`paintFluentFrame` / `paintFluentPanel` 与 `FluentMainWindow` 的描边 overlay 都通过同一个 `paintFluentFlowStroke` 辅助函数绘制。
 
 也可以直接修改色板：
 
