@@ -9,6 +9,7 @@
 #include <QDebug>
 #include <QLocale>
 #include <QTimer>
+#include <QVariantAnimation>
 #include <QWidget>
 #include <QtMath>
 #include <QtGlobal>
@@ -1533,6 +1534,7 @@ void ThemeManager::setAccentBorderEnabled(bool enabled)
     return;
   }
   m_accentBorderEnabled = enabled;
+  updateFlowDriver();
   scheduleThemeChanged(QStringLiteral("setAccentBorderEnabled"));
 }
 
@@ -1547,6 +1549,7 @@ void ThemeManager::setAccentBorderStyle(AccentBorderStyle style)
     return;
   }
   m_accentBorderStyle = style;
+  updateFlowDriver();
   scheduleThemeChanged(QStringLiteral("setAccentBorderStyle"));
 }
 
@@ -1576,12 +1579,57 @@ QList<QColor> ThemeManager::resolvedFlowColors() const
   return {a.darker(120), a, a.lighter(175), a};
 }
 
+qreal ThemeManager::flowAngle() const
+{
+  return m_flowAngle;
+}
+
+void ThemeManager::updateFlowDriver()
+{
+  // Hook app activation once so the shared flow rotation pauses when the app
+  // isn't focused (keeps it off battery and out of background CPU).
+  if (!m_flowAppStateConnected) {
+    if (auto *gui = qobject_cast<QGuiApplication *>(QCoreApplication::instance())) {
+      QObject::connect(gui, &QGuiApplication::applicationStateChanged, this,
+                       [this](Qt::ApplicationState) { updateFlowDriver(); });
+      m_flowAppStateConnected = true;
+    }
+  }
+
+  auto *gui = qobject_cast<QGuiApplication *>(QCoreApplication::instance());
+  const bool appActive = !gui || gui->applicationState() == Qt::ApplicationActive;
+  const bool shouldRun = m_accentBorderEnabled
+      && m_accentBorderStyle == AccentBorderStyle::Flow
+      && m_animationsEnabled
+      && appActive;
+
+  if (shouldRun) {
+    if (!m_flowAnim) {
+      m_flowAnim = new QVariantAnimation(this);
+      m_flowAnim->setStartValue(0.0);
+      m_flowAnim->setEndValue(360.0);
+      m_flowAnim->setDuration(4200);
+      m_flowAnim->setLoopCount(-1);
+      QObject::connect(m_flowAnim, &QVariantAnimation::valueChanged, this, [this](const QVariant &value) {
+        m_flowAngle = value.toReal();
+        emit flowTick();
+      });
+    }
+    if (m_flowAnim->state() != QAbstractAnimation::Running) {
+      m_flowAnim->start();
+    }
+  } else if (m_flowAnim && m_flowAnim->state() == QAbstractAnimation::Running) {
+    m_flowAnim->stop();
+  }
+}
+
 void ThemeManager::setAnimationsEnabled(bool enabled)
 {
   if (m_animationsEnabled == enabled) {
     return;
   }
   m_animationsEnabled = enabled;
+  updateFlowDriver();
   scheduleThemeChanged(QStringLiteral("setAnimationsEnabled"));
 }
 

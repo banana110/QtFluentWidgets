@@ -7,6 +7,8 @@
 #include <QEasingCurve>
 #include <QString>
 
+class QVariantAnimation;
+
 namespace Fluent {
 
 struct ThemeColors {
@@ -201,6 +203,12 @@ public:
     // colors, otherwise an accent-derived set. Always returns >= 2 colors.
     QList<QColor> resolvedFlowColors() const;
 
+    // Shared rotation for the Flow accent border. A single app-wide animator
+    // drives this angle (degrees) so every accent border flows in sync; it runs
+    // only while the Flow border is enabled, animations are on, and the app is
+    // active. flowTick() fires each frame — border painters connect to repaint.
+    qreal flowAngle() const;
+
     bool animationsEnabled() const;
     void setAnimationsEnabled(bool enabled);
 
@@ -215,9 +223,12 @@ public:
 
 signals:
     void themeChanged();
+    void flowTick();
 
 private:
     ThemeManager();
+
+    void updateFlowDriver();
 
     void scheduleThemeChanged(const QString &reason = QString());
     void setColorsInternal(const ThemeColors &colors, bool updateBaseAccent, const QString &reason = QString());
@@ -231,6 +242,9 @@ private:
     bool m_accentBorderEnabled = true;
     AccentBorderStyle m_accentBorderStyle = AccentBorderStyle::Solid;
     QList<QColor> m_flowGradientColors;
+    qreal m_flowAngle = 0.0;
+    QVariantAnimation *m_flowAnim = nullptr;
+    bool m_flowAppStateConnected = false;
     bool m_animationsEnabled = true;
     bool m_themeChangedPending = false;
     QElapsedTimer m_themeChangeTimer;

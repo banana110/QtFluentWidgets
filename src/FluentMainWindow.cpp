@@ -285,44 +285,13 @@ public:
         setAttribute(Qt::WA_TransparentForMouseEvents, true);
         setAttribute(Qt::WA_NoSystemBackground, true);
         setAutoFillBackground(false);
+        // Repaint on each shared flow tick so the window's accent border animates
+        // the rotating Flow gradient in sync with all other accent borders. The
+        // shared driver (ThemeManager) handles start/stop and app-active pausing.
+        QObject::connect(&ThemeManager::instance(), &ThemeManager::flowTick, this, [this]() { update(); });
     }
 
     void setBorderEffect(const FluentBorderEffect *border) { m_border = border; }
-
-    // Start/stop the rotating "flow" accent border based on the theme style, the
-    // global animations flag, and whether the window is visible & active. Cheap to
-    // call repeatedly (no-ops when already in the right state). Driven from
-    // FluentMainWindow::updateFrameHost(), the central overlay-refresh hub.
-    void updateFlowState()
-    {
-        auto &tm = ThemeManager::instance();
-        const bool flow = tm.accentBorderEnabled()
-            && tm.accentBorderStyle() == ThemeManager::AccentBorderStyle::Flow;
-        const QWidget *w = window();
-        const bool windowActive = w && w->isVisible() && !w->isMinimized() && w->isActiveWindow();
-        const bool shouldAnimate = flow && tm.animationsEnabled() && windowActive;
-
-        if (shouldAnimate) {
-            if (!m_flowAnim) {
-                m_flowAnim = new QVariantAnimation(this);
-                m_flowAnim->setStartValue(0.0);
-                m_flowAnim->setEndValue(360.0);
-                m_flowAnim->setDuration(4200);
-                m_flowAnim->setLoopCount(-1);
-                QObject::connect(m_flowAnim, &QVariantAnimation::valueChanged, this,
-                                 [this](const QVariant &value) {
-                                     m_flowAngle = value.toReal();
-                                     update();
-                                 });
-            }
-            if (m_flowAnim->state() != QAbstractAnimation::Running) {
-                m_flowAnim->start();
-            }
-        } else if (m_flowAnim && m_flowAnim->state() == QAbstractAnimation::Running) {
-            m_flowAnim->stop();
-        }
-        update();
-    }
 
 protected:
     void paintEvent(QPaintEvent *event) override
@@ -370,26 +339,10 @@ protected:
 
         p.setRenderHint(QPainter::Antialiasing, true);
 
-        auto &tm = ThemeManager::instance();
-        const bool flow = tm.accentBorderEnabled()
-            && tm.accentBorderStyle() == ThemeManager::AccentBorderStyle::Flow
-            && !maximized;
-        if (flow) {
-            // Conic gradient stroke; m_flowAngle rotates it so the colours sweep
-            // around the edge like flowing light. Colours come from the shared
-            // flow palette (custom, or accent-derived). When not animating
-            // (inactive / animations off) it renders as a static gradient.
-            const QList<QColor> stops = tm.resolvedFlowColors();
-            QConicalGradient grad(panelRect.center(), m_flowAngle);
-            const int n = stops.size();
-            for (int i = 0; i < n; ++i) {
-                grad.setColorAt(qBound(0.0, qreal(i) / n, 1.0), stops.at(i));
-            }
-            grad.setColorAt(1.0, stops.first()); // close the loop seamlessly
-            QPen pen(QBrush(grad), qMax<qreal>(1.5, frame.borderWidth + 0.5));
-            p.setPen(pen);
-            p.setBrush(Qt::NoBrush);
-            p.drawRoundedRect(panelRect, radius, radius);
+        // Flow accent border uses the shared rotation (ThemeManager::flowAngle),
+        // identical to the path dialogs/toasts take via paintFluentFrame.
+        if (!maximized && fluentFlowBorderActive(frame)) {
+            paintFluentFlowStroke(p, panelRect, radius, frame.borderWidth);
             return;
         }
 
@@ -405,18 +358,7 @@ protected:
 
 private:
     const FluentBorderEffect *m_border = nullptr;
-    QVariantAnimation *m_flowAnim = nullptr;
-    qreal m_flowAngle = 0.0;
 };
-
-// Cast helper so FluentMainWindow (same TU, after this point) can poke the
-// overlay's flow animation without exposing the type in the header.
-void syncFlowBorderState(QWidget *overlay)
-{
-    if (auto *ov = dynamic_cast<WindowBorderOverlay *>(overlay)) {
-        ov->updateFlowState();
-    }
-}
 
 // FluentMainWindow uses QMainWindow's menu-widget slot for the custom title bar,
 // but the host itself must stay a plain widget. If it inherits QMenuBar, promoted
@@ -707,9 +649,6 @@ void FluentMainWindow::updateFrameHost()
         }
         m_borderOverlay->raise();
         m_borderOverlay->update();
-        // Resize / show / activation / window-state / theme changes all route here,
-        // so this is the single place that keeps the flow border animation in sync.
-        syncFlowBorderState(m_borderOverlay);
     }
 }
 

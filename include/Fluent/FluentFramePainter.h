@@ -3,6 +3,7 @@
 #include "Fluent/FluentStyle.h"
 #include "Fluent/FluentTheme.h"
 
+#include <QConicalGradient>
 #include <QPainter>
 #include <QPainterPath>
 #include <QRect>
@@ -243,6 +244,31 @@ inline QColor fluentFrameBorder(const ThemeColors &colors, const FluentFrameSpec
     return spec.accentBorderEnabled ? tokens.accent.base : tokens.neutral.strokeSubtle;
 }
 
+// True when this frame should render the rotating "flow" accent border instead
+// of a solid stroke (only when the accent border is on and the style is Flow).
+inline bool fluentFlowBorderActive(const FluentFrameSpec &spec)
+{
+    return spec.accentBorderEnabled
+        && ThemeManager::instance().accentBorderStyle() == ThemeManager::AccentBorderStyle::Flow;
+}
+
+// Strokes a rounded-rect outline with the shared flow conic gradient at the
+// current ThemeManager::flowAngle(). Caller fills the surface first (NoPen).
+inline void paintFluentFlowStroke(QPainter &p, const QRectF &panelRect, qreal radius, qreal borderWidth)
+{
+    const QList<QColor> stops = ThemeManager::instance().resolvedFlowColors();
+    QConicalGradient grad(panelRect.center(), ThemeManager::instance().flowAngle());
+    const int n = stops.size();
+    for (int i = 0; i < n; ++i) {
+        grad.setColorAt(qBound(0.0, qreal(i) / n, 1.0), stops.at(i));
+    }
+    grad.setColorAt(1.0, stops.first()); // close the loop seamlessly
+    QPen pen(QBrush(grad), qMax<qreal>(1.5, borderWidth + 0.5));
+    p.setPen(pen);
+    p.setBrush(Qt::NoBrush);
+    p.drawRoundedRect(panelRect, radius, radius);
+}
+
 inline void paintFluentFrame(QPainter &p, const QRect &widgetRect, const ThemeColors &colors, const FluentFrameSpec &spec)
 {
     if (!p.isActive()) {
@@ -265,12 +291,15 @@ inline void paintFluentFrame(QPainter &p, const QRect &widgetRect, const ThemeCo
 
     const QColor surface = fluentFrameSurface(colors, spec);
     const QColor border = fluentFrameBorder(colors, spec);
+    const bool flow = fluentFlowBorderActive(spec);
 
-    p.setPen(QPen(border, spec.borderWidth));
+    p.setPen(flow ? QPen(Qt::NoPen) : QPen(border, spec.borderWidth));
     p.setBrush(surface);
     p.drawRoundedRect(panelRect, radius, radius);
 
-    if (spec.traceEnabled) {
+    if (flow) {
+        paintFluentFlowStroke(p, panelRect, radius, spec.borderWidth);
+    } else if (spec.traceEnabled) {
         Style::paintTraceBorder(p, panelRect, radius, spec.traceColor, spec.traceT, spec.borderWidth, 0.0);
     }
 }
@@ -291,12 +320,15 @@ inline void paintFluentPanel(QPainter &p, const QRectF &panelRect, const ThemeCo
 
     const QColor surface = fluentFrameSurface(colors, spec);
     const QColor border = fluentFrameBorder(colors, spec);
+    const bool flow = fluentFlowBorderActive(spec);
 
-    p.setPen(QPen(border, spec.borderWidth));
+    p.setPen(flow ? QPen(Qt::NoPen) : QPen(border, spec.borderWidth));
     p.setBrush(surface);
     p.drawRoundedRect(panelRect, radius, radius);
 
-    if (spec.traceEnabled) {
+    if (flow) {
+        paintFluentFlowStroke(p, panelRect, radius, spec.borderWidth);
+    } else if (spec.traceEnabled) {
         Style::paintTraceBorder(p, panelRect, radius, spec.traceColor, spec.traceT, spec.borderWidth, 0.0);
     }
 }

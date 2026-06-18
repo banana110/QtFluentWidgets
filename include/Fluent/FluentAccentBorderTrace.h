@@ -1,6 +1,7 @@
 ﻿#pragma once
 
 #include "Fluent/FluentStyle.h"
+#include "Fluent/FluentTheme.h"
 
 #include <functional>
 #include <QPointer>
@@ -24,6 +25,13 @@ public:
         : QObject(parent)
         , m_target(updateTarget)
     {
+        // Repaint on each shared flow tick so this widget's accent border (when
+        // enabled) animates the rotating Flow gradient in sync with all others.
+        QObject::connect(&ThemeManager::instance(), &ThemeManager::flowTick, this, [this]() {
+            if (m_currentEnabled) {
+                requestUpdate();
+            }
+        });
     }
 
     // Optional: provide a custom update hook (e.g. update multiple widgets/overlays).
