@@ -6,7 +6,7 @@
 - `FluentIconType`: built-in icon identifiers
 - `FluentIconOptions`: color, opacity, auto-theme, and reversed rendering options
 
-Demo page: Icons (`demo/pages/PageIcons.cpp`) and Overview. The Icons page starts with an Icon State Matrix for normal, accent, onAccent, and disabled color checks.
+Demo page: Motion (`demo/pages/PageMotion.cpp`, which combines the icon gallery from `demo/pages/PageIcons.cpp` with the motion samples) and Overview. The icon section opens with an Icon State Matrix for normal, accent, onAccent, and disabled color checks.
 
 ## Purpose
 

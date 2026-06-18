@@ -6,7 +6,7 @@
 - `FluentIconType`：内置图标枚举
 - `FluentIconOptions`：颜色、透明度、自动主题色与反色选项
 
-Demo 页面：Icons（`demo/pages/PageIcons.cpp`）与 Overview。Icons 页顶部提供 Icon State Matrix，可横向检查 normal、accent、onAccent 与 disabled 图标色。
+Demo 页面：Motion（`demo/pages/PageMotion.cpp`，合并了 `demo/pages/PageIcons.cpp` 的图标画廊与动效示例）与 Overview。图标部分顶部提供 Icon State Matrix，可横向检查 normal、accent、onAccent 与 disabled 图标色。
 
 ## 用途
 

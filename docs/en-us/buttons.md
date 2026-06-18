@@ -17,7 +17,7 @@ This module contains common clickable/toggle controls with Fluent-style rounded 
 - `FluentRadioButton` (include: `Fluent/FluentRadioButton.h`)
 - `FluentProgressRing` (include: `Fluent/FluentProgressRing.h`)
 
-Demo pages: Basic Input (`demo/pages/PageBasicInput.cpp`), Buttons (`demo/pages/PageButtons.cpp`), and Overview (`demo/pages/PageOverview.cpp`). The Basic Input page first summarizes command and selection controls with a Ready / Active / Disabled Hub Matrix.
+Demo pages: Buttons (`demo/pages/PageButtons.cpp`) and Overview (`demo/pages/PageOverview.cpp`). The Buttons page opens with the P0 Button State Matrix summarizing button and command controls across Ready / Active / Disabled.
 
 ---
 

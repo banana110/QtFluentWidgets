@@ -17,7 +17,7 @@
 - `FluentRadioButton`（include: `Fluent/FluentRadioButton.h`）
 - `FluentProgressRing`（include: `Fluent/FluentProgressRing.h`）
 
-Demo 页面：Basic Input（`demo/pages/PageBasicInput.cpp`）、Buttons（`demo/pages/PageButtons.cpp`），以及 Overview（`demo/pages/PageOverview.cpp`）。Basic Input 页会先用 Hub Matrix 汇总命令与选择控件的 Ready / Active / Disabled 状态。
+Demo 页面：Buttons（`demo/pages/PageButtons.cpp`）与 Overview（`demo/pages/PageOverview.cpp`）。Buttons 页顶部用 P0 Button State Matrix 汇总按钮与命令控件的 Ready / Active / Disabled 状态。
 
 ---
 

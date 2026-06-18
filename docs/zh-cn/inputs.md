@@ -2,7 +2,7 @@
 
 本模块为常见输入/编辑控件（不含日期时间/颜色等 Picker，也不含代码编辑器），同时收录角度输入类控件。
 
-Demo 页面：Basic Input（`demo/pages/PageBasicInput.cpp`）、Inputs（`demo/pages/PageInputs.cpp`）、Angle Controls（`demo/pages/PageAngleControls.cpp`）与 Overview（`demo/pages/PageOverview.cpp`）。Basic Input 页顶部提供 Hub Matrix，可横向检查文本、数值/组合、命令和选择控件的 Ready / Active / Disabled 状态。
+Demo 页面：Input（`demo/pages/PageInputs.cpp`，并合并了 `demo/pages/PageAngleControls.cpp` 的角度控件）与 Overview（`demo/pages/PageOverview.cpp`）。Input 页顶部提供 P0 Input State Matrix，可横向检查文本、数值/组合与选择控件的 Ready / Active / Disabled 状态。
 
 ## 控件清单（对应公开头文件）
 
@@ -399,7 +399,7 @@ dial->setMajorTickStep(45);
 - 鼠标拖拽会按当前位置换算角度；滚轮可做细粒度调节。
 - 可同时绘制外圈轨道、当前 accent 弧、可选刻度 / 主刻度、可选指针和 focus ring；轨道/刻度来自 neutral token，弧线、指针、指示点与 focus ring 来自 `accent.base` ramp，禁用态使用 muted accent token 派生色。
 
-Demo：Angle Controls / Overview。
+Demo：Input（角度控件部分）/ Overview。
 
 ---
 
@@ -440,4 +440,4 @@ editor->setSuffix(QStringLiteral("°"));
 - 图形 / 画布对象旋转
 - 任何需要“数字值 + 可视旋钮”双输入方式的场景
 
-Demo：Angle Controls。
+Demo：Input（角度控件部分）。

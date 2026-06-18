@@ -5,7 +5,7 @@
 - `FluentDial` (include: `Fluent/FluentDial.h`)
 - `FluentAngleSelector` (include: `Fluent/FluentAngleSelector.h`)
 
-Demo pages: Angle Controls (`demo/pages/PageAngleControls.cpp`) and Overview. The Angle Controls page starts with an Angle State Matrix for side-by-side tick, compact, and disabled checks across Dial and AngleSelector.
+Demo page: Input (`demo/pages/PageInputs.cpp`, which appends the angle controls from `demo/pages/PageAngleControls.cpp`) and Overview. The angle-controls section provides an Angle State Matrix for side-by-side tick, compact, and disabled checks across Dial and AngleSelector.
 
 ## FluentDial
 

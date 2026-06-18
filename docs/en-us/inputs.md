@@ -2,7 +2,7 @@
 
 This module covers common input/edit widgets (excluding date/time/color pickers and the code editor), and also includes angle-input controls.
 
-Demo pages: Basic Input (`demo/pages/PageBasicInput.cpp`), Inputs (`demo/pages/PageInputs.cpp`), Angle Controls (`demo/pages/PageAngleControls.cpp`), and Overview (`demo/pages/PageOverview.cpp`). The Basic Input page starts with a Hub Matrix for Ready / Active / Disabled checks across text, numeric/combo, command, and selection controls.
+Demo page: Input (`demo/pages/PageInputs.cpp`, combined with the angle controls from `demo/pages/PageAngleControls.cpp`) and Overview (`demo/pages/PageOverview.cpp`). The Input page opens with the P0 Input State Matrix for Ready / Active / Disabled checks across text, numeric/combo, and selection controls.
 
 ## Widget list (public headers)
 
@@ -399,7 +399,7 @@ Implementation notes:
 - Mouse dragging converts cursor position into an angle value; the mouse wheel can be used for fine adjustment.
 - It can draw the outer track, current accent arc, optional ticks / major ticks, optional pointer, and a focus ring; the track/ticks come from neutral tokens, while the arc, pointer, indicator dot, and focus ring use the `accent.base` ramp. Disabled state uses a muted accent-token derivation.
 
-Demo: Angle Controls / Overview.
+Demo: Input (angle-controls section) / Overview.
 
 ---
 
@@ -440,4 +440,4 @@ Typical use cases:
 - object / canvas rotation controls
 - any workflow that wants both a numeric value and a visual knob
 
-Demo: Angle Controls.
+Demo: Input (angle-controls section).

@@ -5,7 +5,7 @@
 - `FluentDial`（include: `Fluent/FluentDial.h`）
 - `FluentAngleSelector`（include: `Fluent/FluentAngleSelector.h`）
 
-Demo 页面：Angle Controls（`demo/pages/PageAngleControls.cpp`）与 Overview（部分场景会复用）。Angle Controls 页顶部提供 Angle State Matrix，可横向检查 Dial / AngleSelector 的刻度、紧凑形态和 disabled 状态。
+Demo 页面：Input（`demo/pages/PageInputs.cpp`，追加了 `demo/pages/PageAngleControls.cpp` 的角度控件）与 Overview。角度控件部分提供 Angle State Matrix，可横向检查 Dial / AngleSelector 的刻度、紧凑形态和 disabled 状态。
 
 ## FluentDial
 
