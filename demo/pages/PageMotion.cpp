@@ -1,4 +1,5 @@
 #include "PageMotion.h"
+#include "PageIcons.h"
 
 #include "../DemoHelpers.h"
 
@@ -772,7 +773,10 @@ X(animation->play();)
 
 QWidget *createMotionPage()
 {
-    return Demo::makePage([](QVBoxLayout *page) { fillMotion(page); });
+    return Demo::makePage([](QVBoxLayout *page) {
+        fillIcons(page);
+        fillMotion(page);
+    });
 }
 
 } // namespace Demo::Pages

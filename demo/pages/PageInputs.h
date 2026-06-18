@@ -12,4 +12,7 @@ void fillInputs(QVBoxLayout *page, Fluent::FluentMainWindow *window);
 
 QWidget *createInputsPage(Fluent::FluentMainWindow *window);
 
+// 合并页：基本输入（inputs）+ 角度控件（angles）。对应导航 key "input"。
+QWidget *createInputPage(Fluent::FluentMainWindow *window);
+
 } // namespace Demo::Pages

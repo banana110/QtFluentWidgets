@@ -1,4 +1,5 @@
 ﻿#include "PageInputs.h"
+#include "PageAngleControls.h"
 
 #include "../DemoHelpers.h"
 #include "../DemoCodeEditorSettings.h"
@@ -550,6 +551,14 @@ X(body->addLayout(row);)
 QWidget *createInputsPage(FluentMainWindow *window)
 {
     return Demo::makePage([&](QVBoxLayout *page) { fillInputs(page, window); });
+}
+
+QWidget *createInputPage(FluentMainWindow *window)
+{
+    return Demo::makePage([&](QVBoxLayout *page) {
+        fillInputs(page, window);
+        fillAngleControls(page, window);
+    });
 }
 
 } // namespace Demo::Pages
