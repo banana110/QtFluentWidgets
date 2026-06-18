@@ -7,6 +7,7 @@
 
 #include <QApplication>
 #include <QDebug>
+#include <QGuiApplication>
 #include <QLocale>
 #include <QTimer>
 #include <QVariantAnimation>

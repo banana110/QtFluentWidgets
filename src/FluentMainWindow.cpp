@@ -20,7 +20,6 @@
 #include <QMenu>
 #include <QMenuBar>
 #include <QMouseEvent>
-#include <QConicalGradient>
 #include <QPainter>
 #include <QPainterPath>
 #include <QPalette>
@@ -34,7 +33,6 @@
 #include <QVBoxLayout>
 #include <QWidget>
 #include <QWindow>
-#include <QVariantAnimation>
 
 #ifdef Q_OS_WIN
 #include <windows.h>
@@ -341,7 +339,8 @@ protected:
 
         // Flow accent border uses the shared rotation (ThemeManager::flowAngle),
         // identical to the path dialogs/toasts take via paintFluentFrame.
-        if (!maximized && fluentFlowBorderActive(frame)) {
+        // fluentFlowBorderActive already excludes the maximized case.
+        if (fluentFlowBorderActive(frame)) {
             paintFluentFlowStroke(p, panelRect, radius, frame.borderWidth);
             return;
         }

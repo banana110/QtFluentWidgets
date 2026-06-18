@@ -249,6 +249,7 @@ inline QColor fluentFrameBorder(const ThemeColors &colors, const FluentFrameSpec
 inline bool fluentFlowBorderActive(const FluentFrameSpec &spec)
 {
     return spec.accentBorderEnabled
+        && !spec.maximized
         && ThemeManager::instance().accentBorderStyle() == ThemeManager::AccentBorderStyle::Flow;
 }
 
