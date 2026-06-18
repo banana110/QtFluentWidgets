@@ -721,8 +721,9 @@ QWidget *makePage(const std::function<void(QVBoxLayout *)> &fill)
         const int columnTop = column->mapTo(area->widget(), QPoint(0, 0)).y();
 
         QVector<FluentAnnotatedScrollBarSource> sources;
-        const QMargins margins = layout->contentsMargins();
-        int fallbackTop = margins.top();
+        // layout 现在挂在 column 上（margin 0），回退起点对齐到 content 坐标系，
+        // 与几何路径的 geometry.top() + columnTop 同源。
+        int fallbackTop = columnTop;
         for (int i = 0; i < layout->count(); ++i) {
             QWidget *widget = layout->itemAt(i) ? layout->itemAt(i)->widget() : nullptr;
             if (!widget || widget->isHidden()) {
