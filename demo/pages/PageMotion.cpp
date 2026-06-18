@@ -88,686 +88,686 @@ void addSubsectionTitle(QVBoxLayout *body, const QString &title, const QString &
 
 void fillMotion(QVBoxLayout *page)
 {
-        auto s = Demo::makeSection(
-            DEMO_TEXT("动态", "Motion"),
-            DEMO_TEXT("展示 FluentLottieWidget 加载内嵌 JSON 资源、播放控制、主题联动以及图标型 Lottie 的 tint 效果。",
-                      "Show FluentLottieWidget loading embedded JSON assets, playback controls, theme linkage, and tinting for icon-like Lottie files."));
-        page->addWidget(s.card);
+    auto s = Demo::makeSection(
+        DEMO_TEXT("动态", "Motion"),
+        DEMO_TEXT("展示 FluentLottieWidget 加载内嵌 JSON 资源、播放控制、主题联动以及图标型 Lottie 的 tint 效果。",
+                  "Show FluentLottieWidget loading embedded JSON assets, playback controls, theme linkage, and tinting for icon-like Lottie files."));
+    page->addWidget(s.card);
 
-        auto *summary = new FluentLabel(DEMO_TEXT(
-            "这些示例使用 demo/lottie_assets.qrc 内嵌的图标型 JSON。它们适合导航、展开按钮、设置入口和滚动提示等微交互动效；按钮状态动画仍建议使用专门制作的 marker 资源。",
-            "These examples use icon-like JSON files embedded through demo/lottie_assets.qrc. They fit navigation, expander buttons, settings entry points, and scroll hints; button state animations should still use purpose-built marker assets."));
-        summary->setWordWrap(true);
-        summary->setStyleSheet(QStringLiteral("font-size: 12px; opacity: 0.88;"));
-        s.body->addWidget(summary);
+    auto *summary = new FluentLabel(DEMO_TEXT(
+        "这些示例使用 demo/lottie_assets.qrc 内嵌的图标型 JSON。它们适合导航、展开按钮、设置入口和滚动提示等微交互动效；按钮状态动画仍建议使用专门制作的 marker 资源。",
+        "These examples use icon-like JSON files embedded through demo/lottie_assets.qrc. They fit navigation, expander buttons, settings entry points, and scroll hints; button state animations should still use purpose-built marker assets."));
+    summary->setWordWrap(true);
+    summary->setStyleSheet(QStringLiteral("font-size: 12px; opacity: 0.88;"));
+    s.body->addWidget(summary);
 
-        // Motion role matrix
-        {
-            const QString code = QStringLiteral(
-                "FluentMotion::setDuration(FluentMotionRole::Hover, 120);\n"
-                "FluentMotion::setDuration(FluentMotionRole::PopupOpen, 150);\n"
-                "FluentMotion::setDuration(FluentMotionRole::Selection, 180);\n"
-                "ThemeManager::instance().setAnimationsEnabled(false);\n");
+    // Motion role matrix
+    {
+        const QString code = QStringLiteral(
+            "FluentMotion::setDuration(FluentMotionRole::Hover, 120);\n"
+            "FluentMotion::setDuration(FluentMotionRole::PopupOpen, 150);\n"
+            "FluentMotion::setDuration(FluentMotionRole::Selection, 180);\n"
+            "ThemeManager::instance().setAnimationsEnabled(false);\n");
 
-            page->addWidget(Demo::makeCollapsedExample(
-                QStringLiteral("Motion Role Matrix"),
-                DEMO_TEXT("把语义动效角色映射到真实控件和 reduced-motion 结果",
-                          "Map semantic motion roles to real controls and reduced-motion outcomes"),
-                DEMO_TEXT("要点：\n"
-                          "-同一页横向检查 Hover、Focus、Popup、Selection、Navigation、Page、Toast、WheelSnap\n"
-                          "-Configured / effective 时长分开显示，关闭全局动效时 effective 会变为 0\n"
-                          "-矩阵下方的 Motion Token 示例可直接调节这些角色并观察控件反馈",
-                          "Highlights:\n"
-                          "-Inspect Hover, Focus, Popup, Selection, Navigation, Page, Toast, and WheelSnap together\n"
-                          "-Configured and effective durations are shown separately; effective becomes 0 when animations are disabled\n"
-                          "-Use the Motion Token sample below to tune these roles and observe control feedback"),
-                code,
-                [](QVBoxLayout *body) {
-                    auto *grid = new QGridLayout();
-                    grid->setContentsMargins(0, 0, 0, 0);
-                    grid->setHorizontalSpacing(14);
-                    grid->setVerticalSpacing(10);
+        page->addWidget(Demo::makeCollapsedExample(
+            QStringLiteral("Motion Role Matrix"),
+            DEMO_TEXT("把语义动效角色映射到真实控件和 reduced-motion 结果",
+                      "Map semantic motion roles to real controls and reduced-motion outcomes"),
+            DEMO_TEXT("要点：\n"
+                      "-同一页横向检查 Hover、Focus、Popup、Selection、Navigation、Page、Toast、WheelSnap\n"
+                      "-Configured / effective 时长分开显示，关闭全局动效时 effective 会变为 0\n"
+                      "-矩阵下方的 Motion Token 示例可直接调节这些角色并观察控件反馈",
+                      "Highlights:\n"
+                      "-Inspect Hover, Focus, Popup, Selection, Navigation, Page, Toast, and WheelSnap together\n"
+                      "-Configured and effective durations are shown separately; effective becomes 0 when animations are disabled\n"
+                      "-Use the Motion Token sample below to tune these roles and observe control feedback"),
+            code,
+            [](QVBoxLayout *body) {
+                auto *grid = new QGridLayout();
+                grid->setContentsMargins(0, 0, 0, 0);
+                grid->setHorizontalSpacing(14);
+                grid->setVerticalSpacing(10);
 
-                    auto makeCaption = [](const QString &text, bool strong = false) {
-                        auto *label = new FluentLabel(text);
-                        label->setWordWrap(true);
-                        label->setStyleSheet(strong
-                                                 ? QStringLiteral("font-size: 12px; font-weight: 600; opacity: 0.9;")
-                                                 : QStringLiteral("font-size: 12px; opacity: 0.78;"));
-                        return label;
-                    };
+                auto makeCaption = [](const QString &text, bool strong = false) {
+                    auto *label = new FluentLabel(text);
+                    label->setWordWrap(true);
+                    label->setStyleSheet(strong
+                                             ? QStringLiteral("font-size: 12px; font-weight: 600; opacity: 0.9;")
+                                             : QStringLiteral("font-size: 12px; opacity: 0.78;"));
+                    return label;
+                };
 
-                    auto makeDuration = [](FluentMotionRole role) {
-                        auto *label = new FluentLabel(QStringLiteral("%1 / %2 ms")
-                                                          .arg(FluentMotion::configuredDuration(role))
-                                                          .arg(FluentMotion::duration(role)));
-                        label->setAlignment(Qt::AlignCenter);
-                        label->setStyleSheet(QStringLiteral("font-size: 12px; opacity: 0.84;"));
-                        return label;
-                    };
+                auto makeDuration = [](FluentMotionRole role) {
+                    auto *label = new FluentLabel(QStringLiteral("%1 / %2 ms")
+                                                      .arg(FluentMotion::configuredDuration(role))
+                                                      .arg(FluentMotion::duration(role)));
+                    label->setAlignment(Qt::AlignCenter);
+                    label->setStyleSheet(QStringLiteral("font-size: 12px; opacity: 0.84;"));
+                    return label;
+                };
 
-                    auto makeResult = [](const QString &text) {
-                        auto *label = new FluentLabel(text);
-                        label->setWordWrap(true);
-                        label->setStyleSheet(QStringLiteral("font-size: 12px; opacity: 0.78;"));
-                        return label;
-                    };
+                auto makeResult = [](const QString &text) {
+                    auto *label = new FluentLabel(text);
+                    label->setWordWrap(true);
+                    label->setStyleSheet(QStringLiteral("font-size: 12px; opacity: 0.78;"));
+                    return label;
+                };
 
-                    auto makeControlHost = [](QWidget *widget) {
-                        auto *host = new QWidget();
-                        auto *row = new QHBoxLayout(host);
-                        row->setContentsMargins(0, 0, 0, 0);
-                        row->setSpacing(8);
-                        row->addWidget(widget);
-                        row->addStretch(1);
-                        return host;
-                    };
+                auto makeControlHost = [](QWidget *widget) {
+                    auto *host = new QWidget();
+                    auto *row = new QHBoxLayout(host);
+                    row->setContentsMargins(0, 0, 0, 0);
+                    row->setSpacing(8);
+                    row->addWidget(widget);
+                    row->addStretch(1);
+                    return host;
+                };
 
-                    grid->addWidget(makeCaption(DEMO_TEXT("Role", "Role"), true), 0, 0);
-                    grid->addWidget(makeCaption(DEMO_TEXT("Sample", "Sample"), true), 0, 1);
-                    grid->addWidget(makeCaption(DEMO_TEXT("Configured / effective", "Configured / effective"), true), 0, 2);
-                    grid->addWidget(makeCaption(DEMO_TEXT("Reduced motion", "Reduced motion"), true), 0, 3);
+                grid->addWidget(makeCaption(DEMO_TEXT("Role", "Role"), true), 0, 0);
+                grid->addWidget(makeCaption(DEMO_TEXT("Sample", "Sample"), true), 0, 1);
+                grid->addWidget(makeCaption(DEMO_TEXT("Configured / effective", "Configured / effective"), true), 0, 2);
+                grid->addWidget(makeCaption(DEMO_TEXT("Reduced motion", "Reduced motion"), true), 0, 3);
 
-                    auto addRow = [&](int row,
-                                      const QString &roleName,
-                                      FluentMotionRole role,
-                                      QWidget *sample,
-                                      const QString &reduced) {
-                        grid->addWidget(makeCaption(roleName), row, 0);
-                        grid->addWidget(makeControlHost(sample), row, 1);
-                        grid->addWidget(makeDuration(role), row, 2);
-                        grid->addWidget(makeResult(reduced), row, 3);
-                    };
+                auto addRow = [&](int row,
+                                  const QString &roleName,
+                                  FluentMotionRole role,
+                                  QWidget *sample,
+                                  const QString &reduced) {
+                    grid->addWidget(makeCaption(roleName), row, 0);
+                    grid->addWidget(makeControlHost(sample), row, 1);
+                    grid->addWidget(makeDuration(role), row, 2);
+                    grid->addWidget(makeResult(reduced), row, 3);
+                };
 
-                    auto *hoverButton = new FluentButton(DEMO_TEXT("Hover / Press", "Hover / Press"));
-                    hoverButton->setMinimumWidth(128);
-                    addRow(1,
-                           QStringLiteral("Hover / Press"),
-                           FluentMotionRole::Hover,
-                           hoverButton,
-                           DEMO_TEXT("立即切到 hover / pressed 目标状态", "Jumps to hover / pressed target state"));
+                auto *hoverButton = new FluentButton(DEMO_TEXT("Hover / Press", "Hover / Press"));
+                hoverButton->setMinimumWidth(128);
+                addRow(1,
+                       QStringLiteral("Hover / Press"),
+                       FluentMotionRole::Hover,
+                       hoverButton,
+                       DEMO_TEXT("立即切到 hover / pressed 目标状态", "Jumps to hover / pressed target state"));
 
-                    auto *focusEdit = new FluentLineEdit();
-                    focusEdit->setPlaceholderText(DEMO_TEXT("Focus input", "Focus input"));
-                    focusEdit->setMinimumWidth(160);
-                    addRow(2,
-                           QStringLiteral("Focus"),
-                           FluentMotionRole::Focus,
-                           focusEdit,
-                           DEMO_TEXT("焦点描边直接落位", "Focus border snaps into place"));
+                auto *focusEdit = new FluentLineEdit();
+                focusEdit->setPlaceholderText(DEMO_TEXT("Focus input", "Focus input"));
+                focusEdit->setMinimumWidth(160);
+                addRow(2,
+                       QStringLiteral("Focus"),
+                       FluentMotionRole::Focus,
+                       focusEdit,
+                       DEMO_TEXT("焦点描边直接落位", "Focus border snaps into place"));
 
-                    auto *popupCombo = new FluentComboBox();
-                    popupCombo->addItems({QStringLiteral("Popup"), QStringLiteral("Surface"), QStringLiteral("Placement")});
-                    popupCombo->setMinimumWidth(150);
-                    addRow(3,
-                           QStringLiteral("PopupOpen / PopupClose"),
-                           FluentMotionRole::PopupOpen,
-                           popupCombo,
-                           DEMO_TEXT("弹层无等待，直接到最终位置", "Popup opens immediately at final geometry"));
+                auto *popupCombo = new FluentComboBox();
+                popupCombo->addItems({QStringLiteral("Popup"), QStringLiteral("Surface"), QStringLiteral("Placement")});
+                popupCombo->setMinimumWidth(150);
+                addRow(3,
+                       QStringLiteral("PopupOpen / PopupClose"),
+                       FluentMotionRole::PopupOpen,
+                       popupCombo,
+                       DEMO_TEXT("弹层无等待，直接到最终位置", "Popup opens immediately at final geometry"));
 
-                    auto *bar = new FluentProgressBar();
-                    bar->setRange(0, 100);
-                    bar->setValue(68);
-                    bar->setTextPosition(FluentProgressBar::TextPosition::Right);
-                    addRow(4,
-                           QStringLiteral("Selection"),
-                           FluentMotionRole::Selection,
-                           bar,
-                           DEMO_TEXT("选中条和进度直接到目标值", "Selection and progress jump to target values"));
+                auto *bar = new FluentProgressBar();
+                bar->setRange(0, 100);
+                bar->setValue(68);
+                bar->setTextPosition(FluentProgressBar::TextPosition::Right);
+                addRow(4,
+                       QStringLiteral("Selection"),
+                       FluentMotionRole::Selection,
+                       bar,
+                       DEMO_TEXT("选中条和进度直接到目标值", "Selection and progress jump to target values"));
 
-                    auto *navigationLabel = new FluentLabel(QStringLiteral("NavigationView"));
-                    navigationLabel->setStyleSheet(QStringLiteral("font-size: 12px; opacity: 0.84;"));
-                    addRow(5,
-                           QStringLiteral("Navigation"),
-                           FluentMotionRole::Navigation,
-                           navigationLabel,
-                           DEMO_TEXT("Pane 宽度和选中条直接落位", "Pane width and selection indicator snap into place"));
+                auto *navigationLabel = new FluentLabel(QStringLiteral("NavigationView"));
+                navigationLabel->setStyleSheet(QStringLiteral("font-size: 12px; opacity: 0.84;"));
+                addRow(5,
+                       QStringLiteral("Navigation"),
+                       FluentMotionRole::Navigation,
+                       navigationLabel,
+                       DEMO_TEXT("Pane 宽度和选中条直接落位", "Pane width and selection indicator snap into place"));
 
-                    auto *pageLabel = new FluentLabel(DEMO_TEXT("Demo page transition", "Demo page transition"));
-                    pageLabel->setStyleSheet(QStringLiteral("font-size: 12px; opacity: 0.84;"));
-                    addRow(6,
-                           QStringLiteral("Page"),
-                           FluentMotionRole::Page,
-                           pageLabel,
-                           DEMO_TEXT("页面切换不再等待淡入/滑入", "Page changes skip fade / slide wait"));
+                auto *pageLabel = new FluentLabel(DEMO_TEXT("Demo page transition", "Demo page transition"));
+                pageLabel->setStyleSheet(QStringLiteral("font-size: 12px; opacity: 0.84;"));
+                addRow(6,
+                       QStringLiteral("Page"),
+                       FluentMotionRole::Page,
+                       pageLabel,
+                       DEMO_TEXT("页面切换不再等待淡入/滑入", "Page changes skip fade / slide wait"));
 
-                    auto *toastLabel = new FluentLabel(QStringLiteral("Toast queue"));
-                    toastLabel->setStyleSheet(QStringLiteral("font-size: 12px; opacity: 0.84;"));
-                    addRow(7,
-                           QStringLiteral("Toast"),
-                           FluentMotionRole::Toast,
-                           toastLabel,
-                           DEMO_TEXT("出现、关闭和队列移动直接完成", "Appear, close, and queue movement complete immediately"));
+                auto *toastLabel = new FluentLabel(QStringLiteral("Toast queue"));
+                toastLabel->setStyleSheet(QStringLiteral("font-size: 12px; opacity: 0.84;"));
+                addRow(7,
+                       QStringLiteral("Toast"),
+                       FluentMotionRole::Toast,
+                       toastLabel,
+                       DEMO_TEXT("出现、关闭和队列移动直接完成", "Appear, close, and queue movement complete immediately"));
 
-                    auto *wheelLabel = new FluentLabel(DEMO_TEXT("Date / Time wheel", "Date / Time wheel"));
-                    wheelLabel->setStyleSheet(QStringLiteral("font-size: 12px; opacity: 0.84;"));
-                    addRow(8,
-                           QStringLiteral("WheelSnap"),
-                           FluentMotionRole::WheelSnap,
-                           wheelLabel,
-                           DEMO_TEXT("滚轮选择直接吸附到目标项", "Wheel selection snaps directly to target item"));
+                auto *wheelLabel = new FluentLabel(DEMO_TEXT("Date / Time wheel", "Date / Time wheel"));
+                wheelLabel->setStyleSheet(QStringLiteral("font-size: 12px; opacity: 0.84;"));
+                addRow(8,
+                       QStringLiteral("WheelSnap"),
+                       FluentMotionRole::WheelSnap,
+                       wheelLabel,
+                       DEMO_TEXT("滚轮选择直接吸附到目标项", "Wheel selection snaps directly to target item"));
 
-                    grid->setColumnStretch(1, 1);
-                    grid->setColumnStretch(3, 1);
-                    body->addLayout(grid);
-                },
-                false,
-                300));
-        }
+                grid->setColumnStretch(1, 1);
+                grid->setColumnStretch(3, 1);
+                body->addLayout(grid);
+            },
+            false,
+            300));
+    }
 
-        // Global motion switch
-        {
-            QString code;
+    // Global motion switch
+    {
+        QString code;
 #define MOTION_REDUCED(X) \
-    X(auto *motion = new FluentToggleSwitch(QStringLiteral("Animations"));) \
-    X(motion->setChecked(ThemeManager::instance().animationsEnabled());) \
-    X(QObject::connect(motion, &FluentToggleSwitch::toggled, motion, [](bool enabled) {) \
-    X(    ThemeManager::instance().setAnimationsEnabled(enabled);) \
-    X(});) \
-    X(FluentMotion::setDuration(FluentMotionRole::Hover, 120);) \
-    X(FluentMotion::setDuration(FluentMotionRole::PopupOpen, 150);) \
-    X(FluentMotion::setDuration(FluentMotionRole::Selection, 180);) \
-    X(auto *button = new FluentButton(QStringLiteral("Hover me"));) \
-    X(auto *edit = new FluentLineEdit();) \
-    X(auto *combo = new FluentComboBox();) \
-    X(auto *progress = new FluentProgressBar();) \
-    X(auto *ring = new FluentProgressRing();) \
-    X(progress->setValue(66);) \
-    X(ring->setValue(66);)
+X(auto *motion = new FluentToggleSwitch(QStringLiteral("Animations"));) \
+X(motion->setChecked(ThemeManager::instance().animationsEnabled());) \
+X(QObject::connect(motion, &FluentToggleSwitch::toggled, motion, [](bool enabled) {) \
+X(    ThemeManager::instance().setAnimationsEnabled(enabled);) \
+X(});) \
+X(FluentMotion::setDuration(FluentMotionRole::Hover, 120);) \
+X(FluentMotion::setDuration(FluentMotionRole::PopupOpen, 150);) \
+X(FluentMotion::setDuration(FluentMotionRole::Selection, 180);) \
+X(auto *button = new FluentButton(QStringLiteral("Hover me"));) \
+X(auto *edit = new FluentLineEdit();) \
+X(auto *combo = new FluentComboBox();) \
+X(auto *progress = new FluentProgressBar();) \
+X(auto *ring = new FluentProgressRing();) \
+X(progress->setValue(66);) \
+X(ring->setValue(66);)
 
 #define X(line) code += QStringLiteral(#line "\n");
-            MOTION_REDUCED(X)
+        MOTION_REDUCED(X)
 #undef X
 
-            page->addWidget(Demo::makeCollapsedExample(
-                QStringLiteral("Motion Token"),
-                DEMO_TEXT("运行时切换 ThemeManager::animationsEnabled()，观察已创建控件的 hover、focus、popup 与进度动画。",
-                          "Toggle ThemeManager::animationsEnabled() at runtime and observe hover, focus, popup, and progress feedback on existing controls."),
-                DEMO_TEXT("要点：\n"
-                          "-FluentMotion::duration(role) 在关闭动效时返回 0\n"
-                          "-FluentMotion::setDuration(role, ms) 可按语义单独配置时长\n"
-                          "-已创建控件会在 themeChanged 后重新同步 token\n"
-                          "-关闭动效后，popup 直接到最终位置，进度和 hover/focus 直接到目标状态",
-                          "Highlights:\n"
-                          "-FluentMotion::duration(role) returns 0 when animations are disabled\n"
-                          "-FluentMotion::setDuration(role, ms) configures each semantic duration independently\n"
-                          "-Existing controls resync motion tokens on themeChanged\n"
-                          "-With animations disabled, popups jump to final geometry and progress / hover / focus jump to target states"),
-                code,
-                [](QVBoxLayout *body) {
-                    auto *host = new QWidget();
-                    auto *layout = new QVBoxLayout(host);
-                    layout->setContentsMargins(0, 0, 0, 0);
-                    layout->setSpacing(12);
+        page->addWidget(Demo::makeCollapsedExample(
+            QStringLiteral("Motion Token"),
+            DEMO_TEXT("运行时切换 ThemeManager::animationsEnabled()，观察已创建控件的 hover、focus、popup 与进度动画。",
+                      "Toggle ThemeManager::animationsEnabled() at runtime and observe hover, focus, popup, and progress feedback on existing controls."),
+            DEMO_TEXT("要点：\n"
+                      "-FluentMotion::duration(role) 在关闭动效时返回 0\n"
+                      "-FluentMotion::setDuration(role, ms) 可按语义单独配置时长\n"
+                      "-已创建控件会在 themeChanged 后重新同步 token\n"
+                      "-关闭动效后，popup 直接到最终位置，进度和 hover/focus 直接到目标状态",
+                      "Highlights:\n"
+                      "-FluentMotion::duration(role) returns 0 when animations are disabled\n"
+                      "-FluentMotion::setDuration(role, ms) configures each semantic duration independently\n"
+                      "-Existing controls resync motion tokens on themeChanged\n"
+                      "-With animations disabled, popups jump to final geometry and progress / hover / focus jump to target states"),
+            code,
+            [](QVBoxLayout *body) {
+                auto *host = new QWidget();
+                auto *layout = new QVBoxLayout(host);
+                layout->setContentsMargins(0, 0, 0, 0);
+                layout->setSpacing(12);
 
-                    auto *switchRow = new QHBoxLayout();
-                    switchRow->setContentsMargins(0, 0, 0, 0);
-                    switchRow->setSpacing(12);
+                auto *switchRow = new QHBoxLayout();
+                switchRow->setContentsMargins(0, 0, 0, 0);
+                switchRow->setSpacing(12);
 
-                    auto *animations = new FluentToggleSwitch(DEMO_TEXT("全局动效", "Animations"), host);
-                    animations->setChecked(ThemeManager::instance().animationsEnabled());
-                    auto *resetMotion = new FluentButton(DEMO_TEXT("重置时长", "Reset durations"), host);
+                auto *animations = new FluentToggleSwitch(DEMO_TEXT("全局动效", "Animations"), host);
+                animations->setChecked(ThemeManager::instance().animationsEnabled());
+                auto *resetMotion = new FluentButton(DEMO_TEXT("重置时长", "Reset durations"), host);
 
-                    auto *tokenLabel = new FluentLabel(host);
-                    tokenLabel->setWordWrap(true);
-                    tokenLabel->setStyleSheet(QStringLiteral("font-size: 12px; opacity: 0.86;"));
+                auto *tokenLabel = new FluentLabel(host);
+                tokenLabel->setWordWrap(true);
+                tokenLabel->setStyleSheet(QStringLiteral("font-size: 12px; opacity: 0.86;"));
 
-                    switchRow->addWidget(animations);
-                    switchRow->addWidget(resetMotion);
-                    switchRow->addWidget(tokenLabel, 1);
+                switchRow->addWidget(animations);
+                switchRow->addWidget(resetMotion);
+                switchRow->addWidget(tokenLabel, 1);
 
-                    auto *controlRow = new QHBoxLayout();
-                    controlRow->setContentsMargins(0, 0, 0, 0);
-                    controlRow->setSpacing(10);
+                auto *controlRow = new QHBoxLayout();
+                controlRow->setContentsMargins(0, 0, 0, 0);
+                controlRow->setSpacing(10);
 
-                    auto *button = new FluentButton(DEMO_TEXT("Hover 按钮", "Hover button"), host);
-                    auto *edit = new FluentLineEdit(host);
-                    edit->setPlaceholderText(DEMO_TEXT("Focus 输入框", "Focus input"));
-                    edit->setMinimumWidth(180);
+                auto *button = new FluentButton(DEMO_TEXT("Hover 按钮", "Hover button"), host);
+                auto *edit = new FluentLineEdit(host);
+                edit->setPlaceholderText(DEMO_TEXT("Focus 输入框", "Focus input"));
+                edit->setMinimumWidth(180);
 
-                    auto *combo = new FluentComboBox(host);
-                    combo->addItems({DEMO_TEXT("Popup 动效", "Popup motion"),
-                                     DEMO_TEXT("Hover 同步", "Hover sync"),
-                                     DEMO_TEXT("Reduced motion", "Reduced motion")});
-                    combo->setMinimumWidth(170);
+                auto *combo = new FluentComboBox(host);
+                combo->addItems({DEMO_TEXT("Popup 动效", "Popup motion"),
+                                 DEMO_TEXT("Hover 同步", "Hover sync"),
+                                 DEMO_TEXT("Reduced motion", "Reduced motion")});
+                combo->setMinimumWidth(170);
 
-                    controlRow->addWidget(button);
-                    controlRow->addWidget(edit);
-                    controlRow->addWidget(combo);
-                    controlRow->addStretch(1);
+                controlRow->addWidget(button);
+                controlRow->addWidget(edit);
+                controlRow->addWidget(combo);
+                controlRow->addStretch(1);
 
-                    auto *progressRow = new QHBoxLayout();
-                    progressRow->setContentsMargins(0, 0, 0, 0);
-                    progressRow->setSpacing(10);
+                auto *progressRow = new QHBoxLayout();
+                progressRow->setContentsMargins(0, 0, 0, 0);
+                progressRow->setSpacing(10);
 
-                    auto *advance = new FluentButton(DEMO_TEXT("推进进度", "Advance"), host);
-                    auto *bar = new FluentProgressBar(host);
-                    bar->setRange(0, 100);
-                    bar->setValue(35);
-                    bar->setTextPosition(FluentProgressBar::TextPosition::Right);
-                    auto *ring = new FluentProgressRing(host);
-                    ring->setFixedSize(44, 44);
-                    ring->setRange(0, 100);
-                    ring->setValue(35);
-                    auto *spinner = new FluentProgressRing(host);
-                    spinner->setFixedSize(44, 44);
-                    spinner->setIndeterminate(true);
+                auto *advance = new FluentButton(DEMO_TEXT("推进进度", "Advance"), host);
+                auto *bar = new FluentProgressBar(host);
+                bar->setRange(0, 100);
+                bar->setValue(35);
+                bar->setTextPosition(FluentProgressBar::TextPosition::Right);
+                auto *ring = new FluentProgressRing(host);
+                ring->setFixedSize(44, 44);
+                ring->setRange(0, 100);
+                ring->setValue(35);
+                auto *spinner = new FluentProgressRing(host);
+                spinner->setFixedSize(44, 44);
+                spinner->setIndeterminate(true);
 
-                    progressRow->addWidget(advance);
-                    progressRow->addWidget(bar, 1);
-                    progressRow->addWidget(ring);
-                    progressRow->addWidget(spinner);
+                progressRow->addWidget(advance);
+                progressRow->addWidget(bar, 1);
+                progressRow->addWidget(ring);
+                progressRow->addWidget(spinner);
 
-                    auto *durationHost = new QWidget(host);
-                    auto *durationGrid = new QGridLayout(durationHost);
-                    durationGrid->setContentsMargins(0, 0, 0, 0);
-                    durationGrid->setHorizontalSpacing(12);
-                    durationGrid->setVerticalSpacing(8);
+                auto *durationHost = new QWidget(host);
+                auto *durationGrid = new QGridLayout(durationHost);
+                durationGrid->setContentsMargins(0, 0, 0, 0);
+                durationGrid->setHorizontalSpacing(12);
+                durationGrid->setVerticalSpacing(8);
 
-                    struct DurationSpec
+                struct DurationSpec
+                {
+                    FluentMotionRole role;
+                    QString label;
+                    int maximum = 700;
+                };
+
+                struct DurationBinding
+                {
+                    FluentMotionRole role;
+                    QSlider *slider = nullptr;
+                    FluentLabel *value = nullptr;
+                };
+
+                const QVector<DurationSpec> specs = {
+                    {FluentMotionRole::Hover, QStringLiteral("Hover"), 400},
+                    {FluentMotionRole::Press, QStringLiteral("Press"), 400},
+                    {FluentMotionRole::Focus, QStringLiteral("Focus"), 500},
+                    {FluentMotionRole::PopupOpen, QStringLiteral("Popup open"), 700},
+                    {FluentMotionRole::PopupClose, QStringLiteral("Popup close"), 500},
+                    {FluentMotionRole::Collapse, QStringLiteral("Collapse"), 700},
+                    {FluentMotionRole::Selection, QStringLiteral("Selection"), 700},
+                    {FluentMotionRole::Navigation, QStringLiteral("Navigation"), 900},
+                    {FluentMotionRole::Layout, QStringLiteral("Layout"), 700},
+                    {FluentMotionRole::Page, QStringLiteral("Page"), 900},
+                    {FluentMotionRole::Toast, QStringLiteral("Toast"), 700},
+                    {FluentMotionRole::WheelSnap, QStringLiteral("Wheel snap"), 500},
+                };
+
+                QVector<DurationBinding> durationBindings;
+                durationBindings.reserve(specs.size());
+
+                for (int i = 0; i < specs.size(); ++i) {
+                    const DurationSpec spec = specs[i];
+                    const int group = i % 2;
+                    const int row = i / 2;
+                    const int baseCol = group * 3;
+
+                    auto *label = new FluentLabel(spec.label, durationHost);
+                    label->setStyleSheet(QStringLiteral("font-size: 12px; opacity: 0.86;"));
+
+                    auto *slider = new QSlider(Qt::Horizontal, durationHost);
+                    slider->setRange(0, spec.maximum);
+                    slider->setSingleStep(10);
+                    slider->setPageStep(50);
+                    slider->setValue(FluentMotion::configuredDuration(spec.role));
+
+                    auto *value = new FluentLabel(durationHost);
+                    value->setMinimumWidth(54);
+                    value->setAlignment(Qt::AlignRight | Qt::AlignVCenter);
+                    value->setStyleSheet(QStringLiteral("font-size: 12px; opacity: 0.78;"));
+                    value->setText(QStringLiteral("%1 ms").arg(slider->value()));
+
+                    QObject::connect(slider, &QSlider::valueChanged, host, [role = spec.role, value](int ms) {
+                        value->setText(QStringLiteral("%1 ms").arg(ms));
+                        FluentMotion::setDuration(role, ms);
+                    });
+
+                    durationGrid->addWidget(label, row, baseCol);
+                    durationGrid->addWidget(slider, row, baseCol + 1);
+                    durationGrid->addWidget(value, row, baseCol + 2);
+                    durationBindings.push_back({spec.role, slider, value});
+                }
+                durationGrid->setColumnStretch(1, 1);
+                durationGrid->setColumnStretch(4, 1);
+
+                auto *hint = new FluentLabel(
+                    DEMO_TEXT("切换开关后不用重建这些控件：再次 hover 按钮、聚焦输入框、展开 ComboBox 或推进进度，就能看到 token 是否即时生效。",
+                              "No controls are recreated after toggling: hover the button, focus the input, open the ComboBox, or advance progress to see whether tokens apply immediately."),
+                    host);
+                hint->setWordWrap(true);
+                hint->setStyleSheet(QStringLiteral("font-size: 12px; opacity: 0.82;"));
+
+                auto syncState = [animations, tokenLabel, durationBindings]() {
+                    const bool enabled = ThemeManager::instance().animationsEnabled();
                     {
-                        FluentMotionRole role;
-                        QString label;
-                        int maximum = 700;
-                    };
-
-                    struct DurationBinding
-                    {
-                        FluentMotionRole role;
-                        QSlider *slider = nullptr;
-                        FluentLabel *value = nullptr;
-                    };
-
-                    const QVector<DurationSpec> specs = {
-                        {FluentMotionRole::Hover, QStringLiteral("Hover"), 400},
-                        {FluentMotionRole::Press, QStringLiteral("Press"), 400},
-                        {FluentMotionRole::Focus, QStringLiteral("Focus"), 500},
-                        {FluentMotionRole::PopupOpen, QStringLiteral("Popup open"), 700},
-                        {FluentMotionRole::PopupClose, QStringLiteral("Popup close"), 500},
-                        {FluentMotionRole::Collapse, QStringLiteral("Collapse"), 700},
-                        {FluentMotionRole::Selection, QStringLiteral("Selection"), 700},
-                        {FluentMotionRole::Navigation, QStringLiteral("Navigation"), 900},
-                        {FluentMotionRole::Layout, QStringLiteral("Layout"), 700},
-                        {FluentMotionRole::Page, QStringLiteral("Page"), 900},
-                        {FluentMotionRole::Toast, QStringLiteral("Toast"), 700},
-                        {FluentMotionRole::WheelSnap, QStringLiteral("Wheel snap"), 500},
-                    };
-
-                    QVector<DurationBinding> durationBindings;
-                    durationBindings.reserve(specs.size());
-
-                    for (int i = 0; i < specs.size(); ++i) {
-                        const DurationSpec spec = specs[i];
-                        const int group = i % 2;
-                        const int row = i / 2;
-                        const int baseCol = group * 3;
-
-                        auto *label = new FluentLabel(spec.label, durationHost);
-                        label->setStyleSheet(QStringLiteral("font-size: 12px; opacity: 0.86;"));
-
-                        auto *slider = new QSlider(Qt::Horizontal, durationHost);
-                        slider->setRange(0, spec.maximum);
-                        slider->setSingleStep(10);
-                        slider->setPageStep(50);
-                        slider->setValue(FluentMotion::configuredDuration(spec.role));
-
-                        auto *value = new FluentLabel(durationHost);
-                        value->setMinimumWidth(54);
-                        value->setAlignment(Qt::AlignRight | Qt::AlignVCenter);
-                        value->setStyleSheet(QStringLiteral("font-size: 12px; opacity: 0.78;"));
-                        value->setText(QStringLiteral("%1 ms").arg(slider->value()));
-
-                        QObject::connect(slider, &QSlider::valueChanged, host, [role = spec.role, value](int ms) {
-                            value->setText(QStringLiteral("%1 ms").arg(ms));
-                            FluentMotion::setDuration(role, ms);
-                        });
-
-                        durationGrid->addWidget(label, row, baseCol);
-                        durationGrid->addWidget(slider, row, baseCol + 1);
-                        durationGrid->addWidget(value, row, baseCol + 2);
-                        durationBindings.push_back({spec.role, slider, value});
+                        const QSignalBlocker blocker(animations);
+                        animations->setChecked(enabled);
                     }
-                    durationGrid->setColumnStretch(1, 1);
-                    durationGrid->setColumnStretch(4, 1);
-
-                    auto *hint = new FluentLabel(
-                        DEMO_TEXT("切换开关后不用重建这些控件：再次 hover 按钮、聚焦输入框、展开 ComboBox 或推进进度，就能看到 token 是否即时生效。",
-                                  "No controls are recreated after toggling: hover the button, focus the input, open the ComboBox, or advance progress to see whether tokens apply immediately."),
-                        host);
-                    hint->setWordWrap(true);
-                    hint->setStyleSheet(QStringLiteral("font-size: 12px; opacity: 0.82;"));
-
-                    auto syncState = [animations, tokenLabel, durationBindings]() {
-                        const bool enabled = ThemeManager::instance().animationsEnabled();
+                    for (const DurationBinding &binding : durationBindings) {
+                        if (!binding.slider || !binding.value) {
+                            continue;
+                        }
+                        const int configured = FluentMotion::configuredDuration(binding.role);
                         {
-                            const QSignalBlocker blocker(animations);
-                            animations->setChecked(enabled);
+                            const QSignalBlocker blocker(binding.slider);
+                            binding.slider->setValue(configured);
                         }
-                        for (const DurationBinding &binding : durationBindings) {
-                            if (!binding.slider || !binding.value) {
-                                continue;
-                            }
-                            const int configured = FluentMotion::configuredDuration(binding.role);
-                            {
-                                const QSignalBlocker blocker(binding.slider);
-                                binding.slider->setValue(configured);
-                            }
-                            binding.value->setText(QStringLiteral("%1 ms").arg(configured));
-                        }
-                        tokenLabel->setText(DEMO_TEXT(
-                            "当前：%1 | Hover %2 ms | Popup %3 ms | Selection %4 ms",
-                            "Current: %1 | Hover %2 ms | Popup %3 ms | Selection %4 ms")
-                                                .arg(enabled ? DEMO_TEXT("开启", "On") : DEMO_TEXT("关闭", "Off"))
-                                                .arg(FluentMotion::duration(FluentMotionRole::Hover))
-                                                .arg(FluentMotion::duration(FluentMotionRole::PopupOpen))
-                                                .arg(FluentMotion::duration(FluentMotionRole::Selection)));
-                    };
+                        binding.value->setText(QStringLiteral("%1 ms").arg(configured));
+                    }
+                    tokenLabel->setText(DEMO_TEXT(
+                        "当前：%1 | Hover %2 ms | Popup %3 ms | Selection %4 ms",
+                        "Current: %1 | Hover %2 ms | Popup %3 ms | Selection %4 ms")
+                                            .arg(enabled ? DEMO_TEXT("开启", "On") : DEMO_TEXT("关闭", "Off"))
+                                            .arg(FluentMotion::duration(FluentMotionRole::Hover))
+                                            .arg(FluentMotion::duration(FluentMotionRole::PopupOpen))
+                                            .arg(FluentMotion::duration(FluentMotionRole::Selection)));
+                };
 
-                    QObject::connect(animations, &FluentToggleSwitch::toggled, host, [](bool enabled) {
-                        ThemeManager::instance().setAnimationsEnabled(enabled);
-                    });
-                    QObject::connect(resetMotion, &QPushButton::clicked, host, []() {
-                        FluentMotion::resetTokens();
-                    });
-                    QObject::connect(&ThemeManager::instance(), &ThemeManager::themeChanged, host, syncState);
-                    QObject::connect(advance, &QPushButton::clicked, host, [bar, ring]() {
-                        const int next = (bar->value() + 31) % 101;
-                        bar->setValue(next);
-                        ring->setValue(next);
-                    });
+                QObject::connect(animations, &FluentToggleSwitch::toggled, host, [](bool enabled) {
+                    ThemeManager::instance().setAnimationsEnabled(enabled);
+                });
+                QObject::connect(resetMotion, &QPushButton::clicked, host, []() {
+                    FluentMotion::resetTokens();
+                });
+                QObject::connect(&ThemeManager::instance(), &ThemeManager::themeChanged, host, syncState);
+                QObject::connect(advance, &QPushButton::clicked, host, [bar, ring]() {
+                    const int next = (bar->value() + 31) % 101;
+                    bar->setValue(next);
+                    ring->setValue(next);
+                });
 
-                    syncState();
+                syncState();
 
-                    layout->addLayout(switchRow);
-                    layout->addWidget(durationHost);
-                    layout->addLayout(controlRow);
-                    layout->addLayout(progressRow);
-                    layout->addWidget(hint);
-                    body->addWidget(host);
-                },
-                false,
-                170));
+                layout->addLayout(switchRow);
+                layout->addWidget(durationHost);
+                layout->addLayout(controlRow);
+                layout->addLayout(progressRow);
+                layout->addWidget(hint);
+                body->addWidget(host);
+            },
+            false,
+            170));
 
 #undef MOTION_REDUCED
-        }
+    }
 
-        // Lottie widget
-        {
-            QString code;
+    // Lottie widget
+    {
+        QString code;
 #define MOTION_LOTTIE_WIDGET(X) \
-    X(auto *animation = new FluentLottieWidget();) \
-    X(animation->setFixedSize(96, 96);) \
-    X(animation->load(Demo::demoLottieResourcePath(QStringLiteral("menu.json")));) \
-    X(animation->setLooping(true);) \
-    X(animation->setSpeed(1.0);) \
-    X(animation->setTintColor(ThemeManager::instance().colors().accent);) \
-    X(auto applyTheme = [animation]() {) \
-    X(    animation->setTintColor(ThemeManager::instance().colors().accent);) \
-    X(};) \
-    X(applyTheme();) \
-    X(QObject::connect(&ThemeManager::instance(), &ThemeManager::themeChanged, animation, applyTheme);) \
-    X(animation->play();)
+X(auto *animation = new FluentLottieWidget();) \
+X(animation->setFixedSize(96, 96);) \
+X(animation->load(Demo::demoLottieResourcePath(QStringLiteral("menu.json")));) \
+X(animation->setLooping(true);) \
+X(animation->setSpeed(1.0);) \
+X(animation->setTintColor(ThemeManager::instance().colors().accent);) \
+X(auto applyTheme = [animation]() {) \
+X(    animation->setTintColor(ThemeManager::instance().colors().accent);) \
+X(};) \
+X(applyTheme();) \
+X(QObject::connect(&ThemeManager::instance(), &ThemeManager::themeChanged, animation, applyTheme);) \
+X(animation->play();)
 
 #define X(line) code += QStringLiteral(#line "\n");
-            MOTION_LOTTIE_WIDGET(X)
+        MOTION_LOTTIE_WIDGET(X)
 #undef X
 
-            page->addWidget(Demo::makeCollapsedExample(
-                QStringLiteral("FluentLottieWidget"),
-                DEMO_TEXT("资源矩阵、播放控制、Tint 与主题联动集中展示",
-                          "Resource gallery, playback control, tinting, and theme linkage in one place"),
-                DEMO_TEXT("要点：\n"
-                          "-load() 可直接加载 Lottie JSON 文件\n"
-                          "-play()/pause()/stop()/setProgress()/setSpeed() 控制播放\n"
-                          "-setTintColor() 适合把图标型 Lottie 映射到语义色\n"
-                          "-监听 ThemeManager::themeChanged 后可实时刷新 tint",
-                          "Highlights:\n"
-                          "-load() can load a Lottie JSON file directly\n"
-                          "-play()/pause()/stop()/setProgress()/setSpeed() control playback\n"
-                          "-setTintColor() maps icon-like Lottie animations to semantic colors\n"
-                          "-Listen to ThemeManager::themeChanged to refresh tint live"),
-                code,
-                [](QVBoxLayout *body) {
-                    addSubsectionTitle(body,
-                                       DEMO_TEXT("内嵌资源矩阵", "Embedded Resource Matrix"),
-                                       DEMO_TEXT("这些资源适合导航图标、展开指示器、设置入口和滚动提示等微交互。",
-                                                 "These assets fit navigation icons, expand indicators, settings entries, and scroll hints."));
+        page->addWidget(Demo::makeCollapsedExample(
+            QStringLiteral("FluentLottieWidget"),
+            DEMO_TEXT("资源矩阵、播放控制、Tint 与主题联动集中展示",
+                      "Resource gallery, playback control, tinting, and theme linkage in one place"),
+            DEMO_TEXT("要点：\n"
+                      "-load() 可直接加载 Lottie JSON 文件\n"
+                      "-play()/pause()/stop()/setProgress()/setSpeed() 控制播放\n"
+                      "-setTintColor() 适合把图标型 Lottie 映射到语义色\n"
+                      "-监听 ThemeManager::themeChanged 后可实时刷新 tint",
+                      "Highlights:\n"
+                      "-load() can load a Lottie JSON file directly\n"
+                      "-play()/pause()/stop()/setProgress()/setSpeed() control playback\n"
+                      "-setTintColor() maps icon-like Lottie animations to semantic colors\n"
+                      "-Listen to ThemeManager::themeChanged to refresh tint live"),
+            code,
+            [](QVBoxLayout *body) {
+                addSubsectionTitle(body,
+                                   DEMO_TEXT("内嵌资源矩阵", "Embedded Resource Matrix"),
+                                   DEMO_TEXT("这些资源适合导航图标、展开指示器、设置入口和滚动提示等微交互。",
+                                             "These assets fit navigation icons, expand indicators, settings entries, and scroll hints."));
 
-                    const QVector<MotionSample> samples = {
-                        {DEMO_TEXT("菜单", "Menu"), QStringLiteral("menu.json"), DEMO_TEXT("导航入口", "Navigation")},
-                        {DEMO_TEXT("展开", "Dropdown"), QStringLiteral("dropdown.json"), DEMO_TEXT("折叠状态", "Collapse state")},
-                        {DEMO_TEXT("设置", "Settings"), QStringLiteral("setting.json"), DEMO_TEXT("系统入口", "System entry")},
-                        {DEMO_TEXT("左箭头", "Left arrow"), QStringLiteral("left-arrow.json"), DEMO_TEXT("返回动作", "Back action")},
-                        {DEMO_TEXT("右箭头", "Right arrow"), QStringLiteral("right-arrow.json"), DEMO_TEXT("前进动作", "Forward action")},
-                        {DEMO_TEXT("向下滚动", "Scroll down"), QStringLiteral("scroll-down.json"), DEMO_TEXT("滚动提示", "Scroll hint")},
-                    };
+                const QVector<MotionSample> samples = {
+                    {DEMO_TEXT("菜单", "Menu"), QStringLiteral("menu.json"), DEMO_TEXT("导航入口", "Navigation")},
+                    {DEMO_TEXT("展开", "Dropdown"), QStringLiteral("dropdown.json"), DEMO_TEXT("折叠状态", "Collapse state")},
+                    {DEMO_TEXT("设置", "Settings"), QStringLiteral("setting.json"), DEMO_TEXT("系统入口", "System entry")},
+                    {DEMO_TEXT("左箭头", "Left arrow"), QStringLiteral("left-arrow.json"), DEMO_TEXT("返回动作", "Back action")},
+                    {DEMO_TEXT("右箭头", "Right arrow"), QStringLiteral("right-arrow.json"), DEMO_TEXT("前进动作", "Forward action")},
+                    {DEMO_TEXT("向下滚动", "Scroll down"), QStringLiteral("scroll-down.json"), DEMO_TEXT("滚动提示", "Scroll hint")},
+                };
 
-                    auto *gridHost = new QWidget();
-                    auto *grid = new QGridLayout(gridHost);
-                    grid->setContentsMargins(0, 0, 0, 0);
-                    grid->setHorizontalSpacing(12);
-                    grid->setVerticalSpacing(10);
-                    for (int i = 0; i < samples.size(); ++i) {
-                        grid->addWidget(makeSampleTile(samples[i], QSize(82, 82), gridHost), i / 3, i % 3);
+                auto *gridHost = new QWidget();
+                auto *grid = new QGridLayout(gridHost);
+                grid->setContentsMargins(0, 0, 0, 0);
+                grid->setHorizontalSpacing(12);
+                grid->setVerticalSpacing(10);
+                for (int i = 0; i < samples.size(); ++i) {
+                    grid->addWidget(makeSampleTile(samples[i], QSize(82, 82), gridHost), i / 3, i % 3);
+                }
+                body->addWidget(gridHost);
+                body->addSpacing(10);
+
+                addSubsectionTitle(body,
+                                   DEMO_TEXT("播放控制", "Playback Control"),
+                                   DEMO_TEXT("播放、暂停、停止、进度定位与播放速度都可以独立控制。",
+                                             "Playback, pause, stop, progress seek, and speed are independently controllable."));
+
+                auto *playbackRow = new QHBoxLayout();
+                playbackRow->setContentsMargins(0, 0, 0, 0);
+                playbackRow->setSpacing(14);
+
+                auto *animation = new FluentLottieWidget();
+                animation->setFixedSize(128, 96);
+                animation->setLooping(true);
+                if (Demo::loadDemoLottieResource(animation, QStringLiteral("menu.json"))) {
+                    animation->play();
+                }
+
+                auto *controls = new QWidget();
+                auto *controlsLayout = new QVBoxLayout(controls);
+                controlsLayout->setContentsMargins(0, 0, 0, 0);
+                controlsLayout->setSpacing(8);
+
+                auto *buttons = new QHBoxLayout();
+                buttons->setContentsMargins(0, 0, 0, 0);
+                buttons->setSpacing(8);
+
+                auto *play = new FluentButton(QStringLiteral("Play"));
+                auto *pause = new FluentButton(QStringLiteral("Pause"));
+                auto *stop = new FluentButton(QStringLiteral("Stop"));
+
+                buttons->addWidget(play);
+                buttons->addWidget(pause);
+                buttons->addWidget(stop);
+                buttons->addStretch(1);
+
+                auto *progress = new QSlider(Qt::Horizontal);
+                progress->setRange(0, 1000);
+                auto *status = new FluentLabel(QStringLiteral("0%"));
+                status->setMinimumWidth(42);
+
+                auto *progressRow = new QHBoxLayout();
+                progressRow->setContentsMargins(0, 0, 0, 0);
+                progressRow->setSpacing(8);
+                progressRow->addWidget(progress, 1);
+                progressRow->addWidget(status);
+
+                auto *speed = new QSlider(Qt::Horizontal);
+                speed->setRange(25, 400);
+                speed->setValue(100);
+                speed->setSingleStep(25);
+                speed->setPageStep(50);
+                auto *speedLabel = new FluentLabel(QStringLiteral("Speed 1.00x"));
+                speedLabel->setMinimumWidth(92);
+
+                auto *speedRow = new QHBoxLayout();
+                speedRow->setContentsMargins(0, 0, 0, 0);
+                speedRow->setSpacing(8);
+                speedRow->addWidget(speed, 1);
+                speedRow->addWidget(speedLabel);
+
+                controlsLayout->addLayout(buttons);
+                controlsLayout->addLayout(progressRow);
+                controlsLayout->addLayout(speedRow);
+                controlsLayout->addStretch(1);
+
+                QObject::connect(play, &QPushButton::clicked, animation, &FluentLottieWidget::play);
+                QObject::connect(pause, &QPushButton::clicked, animation, &FluentLottieWidget::pause);
+                QObject::connect(stop, &QPushButton::clicked, animation, &FluentLottieWidget::stop);
+                QObject::connect(animation, &FluentLottieWidget::progressChanged, progress, [progress, status](qreal value) {
+                    const int next = qRound(value * 1000.0);
+                    const QSignalBlocker blocker(progress);
+                    progress->setValue(next);
+                    status->setText(QStringLiteral("%1%").arg(qRound(value * 100.0)));
+                });
+                QObject::connect(progress, &QSlider::sliderPressed, animation, &FluentLottieWidget::pause);
+                QObject::connect(progress, &QSlider::valueChanged, animation, [animation, progress](int value) {
+                    if (progress->isSliderDown()) {
+                        animation->setProgress(static_cast<qreal>(value) / 1000.0);
                     }
-                    body->addWidget(gridHost);
-                    body->addSpacing(10);
+                });
+                QObject::connect(speed, &QSlider::valueChanged, animation, [animation, speedLabel](int value) {
+                    const qreal speedValue = static_cast<qreal>(value) / 100.0;
+                    animation->setSpeed(speedValue);
+                    speedLabel->setText(QStringLiteral("Speed %1x").arg(speedValue, 0, 'f', 2));
+                });
 
-                    addSubsectionTitle(body,
-                                       DEMO_TEXT("播放控制", "Playback Control"),
-                                       DEMO_TEXT("播放、暂停、停止、进度定位与播放速度都可以独立控制。",
-                                                 "Playback, pause, stop, progress seek, and speed are independently controllable."));
+                playbackRow->addWidget(animation);
+                playbackRow->addWidget(controls, 1);
+                body->addLayout(playbackRow);
+                body->addSpacing(10);
 
-                    auto *playbackRow = new QHBoxLayout();
-                    playbackRow->setContentsMargins(0, 0, 0, 0);
-                    playbackRow->setSpacing(14);
+                addSubsectionTitle(body,
+                                   DEMO_TEXT("Tint 与主题联动", "Tint and Theme Linkage"),
+                                   DEMO_TEXT("图标型 Lottie 可以按 alpha 重染为 accent、text、error 等语义色。",
+                                             "Icon-like Lottie files can be recolored by alpha into semantic colors such as accent, text, and error."));
 
-                    auto *animation = new FluentLottieWidget();
-                    animation->setFixedSize(128, 96);
-                    animation->setLooping(true);
-                    if (Demo::loadDemoLottieResource(animation, QStringLiteral("menu.json"))) {
-                        animation->play();
+                auto *themeHost = new QWidget();
+                auto *themeLayout = new QVBoxLayout(themeHost);
+                themeLayout->setContentsMargins(0, 0, 0, 0);
+                themeLayout->setSpacing(12);
+
+                auto *modeRow = new QHBoxLayout();
+                modeRow->setContentsMargins(0, 0, 0, 0);
+                modeRow->setSpacing(10);
+
+                auto *darkMode = new FluentToggleSwitch(DEMO_TEXT("深色模式", "Dark mode"), themeHost);
+                auto *modeLabel = new FluentLabel(themeHost);
+                modeLabel->setStyleSheet(QStringLiteral("font-size: 12px; opacity: 0.86;"));
+                modeRow->addWidget(darkMode);
+                modeRow->addWidget(modeLabel, 1);
+
+                struct ThemeLinkedTile
+                {
+                    QWidget *host = nullptr;
+                    FluentLottieWidget *animation = nullptr;
+                    FluentLabel *value = nullptr;
+                };
+
+                auto makeThemeTile = [](const QString &title, const QString &fileName, QWidget *parent) {
+                    ThemeLinkedTile tile;
+                    tile.host = new QWidget(parent);
+                    tile.host->setObjectName(QStringLiteral("MotionThemeTile"));
+
+                    auto *tileLayout = new QVBoxLayout(tile.host);
+                    tileLayout->setContentsMargins(10, 8, 10, 8);
+                    tileLayout->setSpacing(6);
+
+                    tile.animation = new FluentLottieWidget(tile.host);
+                    tile.animation->setFixedSize(76, 76);
+                    if (Demo::loadDemoLottieResource(tile.animation, fileName)) {
+                        tile.animation->play();
                     }
 
-                    auto *controls = new QWidget();
-                    auto *controlsLayout = new QVBoxLayout(controls);
-                    controlsLayout->setContentsMargins(0, 0, 0, 0);
-                    controlsLayout->setSpacing(8);
+                    auto *titleLabel = new FluentLabel(title, tile.host);
+                    titleLabel->setAlignment(Qt::AlignCenter);
+                    titleLabel->setStyleSheet(QStringLiteral("font-size: 12px; font-weight: 650;"));
 
-                    auto *buttons = new QHBoxLayout();
-                    buttons->setContentsMargins(0, 0, 0, 0);
-                    buttons->setSpacing(8);
+                    tile.value = new FluentLabel(tile.host);
+                    tile.value->setAlignment(Qt::AlignCenter);
+                    tile.value->setStyleSheet(QStringLiteral("font-size: 11px; opacity: 0.78;"));
 
-                    auto *play = new FluentButton(QStringLiteral("Play"));
-                    auto *pause = new FluentButton(QStringLiteral("Pause"));
-                    auto *stop = new FluentButton(QStringLiteral("Stop"));
+                    tileLayout->addWidget(tile.animation, 0, Qt::AlignCenter);
+                    tileLayout->addWidget(titleLabel);
+                    tileLayout->addWidget(tile.value);
+                    return tile;
+                };
 
-                    buttons->addWidget(play);
-                    buttons->addWidget(pause);
-                    buttons->addWidget(stop);
-                    buttons->addStretch(1);
+                ThemeLinkedTile original = makeThemeTile(DEMO_TEXT("原色", "Original"), QStringLiteral("setting.json"), themeHost);
+                ThemeLinkedTile accent = makeThemeTile(QStringLiteral("Accent"), QStringLiteral("setting.json"), themeHost);
+                ThemeLinkedTile text = makeThemeTile(QStringLiteral("Text"), QStringLiteral("dropdown.json"), themeHost);
+                ThemeLinkedTile error = makeThemeTile(QStringLiteral("Error"), QStringLiteral("delete.json"), themeHost);
+                ThemeLinkedTile disabled = makeThemeTile(DEMO_TEXT("禁用", "Disabled"), QStringLiteral("scroll-down.json"), themeHost);
 
-                    auto *progress = new QSlider(Qt::Horizontal);
-                    progress->setRange(0, 1000);
-                    auto *status = new FluentLabel(QStringLiteral("0%"));
-                    status->setMinimumWidth(42);
+                original.value->setText(DEMO_TEXT("原始颜色", "Original colors"));
 
-                    auto *progressRow = new QHBoxLayout();
-                    progressRow->setContentsMargins(0, 0, 0, 0);
-                    progressRow->setSpacing(8);
-                    progressRow->addWidget(progress, 1);
-                    progressRow->addWidget(status);
+                auto applyTheme = [themeHost, darkMode, modeLabel, original, accent, text, error, disabled]() {
+                    const auto &colors = ThemeManager::instance().colors();
+                    const bool isDark = ThemeManager::instance().themeMode() == ThemeManager::ThemeMode::Dark;
 
-                    auto *speed = new QSlider(Qt::Horizontal);
-                    speed->setRange(25, 400);
-                    speed->setValue(100);
-                    speed->setSingleStep(25);
-                    speed->setPageStep(50);
-                    auto *speedLabel = new FluentLabel(QStringLiteral("Speed 1.00x"));
-                    speedLabel->setMinimumWidth(92);
-
-                    auto *speedRow = new QHBoxLayout();
-                    speedRow->setContentsMargins(0, 0, 0, 0);
-                    speedRow->setSpacing(8);
-                    speedRow->addWidget(speed, 1);
-                    speedRow->addWidget(speedLabel);
-
-                    controlsLayout->addLayout(buttons);
-                    controlsLayout->addLayout(progressRow);
-                    controlsLayout->addLayout(speedRow);
-                    controlsLayout->addStretch(1);
-
-                    QObject::connect(play, &QPushButton::clicked, animation, &FluentLottieWidget::play);
-                    QObject::connect(pause, &QPushButton::clicked, animation, &FluentLottieWidget::pause);
-                    QObject::connect(stop, &QPushButton::clicked, animation, &FluentLottieWidget::stop);
-                    QObject::connect(animation, &FluentLottieWidget::progressChanged, progress, [progress, status](qreal value) {
-                        const int next = qRound(value * 1000.0);
-                        const QSignalBlocker blocker(progress);
-                        progress->setValue(next);
-                        status->setText(QStringLiteral("%1%").arg(qRound(value * 100.0)));
-                    });
-                    QObject::connect(progress, &QSlider::sliderPressed, animation, &FluentLottieWidget::pause);
-                    QObject::connect(progress, &QSlider::valueChanged, animation, [animation, progress](int value) {
-                        if (progress->isSliderDown()) {
-                            animation->setProgress(static_cast<qreal>(value) / 1000.0);
-                        }
-                    });
-                    QObject::connect(speed, &QSlider::valueChanged, animation, [animation, speedLabel](int value) {
-                        const qreal speedValue = static_cast<qreal>(value) / 100.0;
-                        animation->setSpeed(speedValue);
-                        speedLabel->setText(QStringLiteral("Speed %1x").arg(speedValue, 0, 'f', 2));
-                    });
-
-                    playbackRow->addWidget(animation);
-                    playbackRow->addWidget(controls, 1);
-                    body->addLayout(playbackRow);
-                    body->addSpacing(10);
-
-                    addSubsectionTitle(body,
-                                       DEMO_TEXT("Tint 与主题联动", "Tint and Theme Linkage"),
-                                       DEMO_TEXT("图标型 Lottie 可以按 alpha 重染为 accent、text、error 等语义色。",
-                                                 "Icon-like Lottie files can be recolored by alpha into semantic colors such as accent, text, and error."));
-
-                    auto *themeHost = new QWidget();
-                    auto *themeLayout = new QVBoxLayout(themeHost);
-                    themeLayout->setContentsMargins(0, 0, 0, 0);
-                    themeLayout->setSpacing(12);
-
-                    auto *modeRow = new QHBoxLayout();
-                    modeRow->setContentsMargins(0, 0, 0, 0);
-                    modeRow->setSpacing(10);
-
-                    auto *darkMode = new FluentToggleSwitch(DEMO_TEXT("深色模式", "Dark mode"), themeHost);
-                    auto *modeLabel = new FluentLabel(themeHost);
-                    modeLabel->setStyleSheet(QStringLiteral("font-size: 12px; opacity: 0.86;"));
-                    modeRow->addWidget(darkMode);
-                    modeRow->addWidget(modeLabel, 1);
-
-                    struct ThemeLinkedTile
                     {
-                        QWidget *host = nullptr;
-                        FluentLottieWidget *animation = nullptr;
-                        FluentLabel *value = nullptr;
-                    };
+                        const QSignalBlocker blocker(darkMode);
+                        darkMode->setChecked(isDark);
+                    }
+                    modeLabel->setText(DEMO_TEXT("当前主题：%1，切换后 Lottie tint 会跟随语义色刷新",
+                                                 "Current theme: %1. Lottie tint follows semantic colors after switching")
+                                           .arg(isDark ? DEMO_TEXT("深色", "Dark") : DEMO_TEXT("浅色", "Light")));
 
-                    auto makeThemeTile = [](const QString &title, const QString &fileName, QWidget *parent) {
-                        ThemeLinkedTile tile;
-                        tile.host = new QWidget(parent);
-                        tile.host->setObjectName(QStringLiteral("MotionThemeTile"));
+                    original.animation->resetTintColor();
+                    accent.animation->setTintColor(colors.accent);
+                    text.animation->setTintColor(colors.text);
+                    error.animation->setTintColor(colors.error);
+                    disabled.animation->setTintColor(colors.disabledText);
 
-                        auto *tileLayout = new QVBoxLayout(tile.host);
-                        tileLayout->setContentsMargins(10, 8, 10, 8);
-                        tileLayout->setSpacing(6);
+                    accent.value->setText(colors.accent.name(QColor::HexRgb).toUpper());
+                    text.value->setText(colors.text.name(QColor::HexRgb).toUpper());
+                    error.value->setText(colors.error.name(QColor::HexRgb).toUpper());
+                    disabled.value->setText(colors.disabledText.name(QColor::HexRgb).toUpper());
 
-                        tile.animation = new FluentLottieWidget(tile.host);
-                        tile.animation->setFixedSize(76, 76);
-                        if (Demo::loadDemoLottieResource(tile.animation, fileName)) {
-                            tile.animation->play();
-                        }
+                    const QString tileStyle = QStringLiteral(
+                        "#MotionThemeTile { background: %1; border: 1px solid %2; border-radius: 8px; }")
+                                                    .arg(colors.surface.name(QColor::HexRgb),
+                                                         colors.border.name(QColor::HexRgb));
+                    original.host->setStyleSheet(tileStyle);
+                    accent.host->setStyleSheet(tileStyle);
+                    text.host->setStyleSheet(tileStyle);
+                    error.host->setStyleSheet(tileStyle);
+                    disabled.host->setStyleSheet(tileStyle);
+                };
 
-                        auto *titleLabel = new FluentLabel(title, tile.host);
-                        titleLabel->setAlignment(Qt::AlignCenter);
-                        titleLabel->setStyleSheet(QStringLiteral("font-size: 12px; font-weight: 650;"));
+                QObject::connect(darkMode, &FluentToggleSwitch::toggled, themeHost, [](bool checked) {
+                    ThemeManager::instance().setThemeMode(checked ? ThemeManager::ThemeMode::Dark
+                                                                  : ThemeManager::ThemeMode::Light);
+                });
+                QObject::connect(&ThemeManager::instance(), &ThemeManager::themeChanged, themeHost, applyTheme);
+                applyTheme();
 
-                        tile.value = new FluentLabel(tile.host);
-                        tile.value->setAlignment(Qt::AlignCenter);
-                        tile.value->setStyleSheet(QStringLiteral("font-size: 11px; opacity: 0.78;"));
+                auto *themeGrid = new QGridLayout();
+                themeGrid->setContentsMargins(0, 0, 0, 0);
+                themeGrid->setHorizontalSpacing(12);
+                themeGrid->setVerticalSpacing(10);
+                themeGrid->addWidget(original.host, 0, 0);
+                themeGrid->addWidget(accent.host, 0, 1);
+                themeGrid->addWidget(text.host, 0, 2);
+                themeGrid->addWidget(error.host, 0, 3);
+                themeGrid->addWidget(disabled.host, 0, 4);
+                themeGrid->setColumnStretch(5, 1);
 
-                        tileLayout->addWidget(tile.animation, 0, Qt::AlignCenter);
-                        tileLayout->addWidget(titleLabel);
-                        tileLayout->addWidget(tile.value);
-                        return tile;
-                    };
-
-                    ThemeLinkedTile original = makeThemeTile(DEMO_TEXT("原色", "Original"), QStringLiteral("setting.json"), themeHost);
-                    ThemeLinkedTile accent = makeThemeTile(QStringLiteral("Accent"), QStringLiteral("setting.json"), themeHost);
-                    ThemeLinkedTile text = makeThemeTile(QStringLiteral("Text"), QStringLiteral("dropdown.json"), themeHost);
-                    ThemeLinkedTile error = makeThemeTile(QStringLiteral("Error"), QStringLiteral("delete.json"), themeHost);
-                    ThemeLinkedTile disabled = makeThemeTile(DEMO_TEXT("禁用", "Disabled"), QStringLiteral("scroll-down.json"), themeHost);
-
-                    original.value->setText(DEMO_TEXT("原始颜色", "Original colors"));
-
-                    auto applyTheme = [themeHost, darkMode, modeLabel, original, accent, text, error, disabled]() {
-                        const auto &colors = ThemeManager::instance().colors();
-                        const bool isDark = ThemeManager::instance().themeMode() == ThemeManager::ThemeMode::Dark;
-
-                        {
-                            const QSignalBlocker blocker(darkMode);
-                            darkMode->setChecked(isDark);
-                        }
-                        modeLabel->setText(DEMO_TEXT("当前主题：%1，切换后 Lottie tint 会跟随语义色刷新",
-                                                     "Current theme: %1. Lottie tint follows semantic colors after switching")
-                                               .arg(isDark ? DEMO_TEXT("深色", "Dark") : DEMO_TEXT("浅色", "Light")));
-
-                        original.animation->resetTintColor();
-                        accent.animation->setTintColor(colors.accent);
-                        text.animation->setTintColor(colors.text);
-                        error.animation->setTintColor(colors.error);
-                        disabled.animation->setTintColor(colors.disabledText);
-
-                        accent.value->setText(colors.accent.name(QColor::HexRgb).toUpper());
-                        text.value->setText(colors.text.name(QColor::HexRgb).toUpper());
-                        error.value->setText(colors.error.name(QColor::HexRgb).toUpper());
-                        disabled.value->setText(colors.disabledText.name(QColor::HexRgb).toUpper());
-
-                        const QString tileStyle = QStringLiteral(
-                            "#MotionThemeTile { background: %1; border: 1px solid %2; border-radius: 8px; }")
-                                                        .arg(colors.surface.name(QColor::HexRgb),
-                                                             colors.border.name(QColor::HexRgb));
-                        original.host->setStyleSheet(tileStyle);
-                        accent.host->setStyleSheet(tileStyle);
-                        text.host->setStyleSheet(tileStyle);
-                        error.host->setStyleSheet(tileStyle);
-                        disabled.host->setStyleSheet(tileStyle);
-                    };
-
-                    QObject::connect(darkMode, &FluentToggleSwitch::toggled, themeHost, [](bool checked) {
-                        ThemeManager::instance().setThemeMode(checked ? ThemeManager::ThemeMode::Dark
-                                                                      : ThemeManager::ThemeMode::Light);
-                    });
-                    QObject::connect(&ThemeManager::instance(), &ThemeManager::themeChanged, themeHost, applyTheme);
-                    applyTheme();
-
-                    auto *themeGrid = new QGridLayout();
-                    themeGrid->setContentsMargins(0, 0, 0, 0);
-                    themeGrid->setHorizontalSpacing(12);
-                    themeGrid->setVerticalSpacing(10);
-                    themeGrid->addWidget(original.host, 0, 0);
-                    themeGrid->addWidget(accent.host, 0, 1);
-                    themeGrid->addWidget(text.host, 0, 2);
-                    themeGrid->addWidget(error.host, 0, 3);
-                    themeGrid->addWidget(disabled.host, 0, 4);
-                    themeGrid->setColumnStretch(5, 1);
-
-                    themeLayout->addLayout(modeRow);
-                    themeLayout->addLayout(themeGrid);
-                    body->addWidget(themeHost);
-                },
-                false,
-                210));
+                themeLayout->addLayout(modeRow);
+                themeLayout->addLayout(themeGrid);
+                body->addWidget(themeHost);
+            },
+            false,
+            210));
 
 #undef MOTION_LOTTIE_WIDGET
-        }
+    }
 }
 
 QWidget *createMotionPage()

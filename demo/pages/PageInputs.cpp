@@ -26,525 +26,525 @@ using namespace Fluent;
 
 void fillInputs(QVBoxLayout *page, FluentMainWindow *window)
 {
-        auto s = Demo::makeSection(DEMO_TEXT("输入控件", "Inputs"),
-                                   DEMO_TEXT("LineEdit / TextEdit / SpinBox（含禁用与占位符展示）", "LineEdit / TextEdit / SpinBox with disabled and placeholder states"));
+    auto s = Demo::makeSection(DEMO_TEXT("输入控件", "Inputs"),
+                               DEMO_TEXT("LineEdit / TextEdit / SpinBox（含禁用与占位符展示）", "LineEdit / TextEdit / SpinBox with disabled and placeholder states"));
 
-        page->addWidget(s.card);
+    page->addWidget(s.card);
 
-        // P0 input state matrix
-        {
-            const QString code = QStringLiteral(
-                "auto *edit = new FluentLineEdit();\n"
-                "edit->setPlaceholderText(QStringLiteral(\"Placeholder\"));\n"
-                "auto *filled = new FluentLineEdit();\n"
-                "filled->setText(QStringLiteral(\"Filled value\"));\n"
-                "auto *disabled = new FluentLineEdit();\n"
-                "disabled->setDisabled(true);\n");
+    // P0 input state matrix
+    {
+        const QString code = QStringLiteral(
+            "auto *edit = new FluentLineEdit();\n"
+            "edit->setPlaceholderText(QStringLiteral(\"Placeholder\"));\n"
+            "auto *filled = new FluentLineEdit();\n"
+            "filled->setText(QStringLiteral(\"Filled value\"));\n"
+            "auto *disabled = new FluentLineEdit();\n"
+            "disabled->setDisabled(true);\n");
 
-            page->addWidget(Demo::makeCollapsedExample(
-                QStringLiteral("P0 Input State Matrix"),
-                DEMO_TEXT("基础输入控件的 placeholder / filled / disabled 横向对比", "Side-by-side placeholder / filled / disabled states for core input controls"),
-                DEMO_TEXT("要点：\n"
-                          "-LineEdit、AutoSuggestBox 在同一行高和密度体系下比较\n"
-                          "-placeholder 与 disabled 的文本强度需要明显区分\n"
-                          "-AutoSuggestBox 与 ComboBox 的 popup 已统一到 Fluent 自绘弹层",
-                          "Highlights:\n"
-                          "-LineEdit and AutoSuggestBox are compared in one density system\n"
-                          "-Placeholder and disabled text strength should be clearly distinct\n"
-                          "-AutoSuggestBox and ComboBox popups now share Fluent-painted popup behavior"),
-                code,
-                [=](QVBoxLayout *body) {
-                    auto *matrix = new QVBoxLayout();
-                    matrix->setContentsMargins(0, 0, 0, 0);
-                    matrix->setSpacing(12);
+        page->addWidget(Demo::makeCollapsedExample(
+            QStringLiteral("P0 Input State Matrix"),
+            DEMO_TEXT("基础输入控件的 placeholder / filled / disabled 横向对比", "Side-by-side placeholder / filled / disabled states for core input controls"),
+            DEMO_TEXT("要点：\n"
+                      "-LineEdit、AutoSuggestBox 在同一行高和密度体系下比较\n"
+                      "-placeholder 与 disabled 的文本强度需要明显区分\n"
+                      "-AutoSuggestBox 与 ComboBox 的 popup 已统一到 Fluent 自绘弹层",
+                      "Highlights:\n"
+                      "-LineEdit and AutoSuggestBox are compared in one density system\n"
+                      "-Placeholder and disabled text strength should be clearly distinct\n"
+                      "-AutoSuggestBox and ComboBox popups now share Fluent-painted popup behavior"),
+            code,
+            [=](QVBoxLayout *body) {
+                auto *matrix = new QVBoxLayout();
+                matrix->setContentsMargins(0, 0, 0, 0);
+                matrix->setSpacing(12);
 
-                    auto makeCaption = [](const QString &text, bool strong = false) {
-                        auto *label = new FluentLabel(text);
-                        label->setStyleSheet(strong
-                                                 ? QStringLiteral("font-size: 12px; font-weight: 600; opacity: 0.9;")
-                                                 : QStringLiteral("font-size: 12px; opacity: 0.78;"));
-                        return label;
-                    };
+                auto makeCaption = [](const QString &text, bool strong = false) {
+                    auto *label = new FluentLabel(text);
+                    label->setStyleSheet(strong
+                                             ? QStringLiteral("font-size: 12px; font-weight: 600; opacity: 0.9;")
+                                             : QStringLiteral("font-size: 12px; opacity: 0.78;"));
+                    return label;
+                };
 
-                    auto prepareInput = [](QWidget *widget) {
-                        widget->setMinimumWidth(176);
-                        widget->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Fixed);
-                        return widget;
-                    };
+                auto prepareInput = [](QWidget *widget) {
+                    widget->setMinimumWidth(176);
+                    widget->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Fixed);
+                    return widget;
+                };
 
-                    auto *header = new QHBoxLayout();
-                    header->setContentsMargins(0, 0, 0, 0);
-                    header->setSpacing(12);
-                    auto *controlHeader = makeCaption(DEMO_TEXT("控件", "Control"), true);
-                    controlHeader->setMinimumWidth(150);
-                    header->addWidget(controlHeader, 0);
-                    header->addWidget(makeCaption(DEMO_TEXT("Placeholder", "Placeholder"), true), 1);
-                    header->addWidget(makeCaption(DEMO_TEXT("Filled", "Filled"), true), 1);
-                    header->addWidget(makeCaption(DEMO_TEXT("Disabled", "Disabled"), true), 1);
-                    matrix->addLayout(header);
+                auto *header = new QHBoxLayout();
+                header->setContentsMargins(0, 0, 0, 0);
+                header->setSpacing(12);
+                auto *controlHeader = makeCaption(DEMO_TEXT("控件", "Control"), true);
+                controlHeader->setMinimumWidth(150);
+                header->addWidget(controlHeader, 0);
+                header->addWidget(makeCaption(DEMO_TEXT("Placeholder", "Placeholder"), true), 1);
+                header->addWidget(makeCaption(DEMO_TEXT("Filled", "Filled"), true), 1);
+                header->addWidget(makeCaption(DEMO_TEXT("Disabled", "Disabled"), true), 1);
+                matrix->addLayout(header);
 
-                    auto addRow = [&](int row, const QString &name, QWidget *placeholder, QWidget *filled, QWidget *disabled) {
-                        Q_UNUSED(row)
-                        auto *line = new QHBoxLayout();
-                        line->setContentsMargins(0, 0, 0, 0);
-                        line->setSpacing(12);
-                        auto *caption = makeCaption(name);
-                        caption->setMinimumWidth(150);
-                        line->addWidget(caption, 0);
-                        line->addWidget(prepareInput(placeholder), 1);
-                        line->addWidget(prepareInput(filled), 1);
-                        line->addWidget(prepareInput(disabled), 1);
-                        matrix->addLayout(line);
-                    };
+                auto addRow = [&](int row, const QString &name, QWidget *placeholder, QWidget *filled, QWidget *disabled) {
+                    Q_UNUSED(row)
+                    auto *line = new QHBoxLayout();
+                    line->setContentsMargins(0, 0, 0, 0);
+                    line->setSpacing(12);
+                    auto *caption = makeCaption(name);
+                    caption->setMinimumWidth(150);
+                    line->addWidget(caption, 0);
+                    line->addWidget(prepareInput(placeholder), 1);
+                    line->addWidget(prepareInput(filled), 1);
+                    line->addWidget(prepareInput(disabled), 1);
+                    matrix->addLayout(line);
+                };
 
-                    auto *linePlaceholder = new FluentLineEdit();
-                    linePlaceholder->setPlaceholderText(DEMO_TEXT("输入名称", "Enter a name"));
-                    auto *lineFilled = new FluentLineEdit();
-                    lineFilled->setText(DEMO_TEXT("已填写内容", "Filled value"));
-                    auto *lineDisabled = new FluentLineEdit();
-                    lineDisabled->setText(DEMO_TEXT("不可编辑", "Unavailable"));
-                    lineDisabled->setDisabled(true);
-                    addRow(1, QStringLiteral("FluentLineEdit"), linePlaceholder, lineFilled, lineDisabled);
+                auto *linePlaceholder = new FluentLineEdit();
+                linePlaceholder->setPlaceholderText(DEMO_TEXT("输入名称", "Enter a name"));
+                auto *lineFilled = new FluentLineEdit();
+                lineFilled->setText(DEMO_TEXT("已填写内容", "Filled value"));
+                auto *lineDisabled = new FluentLineEdit();
+                lineDisabled->setText(DEMO_TEXT("不可编辑", "Unavailable"));
+                lineDisabled->setDisabled(true);
+                addRow(1, QStringLiteral("FluentLineEdit"), linePlaceholder, lineFilled, lineDisabled);
 
-                    const QStringList suggestions = {
-                        QStringLiteral("FluentButton"),
-                        QStringLiteral("FluentComboBox"),
-                        QStringLiteral("FluentNavigationView")
-                    };
+                const QStringList suggestions = {
+                    QStringLiteral("FluentButton"),
+                    QStringLiteral("FluentComboBox"),
+                    QStringLiteral("FluentNavigationView")
+                };
 
-                    auto *suggestPlaceholder = new FluentAutoSuggestBox();
-                    suggestPlaceholder->setPlaceholderText(DEMO_TEXT("输入控件名", "Type a control"));
-                    suggestPlaceholder->setSuggestions(suggestions);
-                    auto *suggestFilled = new FluentAutoSuggestBox();
-                    suggestFilled->setSuggestions(suggestions);
-                    suggestFilled->setText(QStringLiteral("FluentButton"));
-                    auto *suggestDisabled = new FluentAutoSuggestBox();
-                    suggestDisabled->setPlaceholderText(DEMO_TEXT("禁用建议", "Disabled suggestions"));
-                    suggestDisabled->setSuggestions(suggestions);
-                    suggestDisabled->setDisabled(true);
-                    addRow(2, QStringLiteral("FluentAutoSuggestBox"), suggestPlaceholder, suggestFilled, suggestDisabled);
+                auto *suggestPlaceholder = new FluentAutoSuggestBox();
+                suggestPlaceholder->setPlaceholderText(DEMO_TEXT("输入控件名", "Type a control"));
+                suggestPlaceholder->setSuggestions(suggestions);
+                auto *suggestFilled = new FluentAutoSuggestBox();
+                suggestFilled->setSuggestions(suggestions);
+                suggestFilled->setText(QStringLiteral("FluentButton"));
+                auto *suggestDisabled = new FluentAutoSuggestBox();
+                suggestDisabled->setPlaceholderText(DEMO_TEXT("禁用建议", "Disabled suggestions"));
+                suggestDisabled->setSuggestions(suggestions);
+                suggestDisabled->setDisabled(true);
+                addRow(2, QStringLiteral("FluentAutoSuggestBox"), suggestPlaceholder, suggestFilled, suggestDisabled);
 
-                    body->addLayout(matrix);
-                },
-                false,
-                120));
-        }
+                body->addLayout(matrix);
+            },
+            false,
+            120));
+    }
 
-        // LineEdit
-        {
-            QString code;
+    // LineEdit
+    {
+        QString code;
 #define INPUTS_LINEEDIT(X) \
-    X(auto *row = new QHBoxLayout();) \
-    X(row->setContentsMargins(0, 0, 0, 0);) \
-    X(row->setSpacing(10);) \
-    X(auto *le1 = new FluentLineEdit();) \
-    X(le1->setPlaceholderText(DEMO_TEXT("普通 LineEdit", "Normal LineEdit"));) \
-    X(auto *le2 = new FluentLineEdit();) \
-    X(le2->setPlaceholderText(DEMO_TEXT("禁用 LineEdit", "Disabled LineEdit"));) \
-    X(le2->setDisabled(true);) \
-    X(row->addWidget(le1);) \
-    X(row->addWidget(le2);) \
-    X(body->addLayout(row);)
+X(auto *row = new QHBoxLayout();) \
+X(row->setContentsMargins(0, 0, 0, 0);) \
+X(row->setSpacing(10);) \
+X(auto *le1 = new FluentLineEdit();) \
+X(le1->setPlaceholderText(DEMO_TEXT("普通 LineEdit", "Normal LineEdit"));) \
+X(auto *le2 = new FluentLineEdit();) \
+X(le2->setPlaceholderText(DEMO_TEXT("禁用 LineEdit", "Disabled LineEdit"));) \
+X(le2->setDisabled(true);) \
+X(row->addWidget(le1);) \
+X(row->addWidget(le2);) \
+X(body->addLayout(row);)
 
 #define X(line) code += QStringLiteral(#line "\n");
-            INPUTS_LINEEDIT(X)
+        INPUTS_LINEEDIT(X)
 #undef X
 
-            page->addWidget(Demo::makeCollapsedExample(
-                QStringLiteral("FluentLineEdit"),
-                DEMO_TEXT("占位符、禁用态、跟随主题", "Placeholder, disabled state, theme-aware styling"),
-                DEMO_TEXT("要点：\n"
-                          "-setPlaceholderText() 设置占位符\n"
-                          "-setDisabled(true) 展示禁用态\n"
-                          "-与 ThemeManager 联动更新样式",
-                          "Highlights:\n"
-                          "-Use setPlaceholderText() to set the placeholder\n"
-                          "-Use setDisabled(true) to show the disabled state\n"
-                          "-Styles update together with ThemeManager"),
-                code,
-                [=](QVBoxLayout *body) {
+        page->addWidget(Demo::makeCollapsedExample(
+            QStringLiteral("FluentLineEdit"),
+            DEMO_TEXT("占位符、禁用态、跟随主题", "Placeholder, disabled state, theme-aware styling"),
+            DEMO_TEXT("要点：\n"
+                      "-setPlaceholderText() 设置占位符\n"
+                      "-setDisabled(true) 展示禁用态\n"
+                      "-与 ThemeManager 联动更新样式",
+                      "Highlights:\n"
+                      "-Use setPlaceholderText() to set the placeholder\n"
+                      "-Use setDisabled(true) to show the disabled state\n"
+                      "-Styles update together with ThemeManager"),
+            code,
+            [=](QVBoxLayout *body) {
 #define X(line) line
-                    INPUTS_LINEEDIT(X)
+                INPUTS_LINEEDIT(X)
 #undef X
-                },
-                false));
+            },
+            false));
 
 #undef INPUTS_LINEEDIT
-        }
+    }
 
-        // AutoSuggestBox / SearchBox
-        {
-            QString code;
+    // AutoSuggestBox / SearchBox
+    {
+        QString code;
 #define INPUTS_AUTOSUGGEST(X) \
-    X(QStringList suggestions;) \
-    X(suggestions << QStringLiteral("FluentButton") << QStringLiteral("FluentCard") << QStringLiteral("FluentNavigationView");) \
-    X(suggestions << QStringLiteral("FluentLottieWidget") << QStringLiteral("FluentProgressRing") << QStringLiteral("FluentTeachingTip");) \
-    X(auto *row = new QHBoxLayout();) \
-    X(row->setContentsMargins(0, 0, 0, 0);) \
-    X(row->setSpacing(10);) \
-    X(auto *suggest = new FluentAutoSuggestBox();) \
-    X(suggest->setPlaceholderText(DEMO_TEXT("输入控件名", "Type a control name"));) \
-    X(suggest->setSuggestions(suggestions);) \
-    X(auto *search = new FluentSearchBox();) \
-    X(search->setPlaceholderText(DEMO_TEXT("搜索控件", "Search controls"));) \
-    X(search->setSuggestions(suggestions);) \
-    X(auto *status = new FluentLabel(DEMO_TEXT("等待输入", "Waiting for input"));) \
-    X(status->setStyleSheet("font-size: 12px; opacity: 0.85;");) \
-    X(QObject::connect(suggest, &FluentAutoSuggestBox::suggestionChosen, status, [=](const QString &text) { status->setText(DEMO_TEXT("选择：%1", "Chosen: %1").arg(text)); });) \
-    X(QObject::connect(search, &FluentSearchBox::submitted, status, [=](const QString &text) { status->setText(DEMO_TEXT("搜索：%1", "Search: %1").arg(text)); });) \
-    X(row->addWidget(suggest, 1);) \
-    X(row->addWidget(search, 1);) \
-    X(row->addWidget(status);) \
-    X(body->addLayout(row);)
+X(QStringList suggestions;) \
+X(suggestions << QStringLiteral("FluentButton") << QStringLiteral("FluentCard") << QStringLiteral("FluentNavigationView");) \
+X(suggestions << QStringLiteral("FluentLottieWidget") << QStringLiteral("FluentProgressRing") << QStringLiteral("FluentTeachingTip");) \
+X(auto *row = new QHBoxLayout();) \
+X(row->setContentsMargins(0, 0, 0, 0);) \
+X(row->setSpacing(10);) \
+X(auto *suggest = new FluentAutoSuggestBox();) \
+X(suggest->setPlaceholderText(DEMO_TEXT("输入控件名", "Type a control name"));) \
+X(suggest->setSuggestions(suggestions);) \
+X(auto *search = new FluentSearchBox();) \
+X(search->setPlaceholderText(DEMO_TEXT("搜索控件", "Search controls"));) \
+X(search->setSuggestions(suggestions);) \
+X(auto *status = new FluentLabel(DEMO_TEXT("等待输入", "Waiting for input"));) \
+X(status->setStyleSheet("font-size: 12px; opacity: 0.85;");) \
+X(QObject::connect(suggest, &FluentAutoSuggestBox::suggestionChosen, status, [=](const QString &text) { status->setText(DEMO_TEXT("选择：%1", "Chosen: %1").arg(text)); });) \
+X(QObject::connect(search, &FluentSearchBox::submitted, status, [=](const QString &text) { status->setText(DEMO_TEXT("搜索：%1", "Search: %1").arg(text)); });) \
+X(row->addWidget(suggest, 1);) \
+X(row->addWidget(search, 1);) \
+X(row->addWidget(status);) \
+X(body->addLayout(row);)
 
 #define X(line) code += QStringLiteral(#line "\n");
-            INPUTS_AUTOSUGGEST(X)
+        INPUTS_AUTOSUGGEST(X)
 #undef X
 
-            page->addWidget(Demo::makeCollapsedExample(
-                QStringLiteral("FluentAutoSuggestBox / FluentSearchBox"),
-                DEMO_TEXT("输入建议与搜索提交", "Suggestions and search submission"),
-                DEMO_TEXT("要点：\n"
-                          "-setSuggestions(QStringList) 设置候选项\n"
-                          "-suggestionChosen(text) 响应用户选中的建议\n"
-                          "-SearchBox 在 AutoSuggestBox 基础上增加搜索按钮与 submitted/searchRequested 信号",
-                          "Highlights:\n"
-                          "-Use setSuggestions(QStringList) to provide candidates\n"
-                          "-Use suggestionChosen(text) for accepted suggestions\n"
-                          "-SearchBox adds a search button plus submitted/searchRequested signals on top of AutoSuggestBox"),
-                code,
-                [=](QVBoxLayout *body) {
+        page->addWidget(Demo::makeCollapsedExample(
+            QStringLiteral("FluentAutoSuggestBox / FluentSearchBox"),
+            DEMO_TEXT("输入建议与搜索提交", "Suggestions and search submission"),
+            DEMO_TEXT("要点：\n"
+                      "-setSuggestions(QStringList) 设置候选项\n"
+                      "-suggestionChosen(text) 响应用户选中的建议\n"
+                      "-SearchBox 在 AutoSuggestBox 基础上增加搜索按钮与 submitted/searchRequested 信号",
+                      "Highlights:\n"
+                      "-Use setSuggestions(QStringList) to provide candidates\n"
+                      "-Use suggestionChosen(text) for accepted suggestions\n"
+                      "-SearchBox adds a search button plus submitted/searchRequested signals on top of AutoSuggestBox"),
+            code,
+            [=](QVBoxLayout *body) {
 #define X(line) line
-                    INPUTS_AUTOSUGGEST(X)
+                INPUTS_AUTOSUGGEST(X)
 #undef X
-                },
-                false,
-                260));
+            },
+            false,
+            260));
 
 #undef INPUTS_AUTOSUGGEST
-        }
+    }
 
-        // TextEdit
-        {
-            const QString textEditPlaceholder = DEMO_TEXT("TextEdit：滚动条是自绘 FluentScrollBar（圆角 pill）",
-                                                         "TextEdit: the scrollbar is a custom FluentScrollBar with a rounded pill handle");
-            const QString textEditContent = DEMO_TEXT("1. FluentTextEdit\n"
-                                                     "2. Scrollbar pill handle\n"
-                                                     "3. Hover/Wheel 显示\n\n"
-                                                     "（多添加几行测试滚动…）\n\n"
-                                                     "4\n5\n6\n7\n8\n9\n10\n11\n12\n",
-                                                     "1. FluentTextEdit\n"
-                                                     "2. Scrollbar pill handle\n"
-                                                     "3. Visible on hover / wheel\n\n"
-                                                     "(Add a few more lines to test scrolling...)\n\n"
-                                                     "4\n5\n6\n7\n8\n9\n10\n11\n12\n");
-            QString code;
+    // TextEdit
+    {
+        const QString textEditPlaceholder = DEMO_TEXT("TextEdit：滚动条是自绘 FluentScrollBar（圆角 pill）",
+                                                     "TextEdit: the scrollbar is a custom FluentScrollBar with a rounded pill handle");
+        const QString textEditContent = DEMO_TEXT("1. FluentTextEdit\n"
+                                                 "2. Scrollbar pill handle\n"
+                                                 "3. Hover/Wheel 显示\n\n"
+                                                 "（多添加几行测试滚动…）\n\n"
+                                                 "4\n5\n6\n7\n8\n9\n10\n11\n12\n",
+                                                 "1. FluentTextEdit\n"
+                                                 "2. Scrollbar pill handle\n"
+                                                 "3. Visible on hover / wheel\n\n"
+                                                 "(Add a few more lines to test scrolling...)\n\n"
+                                                 "4\n5\n6\n7\n8\n9\n10\n11\n12\n");
+        QString code;
 #define INPUTS_TEXTEDIT(X) \
-    X(auto *te = new FluentTextEdit();) \
-    X(te->setPlaceholderText(textEditPlaceholder);) \
-    X(te->setText(textEditContent);) \
-    X(te->setFixedHeight(180);) \
-    X(body->addWidget(te);)
+X(auto *te = new FluentTextEdit();) \
+X(te->setPlaceholderText(textEditPlaceholder);) \
+X(te->setText(textEditContent);) \
+X(te->setFixedHeight(180);) \
+X(body->addWidget(te);)
 
 #define X(line) code += QStringLiteral(#line "\n");
-            INPUTS_TEXTEDIT(X)
+        INPUTS_TEXTEDIT(X)
 #undef X
 
-            page->addWidget(Demo::makeCollapsedExample(
-                QStringLiteral("FluentTextEdit"),
-                DEMO_TEXT("内置 FluentScrollBar（自绘 pill）", "Built-in FluentScrollBar with a custom pill handle"),
-                DEMO_TEXT("要点：\n"
-                          "-setPlaceholderText()\n"
-                          "-setReadOnly(true) 可作为日志/代码展示区\n"
-                          "-滚动条随主题与 Accent 联动",
-                          "Highlights:\n"
-                          "-Use setPlaceholderText() for placeholder text\n"
-                          "-Use setReadOnly(true) for log or code viewers\n"
-                          "-The scrollbar follows Theme and Accent changes"),
-                code,
-                [=](QVBoxLayout *body) {
+        page->addWidget(Demo::makeCollapsedExample(
+            QStringLiteral("FluentTextEdit"),
+            DEMO_TEXT("内置 FluentScrollBar（自绘 pill）", "Built-in FluentScrollBar with a custom pill handle"),
+            DEMO_TEXT("要点：\n"
+                      "-setPlaceholderText()\n"
+                      "-setReadOnly(true) 可作为日志/代码展示区\n"
+                      "-滚动条随主题与 Accent 联动",
+                      "Highlights:\n"
+                      "-Use setPlaceholderText() for placeholder text\n"
+                      "-Use setReadOnly(true) for log or code viewers\n"
+                      "-The scrollbar follows Theme and Accent changes"),
+            code,
+            [=](QVBoxLayout *body) {
 #define X(line) line
-                    INPUTS_TEXTEDIT(X)
+                INPUTS_TEXTEDIT(X)
 #undef X
-                },
-                true,
-                220));
+            },
+            true,
+            220));
 
 #undef INPUTS_TEXTEDIT
-        }
+    }
 
-        // CodeEditor
-        {
-            QString code;
+    // CodeEditor
+    {
+        QString code;
 #define INPUTS_CODEEDITOR(X) \
-    X(auto *ed = new FluentCodeEditor();) \
-    X(ed->setFixedHeight(220);) \
-    X(ed->setPlainText(QStringLiteral("#include <vector>\n\n" \
-                                        "struct Foo { int x=1; void bar(){ if(x){x++;} } };\n\n" \
-                                        "int main(){ std::vector<int> v{1,2,3}; Foo f; f.bar(); return v.size(); }\n"));) \
-    X(Demo::DemoCodeEditorSettings::instance().attach(ed, false);) \
-    X(body->addWidget(ed);)
+X(auto *ed = new FluentCodeEditor();) \
+X(ed->setFixedHeight(220);) \
+X(ed->setPlainText(QStringLiteral("#include <vector>\n\n" \
+                                    "struct Foo { int x=1; void bar(){ if(x){x++;} } };\n\n" \
+                                    "int main(){ std::vector<int> v{1,2,3}; Foo f; f.bar(); return v.size(); }\n"));) \
+X(Demo::DemoCodeEditorSettings::instance().attach(ed, false);) \
+X(body->addWidget(ed);)
 
 #define X(line) code += QStringLiteral(#line "\n");
-            INPUTS_CODEEDITOR(X)
+        INPUTS_CODEEDITOR(X)
 #undef X
 
-            page->addWidget(Demo::makeCollapsedExample(
-                QStringLiteral("FluentCodeEditor"),
-                DEMO_TEXT("C++ 语法高亮 + clang-format（可在侧边栏配置路径）", "C++ syntax highlighting + clang-format (configured in the sidebar)"),
-                DEMO_TEXT("要点：\n"
-                          "-侧边栏 CodeEditor 面板可配置 clang-format 路径\n"
-                          "-Ctrl+Shift+F 手动格式化\n"
-                          "-可开启 debounce 自动格式化（同样在侧边栏配置）",
-                          "Highlights:\n"
-                          "-Configure the clang-format path from the sidebar CodeEditor panel\n"
-                          "-Press Ctrl+Shift+F to format manually\n"
-                          "-Debounced auto-formatting can also be enabled from the sidebar"),
-                code,
-                [=](QVBoxLayout *body) {
+        page->addWidget(Demo::makeCollapsedExample(
+            QStringLiteral("FluentCodeEditor"),
+            DEMO_TEXT("C++ 语法高亮 + clang-format（可在侧边栏配置路径）", "C++ syntax highlighting + clang-format (configured in the sidebar)"),
+            DEMO_TEXT("要点：\n"
+                      "-侧边栏 CodeEditor 面板可配置 clang-format 路径\n"
+                      "-Ctrl+Shift+F 手动格式化\n"
+                      "-可开启 debounce 自动格式化（同样在侧边栏配置）",
+                      "Highlights:\n"
+                      "-Configure the clang-format path from the sidebar CodeEditor panel\n"
+                      "-Press Ctrl+Shift+F to format manually\n"
+                      "-Debounced auto-formatting can also be enabled from the sidebar"),
+            code,
+            [=](QVBoxLayout *body) {
 #define X(line) line
-                    INPUTS_CODEEDITOR(X)
+                INPUTS_CODEEDITOR(X)
 #undef X
-                },
-                true,
-                260));
+            },
+            true,
+            260));
 
 #undef INPUTS_CODEEDITOR
-        }
+    }
 
-        // Slider
-        {
-            QString code;
+    // Slider
+    {
+        QString code;
 #define INPUTS_SLIDER(X) \
-    X(auto *sliderRow = new QHBoxLayout();) \
-    X(sliderRow->setContentsMargins(0, 0, 0, 0);) \
-    X(sliderRow->setSpacing(10);) \
-    X(auto *slider = new FluentSlider(Qt::Horizontal);) \
-    X(slider->setRange(0, 100);) \
-    X(slider->setValue(30);) \
-    X(auto *sliderValue = new FluentLabel(DEMO_TEXT("值：30", "Value: 30"));) \
-    X(sliderValue->setStyleSheet("font-size: 12px; opacity: 0.85;");) \
-    X(QObject::connect(slider, &QSlider::valueChanged, sliderValue, [=](int v) { sliderValue->setText(DEMO_TEXT("值：%1", "Value: %1").arg(v)); });) \
-    X(sliderRow->addWidget(slider, 1);) \
-    X(sliderRow->addWidget(sliderValue);) \
-    X(body->addLayout(sliderRow);)
+X(auto *sliderRow = new QHBoxLayout();) \
+X(sliderRow->setContentsMargins(0, 0, 0, 0);) \
+X(sliderRow->setSpacing(10);) \
+X(auto *slider = new FluentSlider(Qt::Horizontal);) \
+X(slider->setRange(0, 100);) \
+X(slider->setValue(30);) \
+X(auto *sliderValue = new FluentLabel(DEMO_TEXT("值：30", "Value: 30"));) \
+X(sliderValue->setStyleSheet("font-size: 12px; opacity: 0.85;");) \
+X(QObject::connect(slider, &QSlider::valueChanged, sliderValue, [=](int v) { sliderValue->setText(DEMO_TEXT("值：%1", "Value: %1").arg(v)); });) \
+X(sliderRow->addWidget(slider, 1);) \
+X(sliderRow->addWidget(sliderValue);) \
+X(body->addLayout(sliderRow);)
 
 #define X(line) code += QStringLiteral(#line "\n");
-            INPUTS_SLIDER(X)
+        INPUTS_SLIDER(X)
 #undef X
 
-            page->addWidget(Demo::makeCollapsedExample(
-                QStringLiteral("FluentSlider"),
-                DEMO_TEXT("拖动手柄、Hover/Pressed 动效", "Drag handle with hover/pressed animation"),
-                DEMO_TEXT("要点：\n"
-                          "-横向/纵向：new FluentSlider(Qt::Horizontal/Vertical)\n"
-                          "-setRange()/setValue()\n"
-                          "-valueChanged 信号用于实时联动 UI",
-                          "Highlights:\n"
-                          "-Horizontal or vertical: new FluentSlider(Qt::Horizontal / Vertical)\n"
-                          "-Use setRange() and setValue()\n"
-                          "-Use valueChanged to drive live UI updates"),
-                code,
-                [=](QVBoxLayout *body) {
+        page->addWidget(Demo::makeCollapsedExample(
+            QStringLiteral("FluentSlider"),
+            DEMO_TEXT("拖动手柄、Hover/Pressed 动效", "Drag handle with hover/pressed animation"),
+            DEMO_TEXT("要点：\n"
+                      "-横向/纵向：new FluentSlider(Qt::Horizontal/Vertical)\n"
+                      "-setRange()/setValue()\n"
+                      "-valueChanged 信号用于实时联动 UI",
+                      "Highlights:\n"
+                      "-Horizontal or vertical: new FluentSlider(Qt::Horizontal / Vertical)\n"
+                      "-Use setRange() and setValue()\n"
+                      "-Use valueChanged to drive live UI updates"),
+            code,
+            [=](QVBoxLayout *body) {
 #define X(line) line
-                    INPUTS_SLIDER(X)
+                INPUTS_SLIDER(X)
 #undef X
-                },
-                false));
+            },
+            false));
 
 #undef INPUTS_SLIDER
-        }
+    }
 
-        // SpinBox
-        {
-            QString code;
+    // SpinBox
+    {
+        QString code;
 #define INPUTS_SPINBOX(X) \
-    X(auto *spinRow = new QHBoxLayout();) \
-    X(spinRow->setContentsMargins(0, 0, 0, 0);) \
-    X(spinRow->setSpacing(10);) \
-    X(auto *spin = new FluentSpinBox();) \
-    X(spin->setRange(0, 999);) \
-    X(spin->setValue(12);) \
-    X(auto *dspin = new FluentDoubleSpinBox();) \
-    X(dspin->setRange(0.0, 99.9);) \
-    X(dspin->setDecimals(1);) \
-    X(dspin->setValue(3.5);) \
-    X(spinRow->addWidget(spin);) \
-    X(spinRow->addWidget(dspin);) \
-    X(spinRow->addStretch(1);) \
-    X(body->addLayout(spinRow);)
+X(auto *spinRow = new QHBoxLayout();) \
+X(spinRow->setContentsMargins(0, 0, 0, 0);) \
+X(spinRow->setSpacing(10);) \
+X(auto *spin = new FluentSpinBox();) \
+X(spin->setRange(0, 999);) \
+X(spin->setValue(12);) \
+X(auto *dspin = new FluentDoubleSpinBox();) \
+X(dspin->setRange(0.0, 99.9);) \
+X(dspin->setDecimals(1);) \
+X(dspin->setValue(3.5);) \
+X(spinRow->addWidget(spin);) \
+X(spinRow->addWidget(dspin);) \
+X(spinRow->addStretch(1);) \
+X(body->addLayout(spinRow);)
 
 #define X(line) code += QStringLiteral(#line "\n");
-            INPUTS_SPINBOX(X)
+        INPUTS_SPINBOX(X)
 #undef X
 
-            page->addWidget(Demo::makeCollapsedExample(
-                QStringLiteral("FluentSpinBox / FluentDoubleSpinBox"),
-                DEMO_TEXT("数值输入（含范围、步进、小数位）", "Numeric input with range, step, and decimals"),
-                DEMO_TEXT("要点：\n"
-                          "-setRange(min,max) 限定范围\n"
-                          "-DoubleSpinBox：setDecimals() 控制小数位\n"
-                          "-valueChanged 信号用于参数联动",
-                          "Highlights:\n"
-                          "-Use setRange(min, max) to constrain the value\n"
-                          "-Use setDecimals() on the double spin box to control precision\n"
-                          "-Use valueChanged to drive dependent parameters"),
-                code,
-                [=](QVBoxLayout *body) {
+        page->addWidget(Demo::makeCollapsedExample(
+            QStringLiteral("FluentSpinBox / FluentDoubleSpinBox"),
+            DEMO_TEXT("数值输入（含范围、步进、小数位）", "Numeric input with range, step, and decimals"),
+            DEMO_TEXT("要点：\n"
+                      "-setRange(min,max) 限定范围\n"
+                      "-DoubleSpinBox：setDecimals() 控制小数位\n"
+                      "-valueChanged 信号用于参数联动",
+                      "Highlights:\n"
+                      "-Use setRange(min, max) to constrain the value\n"
+                      "-Use setDecimals() on the double spin box to control precision\n"
+                      "-Use valueChanged to drive dependent parameters"),
+            code,
+            [=](QVBoxLayout *body) {
 #define X(line) line
-                    INPUTS_SPINBOX(X)
+                INPUTS_SPINBOX(X)
 #undef X
-                }));
+            }));
 
 #undef INPUTS_SPINBOX
-        }
+    }
 
-        // ComboBox
-        {
-            QString code;
+    // ComboBox
+    {
+        QString code;
 #define INPUTS_COMBOBOX(X) \
-    X(auto *row = new QHBoxLayout();) \
-    X(row->setContentsMargins(0, 0, 0, 0);) \
-    X(row->setSpacing(10);) \
-    X(auto *combo = new FluentComboBox();) \
-    X(combo->addItem(DEMO_TEXT("选项一", "Option 1"));) \
-    X(combo->addItem(DEMO_TEXT("选项二", "Option 2"));) \
-    X(combo->addItem(DEMO_TEXT("选项三", "Option 3"));) \
-    X(combo->addItem(DEMO_TEXT("选项四", "Option 4"));) \
-    X(combo->addItem(DEMO_TEXT("选项五", "Option 5"));) \
-    X(auto *comboDisabled = new FluentComboBox();) \
-    X(comboDisabled->addItem(DEMO_TEXT("禁用 ComboBox", "Disabled ComboBox"));) \
-    X(comboDisabled->setDisabled(true);) \
-    X(auto *label = new FluentLabel(DEMO_TEXT("当前：选项一", "Current: Option 1"));) \
-    X(QObject::connect(combo, QOverload<int>::of(&QComboBox::currentIndexChanged), label, [=](int i) { label->setText(DEMO_TEXT("当前：%1", "Current: %1").arg(combo->itemText(i))); });) \
-    X(row->addWidget(combo);) \
-    X(row->addWidget(comboDisabled);) \
-    X(row->addWidget(label);) \
-    X(row->addStretch(1);) \
-    X(body->addLayout(row);)
+X(auto *row = new QHBoxLayout();) \
+X(row->setContentsMargins(0, 0, 0, 0);) \
+X(row->setSpacing(10);) \
+X(auto *combo = new FluentComboBox();) \
+X(combo->addItem(DEMO_TEXT("选项一", "Option 1"));) \
+X(combo->addItem(DEMO_TEXT("选项二", "Option 2"));) \
+X(combo->addItem(DEMO_TEXT("选项三", "Option 3"));) \
+X(combo->addItem(DEMO_TEXT("选项四", "Option 4"));) \
+X(combo->addItem(DEMO_TEXT("选项五", "Option 5"));) \
+X(auto *comboDisabled = new FluentComboBox();) \
+X(comboDisabled->addItem(DEMO_TEXT("禁用 ComboBox", "Disabled ComboBox"));) \
+X(comboDisabled->setDisabled(true);) \
+X(auto *label = new FluentLabel(DEMO_TEXT("当前：选项一", "Current: Option 1"));) \
+X(QObject::connect(combo, QOverload<int>::of(&QComboBox::currentIndexChanged), label, [=](int i) { label->setText(DEMO_TEXT("当前：%1", "Current: %1").arg(combo->itemText(i))); });) \
+X(row->addWidget(combo);) \
+X(row->addWidget(comboDisabled);) \
+X(row->addWidget(label);) \
+X(row->addStretch(1);) \
+X(body->addLayout(row);)
 
 #define X(line) code += QStringLiteral(#line "\n");
-            INPUTS_COMBOBOX(X)
+        INPUTS_COMBOBOX(X)
 #undef X
 
-            page->addWidget(Demo::makeCollapsedExample(
-                QStringLiteral("FluentComboBox"),
-                DEMO_TEXT("下拉选择框（含禁用态、Fluent 弹出动效）", "Drop-down selector with disabled state and Fluent popup animation"),
-                DEMO_TEXT("要点：\n"
-                          "-addItem() 添加选项\n"
-                          "-currentIndexChanged 信号用于联动\n"
-                          "-setPopupScrollThreshold(n) 超过 n 项时出现滚动条\n"
-                          "-setDisabled(true) 展示禁用态",
-                          "Highlights:\n"
-                          "-Use addItem() to add options\n"
-                          "-Use currentIndexChanged for linked updates\n"
-                          "-setPopupScrollThreshold(n) shows a scrollbar once the list grows beyond n rows\n"
-                          "-Use setDisabled(true) to show the disabled state"),
-                code,
-                [=](QVBoxLayout *body) {
+        page->addWidget(Demo::makeCollapsedExample(
+            QStringLiteral("FluentComboBox"),
+            DEMO_TEXT("下拉选择框（含禁用态、Fluent 弹出动效）", "Drop-down selector with disabled state and Fluent popup animation"),
+            DEMO_TEXT("要点：\n"
+                      "-addItem() 添加选项\n"
+                      "-currentIndexChanged 信号用于联动\n"
+                      "-setPopupScrollThreshold(n) 超过 n 项时出现滚动条\n"
+                      "-setDisabled(true) 展示禁用态",
+                      "Highlights:\n"
+                      "-Use addItem() to add options\n"
+                      "-Use currentIndexChanged for linked updates\n"
+                      "-setPopupScrollThreshold(n) shows a scrollbar once the list grows beyond n rows\n"
+                      "-Use setDisabled(true) to show the disabled state"),
+            code,
+            [=](QVBoxLayout *body) {
 #define X(line) line
-                    INPUTS_COMBOBOX(X)
+                INPUTS_COMBOBOX(X)
 #undef X
-                },
-                false));
+            },
+            false));
 
 #undef INPUTS_COMBOBOX
-        }
+    }
 
-        // ComboBox with scroll threshold demo
-        {
-            QString code;
+    // ComboBox with scroll threshold demo
+    {
+        QString code;
 #define INPUTS_COMBOBOX_SCROLL(X) \
-    X(auto *combo2 = new FluentComboBox();) \
-    X(combo2->setPopupScrollThreshold(5);) \
-    X(for (int i = 1; i <= 12; ++i)) \
-    X(    combo2->addItem(DEMO_TEXT("列表项 %1", "Item %1").arg(i));) \
-    X(body->addWidget(combo2);)
+X(auto *combo2 = new FluentComboBox();) \
+X(combo2->setPopupScrollThreshold(5);) \
+X(for (int i = 1; i <= 12; ++i)) \
+X(    combo2->addItem(DEMO_TEXT("列表项 %1", "Item %1").arg(i));) \
+X(body->addWidget(combo2);)
 
 #define X(line) code += QStringLiteral(#line "\n");
-            INPUTS_COMBOBOX_SCROLL(X)
+        INPUTS_COMBOBOX_SCROLL(X)
 #undef X
 
-            page->addWidget(Demo::makeCollapsedExample(
-                QStringLiteral("FluentComboBox（滚动阈值）"),
-                DEMO_TEXT("12 个选项，阈值设为 5：超出后弹窗启用滚动条", "12 options with a threshold of 5: the popup starts scrolling once the limit is exceeded"),
-                DEMO_TEXT("要点：\n"
-                          "-setPopupScrollThreshold(5) 最多显示 5 行，超出滚动\n"
-                          "-默认值为 maxVisibleItems()（Qt 默认 10）",
-                          "Highlights:\n"
-                          "-setPopupScrollThreshold(5) caps the popup at five visible rows before scrolling\n"
-                          "-The default comes from maxVisibleItems() (Qt defaults to 10)"),
-                code,
-                [=](QVBoxLayout *body) {
+        page->addWidget(Demo::makeCollapsedExample(
+            QStringLiteral("FluentComboBox（滚动阈值）"),
+            DEMO_TEXT("12 个选项，阈值设为 5：超出后弹窗启用滚动条", "12 options with a threshold of 5: the popup starts scrolling once the limit is exceeded"),
+            DEMO_TEXT("要点：\n"
+                      "-setPopupScrollThreshold(5) 最多显示 5 行，超出滚动\n"
+                      "-默认值为 maxVisibleItems()（Qt 默认 10）",
+                      "Highlights:\n"
+                      "-setPopupScrollThreshold(5) caps the popup at five visible rows before scrolling\n"
+                      "-The default comes from maxVisibleItems() (Qt defaults to 10)"),
+            code,
+            [=](QVBoxLayout *body) {
 #define X(line) line
-                    INPUTS_COMBOBOX_SCROLL(X)
+                INPUTS_COMBOBOX_SCROLL(X)
 #undef X
-                },
-                false));
+            },
+            false));
 
 #undef INPUTS_COMBOBOX_SCROLL
-        }
+    }
 
-        // ComboBox with multi-selection mode
-        {
-            QString code;
+    // ComboBox with multi-selection mode
+    {
+        QString code;
 #define INPUTS_COMBOBOX_MULTI(X) \
-    X(auto *combo3 = new FluentComboBox();) \
-    X(combo3->setSelectionMode(FluentComboBox::MultiSelection);) \
-    X(combo3->setMultiSelectionPlaceholder(DEMO_TEXT("请选择…", "Select…"));) \
-    X(combo3->addItem(DEMO_TEXT("苹果", "Apple"));) \
-    X(combo3->addItem(DEMO_TEXT("香蕉", "Banana"));) \
-    X(combo3->addItem(DEMO_TEXT("樱桃", "Cherry"));) \
-    X(combo3->addItem(DEMO_TEXT("葡萄", "Grape"));) \
-    X(combo3->addItem(DEMO_TEXT("芒果", "Mango"));) \
-    X(combo3->addItem(DEMO_TEXT("橘子", "Oringe"));) \
-    X(combo3->addItem(DEMO_TEXT("桃子", "Peach"));) \
-    X(combo3->addItem(DEMO_TEXT("菠萝", "Pineapple"));) \
-    X(combo3->setCheckedIndexes({0, 2});) \
-    X(auto *status = new FluentLabel(QStringLiteral(""));) \
-    X(status->setStyleSheet("font-size: 12px; opacity: 0.85;");) \
-    X(auto syncStatus = [=]() { const auto idxs = combo3->checkedIndexes(); status->setText(DEMO_TEXT("已选 %1 项：%2", "%1 selected: %2").arg(idxs.size()).arg(combo3->checkedTexts().join(QStringLiteral(", ")))); };) \
-    X(syncStatus();) \
-    X(QObject::connect(combo3, &FluentComboBox::checkedIndexesChanged, status, [=](const QList<int> &){ syncStatus(); });) \
-    X(auto *row = new QHBoxLayout();) \
-    X(row->setContentsMargins(0, 0, 0, 0);) \
-    X(row->setSpacing(10);) \
-    X(row->addWidget(combo3);) \
-    X(row->addWidget(status);) \
-    X(row->addStretch(1);) \
-    X(body->addLayout(row);)
+X(auto *combo3 = new FluentComboBox();) \
+X(combo3->setSelectionMode(FluentComboBox::MultiSelection);) \
+X(combo3->setMultiSelectionPlaceholder(DEMO_TEXT("请选择…", "Select…"));) \
+X(combo3->addItem(DEMO_TEXT("苹果", "Apple"));) \
+X(combo3->addItem(DEMO_TEXT("香蕉", "Banana"));) \
+X(combo3->addItem(DEMO_TEXT("樱桃", "Cherry"));) \
+X(combo3->addItem(DEMO_TEXT("葡萄", "Grape"));) \
+X(combo3->addItem(DEMO_TEXT("芒果", "Mango"));) \
+X(combo3->addItem(DEMO_TEXT("橘子", "Oringe"));) \
+X(combo3->addItem(DEMO_TEXT("桃子", "Peach"));) \
+X(combo3->addItem(DEMO_TEXT("菠萝", "Pineapple"));) \
+X(combo3->setCheckedIndexes({0, 2});) \
+X(auto *status = new FluentLabel(QStringLiteral(""));) \
+X(status->setStyleSheet("font-size: 12px; opacity: 0.85;");) \
+X(auto syncStatus = [=]() { const auto idxs = combo3->checkedIndexes(); status->setText(DEMO_TEXT("已选 %1 项：%2", "%1 selected: %2").arg(idxs.size()).arg(combo3->checkedTexts().join(QStringLiteral(", ")))); };) \
+X(syncStatus();) \
+X(QObject::connect(combo3, &FluentComboBox::checkedIndexesChanged, status, [=](const QList<int> &){ syncStatus(); });) \
+X(auto *row = new QHBoxLayout();) \
+X(row->setContentsMargins(0, 0, 0, 0);) \
+X(row->setSpacing(10);) \
+X(row->addWidget(combo3);) \
+X(row->addWidget(status);) \
+X(row->addStretch(1);) \
+X(body->addLayout(row);)
 
 #define X(line) code += QStringLiteral(#line "\n");
-            INPUTS_COMBOBOX_MULTI(X)
+        INPUTS_COMBOBOX_MULTI(X)
 #undef X
 
-            page->addWidget(Demo::makeCollapsedExample(
-                QStringLiteral("FluentComboBox（多选）"),
-                DEMO_TEXT("多选模式：弹窗中每项前显示复选框，点击切换勾选；输入框显示已勾选项的拼接", "Multi-selection mode: each popup row shows a checkbox; clicking toggles the check state; the field shows joined checked texts"),
-                DEMO_TEXT("要点：\n"
-                          "-setSelectionMode(FluentComboBox::MultiSelection) 启用多选\n"
-                          "-setMultiSelectionPlaceholder() 空选时显示的占位文本\n"
-                          "-setCheckedIndexes(list) / checkedIndexes() / checkedTexts()\n"
-                          "-checkedIndexesChanged(QList<int>) 选项变化信号\n"
-                          "-点击行不会关闭弹窗；按 Esc 或点击外部关闭",
-                          "Highlights:\n"
-                          "-setSelectionMode(FluentComboBox::MultiSelection) enables multi-select\n"
-                          "-setMultiSelectionPlaceholder() sets the empty-state placeholder\n"
-                          "-setCheckedIndexes(list) / checkedIndexes() / checkedTexts() helpers\n"
-                          "-The checkedIndexesChanged(QList<int>) signal fires whenever the set changes\n"
-                          "-Clicking a row toggles its check state without closing the popup; press Esc or click outside to dismiss"),
-                code,
-                [=](QVBoxLayout *body) {
+        page->addWidget(Demo::makeCollapsedExample(
+            QStringLiteral("FluentComboBox（多选）"),
+            DEMO_TEXT("多选模式：弹窗中每项前显示复选框，点击切换勾选；输入框显示已勾选项的拼接", "Multi-selection mode: each popup row shows a checkbox; clicking toggles the check state; the field shows joined checked texts"),
+            DEMO_TEXT("要点：\n"
+                      "-setSelectionMode(FluentComboBox::MultiSelection) 启用多选\n"
+                      "-setMultiSelectionPlaceholder() 空选时显示的占位文本\n"
+                      "-setCheckedIndexes(list) / checkedIndexes() / checkedTexts()\n"
+                      "-checkedIndexesChanged(QList<int>) 选项变化信号\n"
+                      "-点击行不会关闭弹窗；按 Esc 或点击外部关闭",
+                      "Highlights:\n"
+                      "-setSelectionMode(FluentComboBox::MultiSelection) enables multi-select\n"
+                      "-setMultiSelectionPlaceholder() sets the empty-state placeholder\n"
+                      "-setCheckedIndexes(list) / checkedIndexes() / checkedTexts() helpers\n"
+                      "-The checkedIndexesChanged(QList<int>) signal fires whenever the set changes\n"
+                      "-Clicking a row toggles its check state without closing the popup; press Esc or click outside to dismiss"),
+            code,
+            [=](QVBoxLayout *body) {
 #define X(line) line
-                    INPUTS_COMBOBOX_MULTI(X)
+                INPUTS_COMBOBOX_MULTI(X)
 #undef X
-                },
-                false));
+            },
+            false));
 
 #undef INPUTS_COMBOBOX_MULTI
-        }
+    }
 
-        Q_UNUSED(window);
+    Q_UNUSED(window);
 }
 
 QWidget *createInputsPage(FluentMainWindow *window)

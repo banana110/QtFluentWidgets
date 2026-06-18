@@ -305,136 +305,136 @@ QVector<IconSample> iconSamples()
 
 void fillIcons(QVBoxLayout *page)
 {
-        auto s = Demo::makeSection(
-            DEMO_TEXT("图标", "Icons"),
-            DEMO_TEXT("内置 FluentIcon 图标集：统一 24px outline 风格，可直接用于 NavigationView、按钮、菜单、状态提示和命令栏。",
-                      "Built-in FluentIcon set: a consistent 24px outline style for NavigationView, buttons, menus, status messages, and command bars."));
-        page->addWidget(s.card);
+    auto s = Demo::makeSection(
+        DEMO_TEXT("图标", "Icons"),
+        DEMO_TEXT("内置 FluentIcon 图标集：统一 24px outline 风格，可直接用于 NavigationView、按钮、菜单、状态提示和命令栏。",
+                  "Built-in FluentIcon set: a consistent 24px outline style for NavigationView, buttons, menus, status messages, and command bars."));
+    page->addWidget(s.card);
 
-        auto *hint = new FluentLabel(DEMO_TEXT(
-            "点击任意图标可复制对应的 FluentIconType 枚举。当前图标优先使用内置 SVG 资源渲染，颜色会跟随主题与控件状态；资源缺失时才回退到 QPainter 绘制。",
-            "Click any icon to copy its FluentIconType enum. Icons prefer bundled SVG resources, follow theme/control state colors, and fall back to QPainter only when a resource is missing."));
-        hint->setWordWrap(true);
-        hint->setStyleSheet(QStringLiteral("font-size: 12px; opacity: 0.88;"));
-        s.body->addWidget(hint);
+    auto *hint = new FluentLabel(DEMO_TEXT(
+        "点击任意图标可复制对应的 FluentIconType 枚举。当前图标优先使用内置 SVG 资源渲染，颜色会跟随主题与控件状态；资源缺失时才回退到 QPainter 绘制。",
+        "Click any icon to copy its FluentIconType enum. Icons prefer bundled SVG resources, follow theme/control state colors, and fall back to QPainter only when a resource is missing."));
+    hint->setWordWrap(true);
+    hint->setStyleSheet(QStringLiteral("font-size: 12px; opacity: 0.88;"));
+    s.body->addWidget(hint);
 
-        {
-            const QString code = QStringLiteral(
-                "FluentIconOptions accent;\n"
-                "accent.autoTheme = false;\n"
-                "accent.color = ThemeManager::instance().colors().accent;\n"
-                "FluentIcon::paintIcon(&painter, FluentIconType::Save, rect, accent);\n"
-                "\n"
-                "FluentIconOptions onAccent;\n"
-                "onAccent.autoTheme = false;\n"
-                "onAccent.color = ThemeManager::instance().tokens().onAccent;\n"
-                "FluentIcon::paintIcon(&painter, FluentIconType::Checkmark, rect, onAccent);\n");
+    {
+        const QString code = QStringLiteral(
+            "FluentIconOptions accent;\n"
+            "accent.autoTheme = false;\n"
+            "accent.color = ThemeManager::instance().colors().accent;\n"
+            "FluentIcon::paintIcon(&painter, FluentIconType::Save, rect, accent);\n"
+            "\n"
+            "FluentIconOptions onAccent;\n"
+            "onAccent.autoTheme = false;\n"
+            "onAccent.color = ThemeManager::instance().tokens().onAccent;\n"
+            "FluentIcon::paintIcon(&painter, FluentIconType::Checkmark, rect, onAccent);\n");
 
-            page->addWidget(Demo::makeCollapsedExample(
-                QStringLiteral("Icon State Matrix"),
-                DEMO_TEXT("normal / accent / onAccent / disabled 图标色横向对比",
-                          "Side-by-side normal / accent / onAccent / disabled icon colors"),
-                DEMO_TEXT("要点：\n"
-                          "-normal 使用主题文本色，accent 使用当前强调色\n"
-                          "-onAccent 用于 Primary 按钮、强调底色或状态底色上的图标\n"
-                          "-disabled 保持可见但明显降权，避免误读为可交互",
-                          "Highlights:\n"
-                          "-Normal uses the theme text color; accent uses the active accent color\n"
-                          "-onAccent is for icons placed on primary, accent, or semantic filled surfaces\n"
-                          "-Disabled stays visible while clearly reading as non-interactive"),
-                code,
-                [](QVBoxLayout *body) {
-                    auto *grid = new QGridLayout();
-                    grid->setContentsMargins(0, 0, 0, 0);
-                    grid->setHorizontalSpacing(12);
-                    grid->setVerticalSpacing(10);
-
-                    auto makeCaption = [](const QString &text, bool strong = false) {
-                        auto *label = new FluentLabel(text);
-                        label->setWordWrap(true);
-                        label->setStyleSheet(strong
-                                                 ? QStringLiteral("font-size: 12px; font-weight: 600; opacity: 0.9;")
-                                                 : QStringLiteral("font-size: 12px; opacity: 0.78;"));
-                        return label;
-                    };
-
-                    grid->addWidget(makeCaption(DEMO_TEXT("语义", "Semantic"), true), 0, 0);
-                    grid->addWidget(makeCaption(DEMO_TEXT("常用操作", "Common action"), true), 0, 1);
-                    grid->addWidget(makeCaption(DEMO_TEXT("状态提示", "Status"), true), 0, 2);
-                    grid->addWidget(makeCaption(DEMO_TEXT("导航/命令", "Navigation / command"), true), 0, 3);
-
-                    auto addRow = [&](int row,
-                                      const QString &name,
-                                      IconTone tone,
-                                      const QString &caption) {
-                        grid->addWidget(makeCaption(name), row, 0);
-                        grid->addWidget(new IconStateCell(FluentIconType::Save, tone, QStringLiteral("Save"), caption), row, 1);
-                        grid->addWidget(new IconStateCell(FluentIconType::Info, tone, QStringLiteral("Info"), caption), row, 2);
-                        grid->addWidget(new IconStateCell(FluentIconType::Settings, tone, QStringLiteral("Settings"), caption), row, 3);
-                    };
-
-                    addRow(1, QStringLiteral("Normal"), IconTone::Normal, QStringLiteral("text"));
-                    addRow(2, QStringLiteral("Accent"), IconTone::Accent, QStringLiteral("accent"));
-                    addRow(3, QStringLiteral("OnAccent"), IconTone::OnAccent, QStringLiteral("onAccent"));
-                    addRow(4, QStringLiteral("Disabled"), IconTone::Disabled, QStringLiteral("disabled"));
-
-                    grid->setColumnStretch(1, 1);
-                    grid->setColumnStretch(2, 1);
-                    grid->setColumnStretch(3, 1);
-                    body->addLayout(grid);
-                },
-                false,
-                300));
-        }
-
-        auto *paletteCard = new FluentCard();
-        auto *paletteLayout = new QVBoxLayout(paletteCard);
-        paletteLayout->setContentsMargins(18, 16, 18, 18);
-        paletteLayout->setSpacing(12);
-
-        auto *title = new FluentLabel(DEMO_TEXT("图标矩阵", "Icon matrix"));
-        title->setStyleSheet(QStringLiteral("font-size: 14px; font-weight: 650;"));
-        paletteLayout->addWidget(title);
-
-        auto *flowHost = new QWidget(paletteCard);
-        auto *flow = new FluentFlowLayout(flowHost, 0, 10, 10);
-        flow->setUniformItemWidthEnabled(true);
-        flow->setMinimumItemWidth(124);
-        flow->setColumnHysteresis(12);
-        flow->setAnimationEnabled(true);
-        flow->setAnimationDuration(120);
-        flowHost->setLayout(flow);
-
-        const QVector<IconSample> samples = iconSamples();
-        for (const IconSample &sample : samples) {
-            flow->addWidget(new IconTile(sample, flowHost));
-        }
-
-        paletteLayout->addWidget(flowHost);
-        page->addWidget(paletteCard);
-
-        auto *usageCard = Demo::makeCollapsedCard(
-            DEMO_TEXT("使用方式", "Usage"),
-            DEMO_TEXT("FluentIcon 可以生成 QIcon，也可以直接绘制到任意 QPainter。",
-                      "FluentIcon can create QIcon objects or paint directly into any QPainter."),
+        page->addWidget(Demo::makeCollapsedExample(
+            QStringLiteral("Icon State Matrix"),
+            DEMO_TEXT("normal / accent / onAccent / disabled 图标色横向对比",
+                      "Side-by-side normal / accent / onAccent / disabled icon colors"),
             DEMO_TEXT("要点：\n"
-                      "-FluentIcon::icon(type) 适合 QAction/QAbstractButton\n"
-                      "-FluentIcon::paintIcon() 适合自绘控件\n"
-                      "-FluentIconOptions 可控制颜色、透明度以及反色模式",
+                      "-normal 使用主题文本色，accent 使用当前强调色\n"
+                      "-onAccent 用于 Primary 按钮、强调底色或状态底色上的图标\n"
+                      "-disabled 保持可见但明显降权，避免误读为可交互",
                       "Highlights:\n"
-                      "-FluentIcon::icon(type) fits QAction/QAbstractButton\n"
-                      "-FluentIcon::paintIcon() fits custom-painted widgets\n"
-                      "-FluentIconOptions controls color, opacity, and reversed mode"),
-            QStringLiteral("auto icon = Fluent::FluentIcon::icon(Fluent::FluentIconType::Search);\n"
-                           "action->setIcon(icon);\n\n"
-                           "Fluent::FluentIconOptions options;\n"
-                           "options.color = palette().color(QPalette::WindowText);\n"
-                           "Fluent::FluentIcon::paintIcon(&painter,\n"
-                           "                              Fluent::FluentIconType::Settings,\n"
-                           "                              iconRect,\n"
-                           "                              options);"),
-            false);
-        page->addWidget(usageCard);
+                      "-Normal uses the theme text color; accent uses the active accent color\n"
+                      "-onAccent is for icons placed on primary, accent, or semantic filled surfaces\n"
+                      "-Disabled stays visible while clearly reading as non-interactive"),
+            code,
+            [](QVBoxLayout *body) {
+                auto *grid = new QGridLayout();
+                grid->setContentsMargins(0, 0, 0, 0);
+                grid->setHorizontalSpacing(12);
+                grid->setVerticalSpacing(10);
+
+                auto makeCaption = [](const QString &text, bool strong = false) {
+                    auto *label = new FluentLabel(text);
+                    label->setWordWrap(true);
+                    label->setStyleSheet(strong
+                                             ? QStringLiteral("font-size: 12px; font-weight: 600; opacity: 0.9;")
+                                             : QStringLiteral("font-size: 12px; opacity: 0.78;"));
+                    return label;
+                };
+
+                grid->addWidget(makeCaption(DEMO_TEXT("语义", "Semantic"), true), 0, 0);
+                grid->addWidget(makeCaption(DEMO_TEXT("常用操作", "Common action"), true), 0, 1);
+                grid->addWidget(makeCaption(DEMO_TEXT("状态提示", "Status"), true), 0, 2);
+                grid->addWidget(makeCaption(DEMO_TEXT("导航/命令", "Navigation / command"), true), 0, 3);
+
+                auto addRow = [&](int row,
+                                  const QString &name,
+                                  IconTone tone,
+                                  const QString &caption) {
+                    grid->addWidget(makeCaption(name), row, 0);
+                    grid->addWidget(new IconStateCell(FluentIconType::Save, tone, QStringLiteral("Save"), caption), row, 1);
+                    grid->addWidget(new IconStateCell(FluentIconType::Info, tone, QStringLiteral("Info"), caption), row, 2);
+                    grid->addWidget(new IconStateCell(FluentIconType::Settings, tone, QStringLiteral("Settings"), caption), row, 3);
+                };
+
+                addRow(1, QStringLiteral("Normal"), IconTone::Normal, QStringLiteral("text"));
+                addRow(2, QStringLiteral("Accent"), IconTone::Accent, QStringLiteral("accent"));
+                addRow(3, QStringLiteral("OnAccent"), IconTone::OnAccent, QStringLiteral("onAccent"));
+                addRow(4, QStringLiteral("Disabled"), IconTone::Disabled, QStringLiteral("disabled"));
+
+                grid->setColumnStretch(1, 1);
+                grid->setColumnStretch(2, 1);
+                grid->setColumnStretch(3, 1);
+                body->addLayout(grid);
+            },
+            false,
+            300));
+    }
+
+    auto *paletteCard = new FluentCard();
+    auto *paletteLayout = new QVBoxLayout(paletteCard);
+    paletteLayout->setContentsMargins(18, 16, 18, 18);
+    paletteLayout->setSpacing(12);
+
+    auto *title = new FluentLabel(DEMO_TEXT("图标矩阵", "Icon matrix"));
+    title->setStyleSheet(QStringLiteral("font-size: 14px; font-weight: 650;"));
+    paletteLayout->addWidget(title);
+
+    auto *flowHost = new QWidget(paletteCard);
+    auto *flow = new FluentFlowLayout(flowHost, 0, 10, 10);
+    flow->setUniformItemWidthEnabled(true);
+    flow->setMinimumItemWidth(124);
+    flow->setColumnHysteresis(12);
+    flow->setAnimationEnabled(true);
+    flow->setAnimationDuration(120);
+    flowHost->setLayout(flow);
+
+    const QVector<IconSample> samples = iconSamples();
+    for (const IconSample &sample : samples) {
+        flow->addWidget(new IconTile(sample, flowHost));
+    }
+
+    paletteLayout->addWidget(flowHost);
+    page->addWidget(paletteCard);
+
+    auto *usageCard = Demo::makeCollapsedCard(
+        DEMO_TEXT("使用方式", "Usage"),
+        DEMO_TEXT("FluentIcon 可以生成 QIcon，也可以直接绘制到任意 QPainter。",
+                  "FluentIcon can create QIcon objects or paint directly into any QPainter."),
+        DEMO_TEXT("要点：\n"
+                  "-FluentIcon::icon(type) 适合 QAction/QAbstractButton\n"
+                  "-FluentIcon::paintIcon() 适合自绘控件\n"
+                  "-FluentIconOptions 可控制颜色、透明度以及反色模式",
+                  "Highlights:\n"
+                  "-FluentIcon::icon(type) fits QAction/QAbstractButton\n"
+                  "-FluentIcon::paintIcon() fits custom-painted widgets\n"
+                  "-FluentIconOptions controls color, opacity, and reversed mode"),
+        QStringLiteral("auto icon = Fluent::FluentIcon::icon(Fluent::FluentIconType::Search);\n"
+                       "action->setIcon(icon);\n\n"
+                       "Fluent::FluentIconOptions options;\n"
+                       "options.color = palette().color(QPalette::WindowText);\n"
+                       "Fluent::FluentIcon::paintIcon(&painter,\n"
+                       "                              Fluent::FluentIconType::Settings,\n"
+                       "                              iconRect,\n"
+                       "                              options);"),
+        false);
+    page->addWidget(usageCard);
 }
 
 QWidget *createIconsPage()
