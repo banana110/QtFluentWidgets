@@ -296,6 +296,7 @@ void DemoWindow::buildUi()
     const QColor kDefaultAccent(QStringLiteral("#2563EB")); // blue
     ThemeManager::instance().setAccentColor(kDefaultAccent);
     ThemeManager::instance().setAccentBorderEnabled(true);
+    ThemeManager::instance().setAccentBorderStyle(ThemeManager::AccentBorderStyle::Flow);
     trace.mark(QStringLiteral("window title"));
 
     // Menu / Toolbar / StatusBar: demonstrate window-level Fluent components.

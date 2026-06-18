@@ -1536,6 +1536,20 @@ void ThemeManager::setAccentBorderEnabled(bool enabled)
   scheduleThemeChanged(QStringLiteral("setAccentBorderEnabled"));
 }
 
+ThemeManager::AccentBorderStyle ThemeManager::accentBorderStyle() const
+{
+  return m_accentBorderStyle;
+}
+
+void ThemeManager::setAccentBorderStyle(AccentBorderStyle style)
+{
+  if (m_accentBorderStyle == style) {
+    return;
+  }
+  m_accentBorderStyle = style;
+  scheduleThemeChanged(QStringLiteral("setAccentBorderStyle"));
+}
+
 void ThemeManager::setAnimationsEnabled(bool enabled)
 {
   if (m_animationsEnabled == enabled) {

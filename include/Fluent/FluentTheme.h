@@ -171,7 +171,14 @@ public:
         Light,
         Dark
     };
-    
+
+    // Accent border rendering style. Flow animates a rotating accent-tinted
+    // conic gradient around the window edge (only when accentBorderEnabled).
+    enum class AccentBorderStyle {
+        Solid,
+        Flow
+    };
+
     static ThemeManager &instance();
 
     const ThemeColors &colors() const;
@@ -181,6 +188,9 @@ public:
 
     bool accentBorderEnabled() const;
     void setAccentBorderEnabled(bool enabled);
+
+    AccentBorderStyle accentBorderStyle() const;
+    void setAccentBorderStyle(AccentBorderStyle style);
 
     bool animationsEnabled() const;
     void setAnimationsEnabled(bool enabled);
@@ -210,6 +220,7 @@ private:
     ThemeMode m_mode = ThemeMode::Light;
 
     bool m_accentBorderEnabled = true;
+    AccentBorderStyle m_accentBorderStyle = AccentBorderStyle::Solid;
     bool m_animationsEnabled = true;
     bool m_themeChangedPending = false;
     QElapsedTimer m_themeChangeTimer;

@@ -361,6 +361,26 @@ static QWidget *makeAccentBorderAnimWidget(QWidget *parent)
 
     const auto initial = Style::windowMetrics();
 
+    // Border style: Solid (Win11-like) vs Flow (rotating accent conic gradient).
+    auto *flowSwitch = new FluentToggleSwitch();
+    flowSwitch->setChecked(ThemeManager::instance().accentBorderStyle()
+                           == ThemeManager::AccentBorderStyle::Flow);
+    flowSwitch->setText(DEMO_TEXT("流光", "Flow"));
+    QObject::connect(flowSwitch, &FluentToggleSwitch::toggled, w, [](bool on) {
+        ThemeManager::instance().setAccentBorderStyle(
+            on ? ThemeManager::AccentBorderStyle::Flow : ThemeManager::AccentBorderStyle::Solid);
+    });
+    {
+        auto *rowW = new QWidget(w);
+        auto *rowL = new QHBoxLayout(rowW);
+        rowL->setContentsMargins(0, 0, 0, 0);
+        rowL->setSpacing(8);
+        rowL->addWidget(new FluentLabel(DEMO_TEXT("流光描边", "Flow border")));
+        rowL->addStretch(1);
+        rowL->addWidget(flowSwitch);
+        layout->addWidget(rowW);
+    }
+
     auto *durSlider = new FluentSlider(Qt::Horizontal);
     durSlider->setRange(150, 1600);
     durSlider->setValue(initial.accentBorderTraceDurationMs);
