@@ -11,7 +11,9 @@
 
 #include <QAbstractAnimation>
 #include <QAbstractButton>
+#include <QCoreApplication>
 #include <QEvent>
+#include <QGuiApplication>
 #include <QHBoxLayout>
 #include <QMouseEvent>
 #include <QPainter>
@@ -419,8 +421,16 @@ bool FluentCard::isFlowBackgroundEnabled() const
 
 void FluentCard::updateFlowAnimationState()
 {
+    // Pause the flow when nothing is on screen to look at: the card hidden
+    // (page switch / collapsed) or the app minimized / not focused. isVisible()
+    // alone is not enough — Qt keeps it true while a window is minimized, so a
+    // visible-but-minimized window would otherwise spin a 60fps animation in the
+    // background. Mirror the shared accent-border driver's app-active gate.
+    auto *gui = qobject_cast<QGuiApplication *>(QCoreApplication::instance());
+    const bool appActive = !gui || gui->applicationState() == Qt::ApplicationActive;
     const bool shouldRun = m_flowBackgroundEnabled
         && isVisible()
+        && appActive
         && ThemeManager::instance().animationsEnabled();
     if (shouldRun) {
         if (!m_flowAnim) {
@@ -433,6 +443,13 @@ void FluentCard::updateFlowAnimationState()
                 m_flowPhase = value.toReal();
                 update();
             });
+            // Re-evaluate when the app gains/loses focus or is (un)minimized so the
+            // flow resumes on return. Connected once, alongside the lazily-created
+            // animation, so plain (non-flow) cards add no app-state listener.
+            if (gui) {
+                connect(gui, &QGuiApplication::applicationStateChanged, this,
+                        [this](Qt::ApplicationState) { updateFlowAnimationState(); });
+            }
         }
         if (m_flowAnim->state() != QAbstractAnimation::Running) {
             m_flowAnim->start();
