@@ -12,7 +12,6 @@
 #include <QFrame>
 #include <QFontMetrics>
 #include <QGuiApplication>
-#include <QTextEdit>
 #include <QStyle>
 #include <QVBoxLayout>
 #include <QEvent>
@@ -605,13 +604,13 @@ void FluentMessageBox::buildUi(const QString &message, const QString &detail, Ic
     m_messageLabel->setMinimumHeight(0);
 
     if (!detail.isEmpty()) {
-        m_detailEdit = new QTextEdit();
-        m_detailEdit->setReadOnly(true);
+        // Fluent: the detail flows as a subdued, content-sized block under the
+        // message (no bordered box), like a ContentDialog body.
+        m_detailEdit = new QLabel();
+        m_detailEdit->setObjectName(QStringLiteral("FluentMessageBoxDetail"));
         m_detailEdit->setText(detail);
-        m_detailEdit->setMinimumHeight(84);
-        m_detailEdit->setMaximumHeight(160);
-        m_detailEdit->setFrameShape(QFrame::NoFrame);
-        m_detailEdit->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+        m_detailEdit->setWordWrap(true);
+        m_detailEdit->setTextInteractionFlags(Qt::TextSelectableByMouse);
     }
 
     if (!linkText.isEmpty() && linkUrl.isValid()) {
@@ -891,22 +890,22 @@ void FluentMessageBox::applyTheme()
 
     const auto &colors = ThemeManager::instance().colors();
 
+    // Fluent ContentDialog title: ~20px SemiBold for a clear hierarchy over the body.
     QFont titleFont = font();
     const qreal ps = titleFont.pointSizeF();
     if (ps > 0.0) {
-        titleFont.setPointSizeF(ps + 1.0);
+        titleFont.setPointSizeF(ps + 5.0);
     } else {
         const int px = titleFont.pixelSize();
         if (px > 0) {
-            titleFont.setPixelSize(px + 1);
+            titleFont.setPixelSize(px + 6);
         } else {
-            titleFont.setPointSizeF(11.0);
+            titleFont.setPointSizeF(15.0);
         }
     }
     titleFont.setWeight(QFont::DemiBold);
     m_titleLabel->setFont(titleFont);
     const auto tokens = ThemeManager::instance().tokens();
-    const QColor detailFill = Style::mix(tokens.neutral.card, tokens.neutral.cardHover, tokens.dark ? 0.42 : 0.30);
     const QString titleStyle = QStringLiteral("color: %1;").arg(colors.text.name(QColor::HexArgb));
     if (m_titleLabel->styleSheet() != titleStyle) {
         m_titleLabel->setStyleSheet(titleStyle);
@@ -918,17 +917,8 @@ void FluentMessageBox::applyTheme()
     }
 
     if (m_detailEdit) {
-        const QString detailStyle = QStringLiteral(
-            "QTextEdit {"
-            "  color: %1;"
-            "  background: %2;"
-            "  border: 1px solid %3;"
-            "  border-radius: 8px;"
-            "  padding: 8px 10px;"
-            "}"
-        ).arg(colors.text.name(QColor::HexArgb),
-              detailFill.name(QColor::HexArgb),
-              tokens.neutral.strokeSubtle.name(QColor::HexArgb));
+        // Subdued body color; no border/background (Fluent dialogs don't box the body).
+        const QString detailStyle = QStringLiteral("color: %1;").arg(colors.subText.name(QColor::HexArgb));
         if (m_detailEdit->styleSheet() != detailStyle) {
             m_detailEdit->setStyleSheet(detailStyle);
         }

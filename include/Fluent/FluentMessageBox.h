@@ -7,7 +7,6 @@
 #include "Fluent/FluentBorderEffect.h"
 
 class QLabel;
-class QTextEdit;
 class QWidget;
 class QVariantAnimation;
 class QHideEvent;
@@ -84,7 +83,7 @@ private:
     QLabel *m_titleLabel = nullptr;
     QLabel *m_iconLabel = nullptr;
     QLabel *m_messageLabel = nullptr;
-    QTextEdit *m_detailEdit = nullptr;
+    QLabel *m_detailEdit = nullptr;
     QLabel *m_linkLabel = nullptr;
     QWidget *m_divider = nullptr;
     IconType m_icon = Info;
