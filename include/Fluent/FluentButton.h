@@ -1,5 +1,7 @@
 #pragma once
 
+#include "Fluent/FluentExport.h"
+
 #include <QPushButton>
 #include "Fluent/FluentQtCompat.h"
 
@@ -8,7 +10,7 @@ class QVariantAnimation;
 
 namespace Fluent {
 
-class FluentButton : public QPushButton
+class FLUENT_EXPORT FluentButton : public QPushButton
 {
     Q_OBJECT
     Q_PROPERTY(qreal hoverLevel READ hoverLevel WRITE setHoverLevel)

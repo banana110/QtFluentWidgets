@@ -1,5 +1,7 @@
 #pragma once
 
+#include "Fluent/FluentExport.h"
+
 #include <QObject>
 #include <QColor>
 #include <QList>
@@ -127,7 +129,7 @@ struct FluentThemeTokens {
     bool dark = false;
 };
 
-class Theme final
+class FLUENT_EXPORT Theme final
 {
 public:
     static ThemeColors light();
@@ -166,7 +168,7 @@ public:
     static QString cardStyle(const ThemeColors &colors);
 };
 
-class ThemeManager final : public QObject
+class FLUENT_EXPORT ThemeManager final : public QObject
 {
     Q_OBJECT
 public:

@@ -1,5 +1,6 @@
 #pragma once
 
+#include "Fluent/FluentExport.h"
 #include "Fluent/FluentTheme.h"
 
 #include <QColor>
@@ -36,7 +37,7 @@ struct WindowMetrics {
     QEasingCurve::Type accentBorderTraceDisableEasing = QEasingCurve::InCubic;
 };
 
-class Style final
+class FLUENT_EXPORT Style final
 {
 public:
     static ControlMetrics metrics();

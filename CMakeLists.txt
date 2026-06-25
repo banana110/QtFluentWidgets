@@ -56,7 +56,8 @@ else()
     unset(BUILD_SHARED_LIBS)
 endif()
 
-add_library(QtFluentWidgets
+add_library(QtFluentWidgets SHARED
+    include/Fluent/FluentExport.h
     include/Fluent/FluentAnimatedButton.h
     include/Fluent/FluentAnimatedIcon.h
     include/Fluent/FluentAutoSuggestBox.h
@@ -198,6 +199,7 @@ add_library(QtFluentWidgets
 )
 
 target_include_directories(QtFluentWidgets PUBLIC include)
+target_compile_definitions(QtFluentWidgets PRIVATE FLUENT_BUILDING_LIBRARY)
 target_link_libraries(QtFluentWidgets PUBLIC ${QT_PACKAGE}::Widgets ${QT_PACKAGE}::Svg rlottie::rlottie)
 if(MSVC)
     target_compile_options(QtFluentWidgets PRIVATE /utf-8)
@@ -253,6 +255,7 @@ target_compile_definitions(QtFluentDemo
 if(WIN32)
     add_custom_command(TARGET QtFluentDemo POST_BUILD
         COMMAND ${CMAKE_COMMAND} -E copy_if_different $<TARGET_FILE:rlottie> $<TARGET_FILE_DIR:QtFluentDemo>
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different $<TARGET_FILE:QtFluentWidgets> $<TARGET_FILE_DIR:QtFluentDemo>
         VERBATIM
     )
 endif()
@@ -285,6 +288,7 @@ if(FLUENT_BUILD_TESTS)
     if(WIN32)
         add_custom_command(TARGET QtFluentWidgetsDesignerCompatTest POST_BUILD
             COMMAND ${CMAKE_COMMAND} -E copy_if_different $<TARGET_FILE:rlottie> $<TARGET_FILE_DIR:QtFluentWidgetsDesignerCompatTest>
+            COMMAND ${CMAKE_COMMAND} -E copy_if_different $<TARGET_FILE:QtFluentWidgets> $<TARGET_FILE_DIR:QtFluentWidgetsDesignerCompatTest>
             VERBATIM
         )
         if(CMAKE_VERSION VERSION_GREATER_EQUAL 3.22)
@@ -330,6 +334,7 @@ if(FLUENT_BUILD_TESTS)
     if(WIN32)
         add_custom_command(TARGET QtFluentWidgetsVisualSmokeTest POST_BUILD
             COMMAND ${CMAKE_COMMAND} -E copy_if_different $<TARGET_FILE:rlottie> $<TARGET_FILE_DIR:QtFluentWidgetsVisualSmokeTest>
+            COMMAND ${CMAKE_COMMAND} -E copy_if_different $<TARGET_FILE:QtFluentWidgets> $<TARGET_FILE_DIR:QtFluentWidgetsVisualSmokeTest>
             VERBATIM
         )
         if(CMAKE_VERSION VERSION_GREATER_EQUAL 3.22)
@@ -473,6 +478,7 @@ if(FLUENT_BUILD_DESIGNER_PLUGIN)
     if(WIN32)
         add_custom_command(TARGET QtFluentWidgetsPlugin POST_BUILD
             COMMAND ${CMAKE_COMMAND} -E copy_if_different $<TARGET_FILE:rlottie> $<TARGET_FILE_DIR:QtFluentWidgetsPlugin>
+            COMMAND ${CMAKE_COMMAND} -E copy_if_different $<TARGET_FILE:QtFluentWidgets> $<TARGET_FILE_DIR:QtFluentWidgetsPlugin>
             VERBATIM
         )
     endif()

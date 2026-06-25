@@ -1,5 +1,7 @@
 #pragma once
 
+#include "Fluent/FluentExport.h"
+
 #include <QDialog>
 #include <QColor>
 #include <QPoint>
@@ -29,7 +31,7 @@ struct FluentGradientResult {
     int                      angle = 0;   // degrees, 0=left→right (LinearGradient only)
 };
 
-class FluentColorDialog final : public QDialog
+class FLUENT_EXPORT FluentColorDialog final : public QDialog
 {
     Q_OBJECT
 public:
@@ -98,5 +100,3 @@ private:
 };
 
 } // namespace Fluent
-
-

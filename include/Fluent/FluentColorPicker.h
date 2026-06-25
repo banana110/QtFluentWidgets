@@ -1,14 +1,15 @@
 #pragma once
 
+#include "Fluent/FluentExport.h"
+
 #include <QWidget>
-#include <QColor>
 
 class QLineEdit;
 class QPushButton;
 
 namespace Fluent {
 
-class FluentColorPicker final : public QWidget
+class FLUENT_EXPORT FluentColorPicker final : public QWidget
 {
     Q_OBJECT
 public:

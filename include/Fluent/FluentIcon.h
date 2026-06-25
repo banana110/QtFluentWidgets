@@ -1,5 +1,7 @@
 #pragma once
 
+#include "Fluent/FluentExport.h"
+
 #include <QColor>
 #include <QIcon>
 #include <QRectF>
@@ -72,7 +74,7 @@ struct FluentIconOptions {
     qreal opacity = 1.0;
 };
 
-class FluentIcon final
+class FLUENT_EXPORT FluentIcon final
 {
 public:
     explicit FluentIcon(FluentIconType type = FluentIconType::Info);

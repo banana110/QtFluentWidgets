@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Fluent/FluentAnimatedIcon.h"
+#include "Fluent/FluentExport.h"
 #include "Fluent/FluentQtCompat.h"
 
 #include <QByteArray>
@@ -13,7 +14,7 @@ class QVariantAnimation;
 
 namespace Fluent {
 
-class FluentAnimatedButton final : public QPushButton
+class FLUENT_EXPORT FluentAnimatedButton final : public QPushButton
 {
     Q_OBJECT
     Q_PROPERTY(bool primary READ isPrimary WRITE setPrimary)

@@ -1,5 +1,6 @@
 #pragma once
 
+#include "Fluent/FluentExport.h"
 #include "Fluent/FluentIcon.h"
 #include "Fluent/FluentQtCompat.h"
 
@@ -45,7 +46,7 @@ struct FluentNavigationItem
 // FluentNavigationView – hierarchical navigation sidebar
 // ---------------------------------------------------------------------------
 
-class FluentNavigationView : public QWidget
+class FLUENT_EXPORT FluentNavigationView : public QWidget
 {
     Q_OBJECT
     Q_PROPERTY(int expandedWidth READ expandedWidth WRITE setExpandedWidth)

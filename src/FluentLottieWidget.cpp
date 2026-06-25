@@ -129,6 +129,7 @@ bool widgetHasVisibleArea(const QWidget *widget)
 
     const QWidget *current = widget;
     while (const QWidget *parent = current->parentWidget()) {
+        if (parent->isWindow()) break;
         if (parent->isHidden() || !parent->isVisible()) {
             return false;
         }
