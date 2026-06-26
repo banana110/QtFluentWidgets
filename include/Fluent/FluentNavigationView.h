@@ -22,7 +22,7 @@ namespace Fluent {
 // Data model for navigation items
 // ---------------------------------------------------------------------------
 
-struct FluentNavigationItem
+struct FLUENT_EXPORT FluentNavigationItem
 {
     QString key;           // unique identifier
     QString text;          // display label

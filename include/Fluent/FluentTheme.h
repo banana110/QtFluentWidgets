@@ -13,7 +13,7 @@ class QVariantAnimation;
 
 namespace Fluent {
 
-struct ThemeColors {
+struct FLUENT_EXPORT ThemeColors {
     QColor accent;
     QColor text;
     QColor subText;
@@ -27,7 +27,7 @@ struct ThemeColors {
     QColor error;
 };
 
-struct FluentAccentRamp {
+struct FLUENT_EXPORT FluentAccentRamp {
     QColor base;
     QColor light1;
     QColor light2;
@@ -37,7 +37,7 @@ struct FluentAccentRamp {
     QColor dark3;
 };
 
-struct FluentNeutralRamp {
+struct FLUENT_EXPORT FluentNeutralRamp {
     QColor background;
     QColor layer;
     QColor layerAlt;
@@ -50,14 +50,14 @@ struct FluentNeutralRamp {
     QColor fillTertiary;
 };
 
-struct FluentSemanticRamp {
+struct FLUENT_EXPORT FluentSemanticRamp {
     QColor info;
     QColor success;
     QColor warning;
     QColor error;
 };
 
-struct FluentRadiusTokens {
+struct FLUENT_EXPORT FluentRadiusTokens {
     int control = 6;
     int overlay = 8;
     int card = 10;
@@ -65,7 +65,7 @@ struct FluentRadiusTokens {
     int pill = 999;
 };
 
-struct FluentSpacingTokens {
+struct FLUENT_EXPORT FluentSpacingTokens {
     int xxs = 2;
     int xs = 4;
     int s = 6;
@@ -75,7 +75,7 @@ struct FluentSpacingTokens {
     int xxl = 24;
 };
 
-struct FluentTypographyTokens {
+struct FLUENT_EXPORT FluentTypographyTokens {
     QString family = QStringLiteral("'Segoe UI', 'Microsoft YaHei', 'Microsoft YaHei UI', sans-serif");
     int caption = 12;
     int body = 14;
@@ -85,7 +85,7 @@ struct FluentTypographyTokens {
     int titleLarge = 28;
 };
 
-struct FluentElevationTokens {
+struct FLUENT_EXPORT FluentElevationTokens {
     QColor shadow;
     int lowBlur = 10;
     int mediumBlur = 18;
@@ -95,7 +95,7 @@ struct FluentElevationTokens {
     int highYOffset = 12;
 };
 
-struct FluentMotionTokens {
+struct FLUENT_EXPORT FluentMotionTokens {
     int hoverDuration = 120;
     int pressDuration = 90;
     int focusDuration = 180;
@@ -115,7 +115,7 @@ struct FluentMotionTokens {
     QEasingCurve::Type easeInOut = QEasingCurve::InOutCubic;
 };
 
-struct FluentThemeTokens {
+struct FLUENT_EXPORT FluentThemeTokens {
     ThemeColors legacyColors;
     FluentAccentRamp accent;
     FluentNeutralRamp neutral;

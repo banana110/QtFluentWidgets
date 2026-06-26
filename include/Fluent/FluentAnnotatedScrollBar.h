@@ -13,7 +13,7 @@ class QScrollBar;
 
 namespace Fluent {
 
-struct FluentAnnotatedScrollBarRange {
+struct FLUENT_EXPORT FluentAnnotatedScrollBarRange {
     int start = 0;
     int end = 0;
     QString text;
@@ -24,7 +24,7 @@ inline bool operator==(const FluentAnnotatedScrollBarRange &lhs, const FluentAnn
     return lhs.start == rhs.start && lhs.end == rhs.end && lhs.text == rhs.text;
 }
 
-struct FluentAnnotatedScrollBarSource {
+struct FLUENT_EXPORT FluentAnnotatedScrollBarSource {
     QString group;
     QString text;
     int start = 0;

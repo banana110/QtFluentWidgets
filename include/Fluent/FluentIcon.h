@@ -67,7 +67,7 @@ enum class FluentIconType {
     ZoomOut,
 };
 
-struct FluentIconOptions {
+struct FLUENT_EXPORT FluentIconOptions {
     QColor color;
     bool autoTheme = true;
     bool reversed = false;

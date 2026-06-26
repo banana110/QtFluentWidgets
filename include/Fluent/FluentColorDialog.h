@@ -19,12 +19,12 @@ enum class ColorPickerMode {
     RadialGradient
 };
 
-struct FluentGradientStop {
+struct FLUENT_EXPORT FluentGradientStop {
     qreal    position = 0.0;
     QColor   color;
 };
 
-struct FluentGradientResult {
+struct FLUENT_EXPORT FluentGradientResult {
     ColorPickerMode          mode = ColorPickerMode::Solid;
     QColor                   solidColor;
     QVector<FluentGradientStop> stops;     // populated in gradient modes

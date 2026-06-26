@@ -1,5 +1,7 @@
 #pragma once
 
+#include "Fluent/FluentExport.h"
+
 #include "Fluent/FluentAnimatedIcon.h"
 #include "Fluent/FluentExport.h"
 #include "Fluent/FluentQtCompat.h"

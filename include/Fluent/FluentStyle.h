@@ -11,7 +11,7 @@
 
 namespace Fluent {
 
-struct ControlMetrics {
+struct FLUENT_EXPORT ControlMetrics {
     int height = 32;
     // Fluent (Win11-like) default corner radius for input/button controls.
     int radius = 6;
@@ -20,7 +20,7 @@ struct ControlMetrics {
     int iconAreaWidth = 28;
 };
 
-struct WindowMetrics {
+struct FLUENT_EXPORT WindowMetrics {
     int titleBarHeight = 40;
     int titleBarPaddingX = 10;
     int titleBarPaddingY = 6;
