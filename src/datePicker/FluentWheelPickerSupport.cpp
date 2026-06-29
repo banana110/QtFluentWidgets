@@ -242,7 +242,7 @@ void FluentWheelPickerColumn::setOptions(const QVector<PickerOption> &options, c
     }
 
     const int row = rowForValue(selectedValue);
-    if (row >= 0) {
+    if (row >= 0 && model() && row < count()) {
         setCurrentRow(row);
         scrollToRowCentered(row, false);
     }
@@ -280,7 +280,7 @@ QString FluentWheelPickerColumn::currentText() const
 void FluentWheelPickerColumn::setCurrentValue(const QVariant &value)
 {
     const int row = rowForValue(value);
-    if (row < 0) {
+    if (row < 0 || !model() || row >= count()) {
         return;
     }
 
@@ -401,7 +401,11 @@ void FluentWheelPickerColumn::keyPressEvent(QKeyEvent *event)
 
     auto moveCurrent = [this](int actualIndex) {
         const int clamped = qBound(0, actualIndex, qMax(0, m_options.size() - 1));
-        setCurrentRow(rowForActualIndex(clamped));
+        const int row = rowForActualIndex(clamped);
+        if (!model() || row < 0 || row >= count()) {
+            return;
+        }
+        setCurrentRow(row);
         snapToCurrent(true);
     };
 
@@ -484,7 +488,7 @@ int FluentWheelPickerColumn::rowForValue(const QVariant &value) const
 
 int FluentWheelPickerColumn::nearestDataRow() const
 {
-    if (m_options.isEmpty()) {
+    if (m_options.isEmpty() || !model()) {
         return -1;
     }
 
@@ -496,6 +500,9 @@ int FluentWheelPickerColumn::nearestDataRow() const
     int nearestRow = firstDataRow();
     int nearestDistance = INT_MAX;
     for (int row = firstDataRow(); row <= lastDataRow(); ++row) {
+        if (row >= count()) {
+            break;
+        }
         const QModelIndex idx = model()->index(row, 0);
         const QRect rect = visualRect(idx);
         const int distance = qAbs(rect.center().y() - viewport()->rect().center().y());
@@ -526,6 +533,10 @@ void FluentWheelPickerColumn::syncCurrentFromScroll()
 {
     const int row = nearestDataRow();
     if (row < 0 || row == currentRow()) {
+        return;
+    }
+
+    if (!model() || row >= count()) {
         return;
     }
 
@@ -577,6 +588,10 @@ void FluentWheelPickerColumn::moveCurrentBySteps(int steps, bool animated)
         return;
     }
 
+    if (!model() || targetRow >= count()) {
+        return;
+    }
+
     setCurrentRow(targetRow);
     scrollToRowCentered(targetRow, animated);
     if (viewport()) {
@@ -586,7 +601,7 @@ void FluentWheelPickerColumn::moveCurrentBySteps(int steps, bool animated)
 
 void FluentWheelPickerColumn::scrollToRowCentered(int row, bool animated)
 {
-    if (row < firstDataRow() || row > lastDataRow() || !verticalScrollBar()) {
+    if (row < firstDataRow() || row > lastDataRow() || !verticalScrollBar() || !model()) {
         return;
     }
 
