@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Fluent/FluentExport.h"
+
 #include "Fluent/FluentFlyout.h"
 
 #include <QList>

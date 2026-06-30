@@ -263,7 +263,6 @@ target_compile_definitions(QtFluentDemo
 if(WIN32)
     add_custom_command(TARGET QtFluentDemo POST_BUILD
         COMMAND ${CMAKE_COMMAND} -E copy_if_different $<TARGET_FILE:rlottie> $<TARGET_FILE_DIR:QtFluentDemo>
-        COMMAND ${CMAKE_COMMAND} -E copy_if_different $<TARGET_FILE:QtFluentWidgets> $<TARGET_FILE_DIR:QtFluentDemo>
         VERBATIM
     )
 endif()
@@ -296,7 +295,6 @@ if(FLUENT_BUILD_TESTS)
     if(WIN32)
         add_custom_command(TARGET QtFluentWidgetsDesignerCompatTest POST_BUILD
             COMMAND ${CMAKE_COMMAND} -E copy_if_different $<TARGET_FILE:rlottie> $<TARGET_FILE_DIR:QtFluentWidgetsDesignerCompatTest>
-            COMMAND ${CMAKE_COMMAND} -E copy_if_different $<TARGET_FILE:QtFluentWidgets> $<TARGET_FILE_DIR:QtFluentWidgetsDesignerCompatTest>
             VERBATIM
         )
         if(CMAKE_VERSION VERSION_GREATER_EQUAL 3.22)
@@ -342,7 +340,6 @@ if(FLUENT_BUILD_TESTS)
     if(WIN32)
         add_custom_command(TARGET QtFluentWidgetsVisualSmokeTest POST_BUILD
             COMMAND ${CMAKE_COMMAND} -E copy_if_different $<TARGET_FILE:rlottie> $<TARGET_FILE_DIR:QtFluentWidgetsVisualSmokeTest>
-            COMMAND ${CMAKE_COMMAND} -E copy_if_different $<TARGET_FILE:QtFluentWidgets> $<TARGET_FILE_DIR:QtFluentWidgetsVisualSmokeTest>
             VERBATIM
         )
         if(CMAKE_VERSION VERSION_GREATER_EQUAL 3.22)
@@ -486,7 +483,6 @@ if(FLUENT_BUILD_DESIGNER_PLUGIN)
     if(WIN32)
         add_custom_command(TARGET QtFluentWidgetsPlugin POST_BUILD
             COMMAND ${CMAKE_COMMAND} -E copy_if_different $<TARGET_FILE:rlottie> $<TARGET_FILE_DIR:QtFluentWidgetsPlugin>
-            COMMAND ${CMAKE_COMMAND} -E copy_if_different $<TARGET_FILE:QtFluentWidgets> $<TARGET_FILE_DIR:QtFluentWidgetsPlugin>
             VERBATIM
         )
     endif()

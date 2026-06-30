@@ -1,6 +1,5 @@
 #pragma once
 
-#include "Fluent/FluentExport.h"
 #include "Fluent/FluentTheme.h"
 
 #include <QEasingCurve>

@@ -1,6 +1,5 @@
 #pragma once
 
-#include "Fluent/FluentExport.h"
 #include "Fluent/FluentBorderEffect.h"
 #include "Fluent/FluentFramePainter.h"
 #include "Fluent/FluentStyle.h"
@@ -179,3 +178,4 @@ inline void paintPanelWithShadowMargins(QPainter &painter, const QRect &rect,
 
 } // namespace PopupSurface
 } // namespace Fluent
+

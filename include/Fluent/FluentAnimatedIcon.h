@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Fluent/FluentExport.h"
+
 #include "Fluent/FluentLottieWidget.h"
 #include "Fluent/FluentQtCompat.h"
 

@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Fluent/FluentExport.h"
+
 #include "Fluent/FluentStyle.h"
 #include "Fluent/FluentTheme.h"
 
