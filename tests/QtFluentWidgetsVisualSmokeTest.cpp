@@ -2197,6 +2197,90 @@ private slots:
                  "TimePicker should render the accepted wheel value through QWidget::render");
     }
 
+    void timePickerWheelPopupWheelScrollingStaysStable()
+    {
+        struct MotionRestore {
+            bool animationsEnabled = ThemeManager::instance().animationsEnabled();
+            FluentMotionTokens motionTokens = ThemeManager::instance().motionTokens();
+
+            ~MotionRestore()
+            {
+                ThemeManager::instance().setMotionTokens(motionTokens);
+                ThemeManager::instance().setAnimationsEnabled(animationsEnabled);
+                QCoreApplication::processEvents();
+            }
+        } restore;
+
+        auto findWheelPopup = []() -> Detail::FluentWheelPickerPopup * {
+            QWidget *widget = findVisibleTopLevelByObjectName(QStringLiteral("FluentWheelPickerPopup"));
+            return dynamic_cast<Detail::FluentWheelPickerPopup *>(widget);
+        };
+
+        syncTheme(false, QColor(QStringLiteral("#0066B4")));
+        ThemeManager::instance().setAnimationsEnabled(true);
+        FluentMotion::setDuration(FluentMotionRole::WheelSnap, 40);
+        QCoreApplication::processEvents();
+
+        FluentTimePicker picker;
+        picker.setUse24HourClock(true);
+        picker.setMinuteIncrement(5);
+        picker.setTime(QTime(9, 30));
+        picker.resize(210, 36);
+        picker.show();
+        QTRY_VERIFY(picker.isVisible());
+
+        QTest::mouseClick(&picker, Qt::LeftButton, Qt::NoModifier, picker.rect().center());
+        QTRY_VERIFY2(findWheelPopup(), "TimePicker should open the wheel popup before wheel scrolling");
+        Detail::FluentWheelPickerPopup *popup = findWheelPopup();
+        QVERIFY(popup);
+        QCOMPARE(popup->columnCount(), 2);
+
+        Detail::FluentWheelPickerColumn *minuteColumn = popup->columnAt(1);
+        QVERIFY2(minuteColumn && minuteColumn->viewport(), "TimePicker popup should expose a minute wheel column");
+        QCOMPARE(minuteColumn->currentValue().toInt(), 30);
+
+        auto sendWheel = [&](int angleDeltaY) {
+            const QPoint local = minuteColumn->viewport()->rect().center();
+#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
+            QWheelEvent event(QPointF(local),
+                              QPointF(minuteColumn->viewport()->mapToGlobal(local)),
+                              QPoint(),
+                              QPoint(0, angleDeltaY),
+                              Qt::NoButton,
+                              Qt::NoModifier,
+                              Qt::NoScrollPhase,
+                              false);
+#else
+            QWheelEvent event(local,
+                              minuteColumn->viewport()->mapToGlobal(local),
+                              QPoint(),
+                              QPoint(0, angleDeltaY),
+                              Qt::NoButton,
+                              Qt::NoModifier,
+                              Qt::NoScrollPhase,
+                              false);
+#endif
+            QCoreApplication::sendEvent(minuteColumn->viewport(), &event);
+            QVERIFY2(event.isAccepted(), "TimePicker minute wheel column should accept wheel events");
+            QCoreApplication::processEvents();
+            QTest::qWait(10);
+            QVERIFY2(popup->isVisible(), "TimePicker wheel popup should stay visible after minute wheel events");
+            QVERIFY2(minuteColumn->currentValue().isValid(), "Minute wheel column should keep a valid current value");
+        };
+
+        sendWheel(-120);
+        sendWheel(-120);
+        sendWheel(120);
+
+        const int minuteValue = minuteColumn->currentValue().toInt();
+        QVERIFY2(minuteValue >= 0 && minuteValue <= 55 && minuteValue % 5 == 0,
+                 "Minute wheel column should keep a valid minute-increment value after wheel scrolling");
+        QVERIFY2(!renderWidgetImage(popup).isNull(),
+                 "TimePicker wheel popup should render after wheel scrolling");
+
+        popup->dismiss(false, false);
+    }
+
     void timePickerEmptyStateUsesPlaceholdersAndHiddenEditor()
     {
         syncTheme(false, QColor(QStringLiteral("#0066B4")));

@@ -125,7 +125,7 @@ FluentWheelPickerColumn::FluentWheelPickerColumn(QWidget *parent)
     : QListWidget(parent)
 {
     setFrameShape(QFrame::NoFrame);
-    setSelectionMode(QAbstractItemView::SingleSelection);
+    setSelectionMode(QAbstractItemView::NoSelection);
     setEditTriggers(QAbstractItemView::NoEditTriggers);
     setVerticalScrollMode(QAbstractItemView::ScrollPerPixel);
     setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
@@ -216,6 +216,7 @@ void FluentWheelPickerColumn::setOptions(const QVector<PickerOption> &options, c
     }
 
     clear();
+    m_currentRow = -1;
 
     auto addSpacer = [this]() {
         auto *item = new QListWidgetItem();
@@ -243,7 +244,7 @@ void FluentWheelPickerColumn::setOptions(const QVector<PickerOption> &options, c
 
     const int row = rowForValue(selectedValue);
     if (row >= 0) {
-        setCurrentRow(row);
+        setCurrentDataRow(row, false);
         scrollToRowCentered(row, false);
     }
 
@@ -251,6 +252,11 @@ void FluentWheelPickerColumn::setOptions(const QVector<PickerOption> &options, c
     if (viewport()) {
         viewport()->update();
     }
+}
+
+int FluentWheelPickerColumn::currentRow() const
+{
+    return m_currentRow;
 }
 
 QVariant FluentWheelPickerColumn::currentValue() const
@@ -284,7 +290,7 @@ void FluentWheelPickerColumn::setCurrentValue(const QVariant &value)
         return;
     }
 
-    setCurrentRow(row);
+    setCurrentDataRow(row, !m_settingOptions);
     scrollToRowCentered(row, false);
     if (viewport()) {
         viewport()->update();
@@ -376,20 +382,24 @@ void FluentWheelPickerColumn::mousePressEvent(QMouseEvent *event)
         m_scrollAnim->stop();
     }
     m_wheelAngleRemainder = 0;
-    QListWidget::mousePressEvent(event);
+    setFocus(Qt::MouseFocusReason);
+    if (event) {
+        event->accept();
+    }
 }
 
 void FluentWheelPickerColumn::mouseReleaseEvent(QMouseEvent *event)
 {
-    QListWidget::mouseReleaseEvent(event);
-
     const QModelIndex index = indexAt(event ? event->pos() : QPoint());
     if (index.isValid()) {
         const int row = qBound(firstDataRow(), index.row(), lastDataRow());
-        setCurrentRow(row);
+        setCurrentDataRow(row, true);
     }
 
     scheduleSnap();
+    if (event) {
+        event->accept();
+    }
 }
 
 void FluentWheelPickerColumn::keyPressEvent(QKeyEvent *event)
@@ -401,7 +411,7 @@ void FluentWheelPickerColumn::keyPressEvent(QKeyEvent *event)
 
     auto moveCurrent = [this](int actualIndex) {
         const int clamped = qBound(0, actualIndex, qMax(0, m_options.size() - 1));
-        setCurrentRow(rowForActualIndex(clamped));
+        setCurrentDataRow(rowForActualIndex(clamped), true);
         snapToCurrent(true);
     };
 
@@ -530,7 +540,7 @@ void FluentWheelPickerColumn::syncCurrentFromScroll()
     }
 
     m_syncingFromScroll = true;
-    setCurrentRow(row);
+    setCurrentDataRow(row, !m_settingOptions);
     m_syncingFromScroll = false;
 }
 
@@ -556,6 +566,23 @@ int FluentWheelPickerColumn::stepsFromWheelEvent(QWheelEvent *event)
     return 0;
 }
 
+void FluentWheelPickerColumn::setCurrentDataRow(int row, bool notify)
+{
+    const int normalizedRow = (row >= firstDataRow() && row <= lastDataRow()) ? row : -1;
+    if (m_currentRow == normalizedRow) {
+        return;
+    }
+
+    m_currentRow = normalizedRow;
+    if (viewport()) {
+        viewport()->update();
+    }
+
+    if (notify) {
+        Q_EMIT currentRowChanged(m_currentRow);
+    }
+}
+
 void FluentWheelPickerColumn::moveCurrentBySteps(int steps, bool animated)
 {
     if (m_options.isEmpty() || steps == 0) {
@@ -577,7 +604,7 @@ void FluentWheelPickerColumn::moveCurrentBySteps(int steps, bool animated)
         return;
     }
 
-    setCurrentRow(targetRow);
+    setCurrentDataRow(targetRow, true);
     scrollToRowCentered(targetRow, animated);
     if (viewport()) {
         viewport()->update();

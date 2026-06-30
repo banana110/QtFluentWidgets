@@ -36,6 +36,7 @@ public:
 
     void setOptions(const QVector<PickerOption> &options, const QVariant &selectedValue = QVariant());
 
+    int currentRow() const;
     QVariant currentValue() const;
     QString currentText() const;
 
@@ -69,6 +70,7 @@ private:
     void scheduleSnap();
     void syncCurrentFromScroll();
     int stepsFromWheelEvent(QWheelEvent *event);
+    void setCurrentDataRow(int row, bool notify);
     void moveCurrentBySteps(int steps, bool animated);
     void scrollToRowCentered(int row, bool animated);
 
@@ -80,6 +82,7 @@ private:
     bool m_syncingFromScroll = false;
     bool m_settingOptions = false;
     int m_wheelAngleRemainder = 0;
+    int m_currentRow = -1;
 };
 
 class FluentWheelPickerPopup final : public QWidget
