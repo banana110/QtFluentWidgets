@@ -1,7 +1,6 @@
 #pragma once
 
 #include "Fluent/FluentExport.h"
-
 #include "Fluent/FluentAccentBorderTrace.h"
 #include "Fluent/FluentFramePainter.h"
 #include "Fluent/FluentTheme.h"

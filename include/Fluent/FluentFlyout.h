@@ -1,7 +1,6 @@
 #pragma once
 
 #include "Fluent/FluentExport.h"
-
 #include "Fluent/FluentBorderEffect.h"
 
 #include <QMargins>

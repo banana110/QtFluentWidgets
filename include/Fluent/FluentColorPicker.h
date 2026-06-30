@@ -3,7 +3,6 @@
 #include "Fluent/FluentExport.h"
 
 #include <QWidget>
-#include <QColor>
 
 class QLineEdit;
 class QPushButton;
