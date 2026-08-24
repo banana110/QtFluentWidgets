@@ -532,11 +532,11 @@ FluentMainWindow::FluentMainWindow(QWidget *parent)
 
     // Create the border overlay as a direct child of the MainWindow so it
     // covers the ENTIRE content area (title bar + central widget).
-    m_borderOverlay = new WindowBorderOverlay(this);
-    m_borderOverlay->setObjectName("FluentMainWindowBorderOverlay");
-    if (auto *overlay = dynamic_cast<WindowBorderOverlay *>(m_borderOverlay)) {
-        overlay->setBorderEffect(&m_border);
-    }
+    //m_borderOverlay = new WindowBorderOverlay(this);
+    //m_borderOverlay->setObjectName("FluentMainWindowBorderOverlay");
+    //if (auto *overlay = dynamic_cast<WindowBorderOverlay *>(m_borderOverlay)) {
+    //    overlay->setBorderEffect(&m_border);
+    //}
 
     m_border.syncFromTheme();
     m_border.setRequestUpdate([this]() {
