@@ -1230,7 +1230,7 @@ void FluentComboBox::paintEvent(QPaintEvent *event)
     } else {
         displayText = currentText();
     }
-    const QString elided = fontMetrics().elidedText(displayText, Qt::ElideRight, textRect.width());
+    const QString elided = fontMetrics().elidedText(displayText, Qt::ElideLeft, textRect.width());
     painter.drawText(textRect, Qt::AlignVCenter | Qt::AlignLeft, elided);
 
     const QRect arrowRect(this->rect().right() - m.iconAreaWidth, this->rect().top(), m.iconAreaWidth, this->rect().height());
